@@ -424,342 +424,389 @@ export function AdminConsole() {
     }
   }
 
+  const activeItemsCount = tab === "tests" ? tests.items.length : tab === "users" ? users.items.length : tab === "blog" ? blogPosts.items.length : notifications.items.length;
+  const activeTotal = tab === "tests" ? tests.total : tab === "users" ? users.total : tab === "blog" ? blogPosts.total : notifications.total;
+  const emptyTitle =
+    tab === "tests"
+      ? "Пока нет тестов"
+      : tab === "users"
+        ? "Пока нет пользователей"
+        : tab === "blog"
+          ? "Пока нет статей"
+          : "Пока нет уведомлений";
+  const emptyDescription = q.trim().length >= 2 ? "По текущему поисковому запросу ничего не найдено." : "Создайте первую запись в этом разделе.";
+  const rowClass =
+    "group flex items-start justify-between gap-3 rounded-xl border border-border/80 bg-white px-3 py-1.5 transition-colors hover:border-[#cfd6e4] hover:bg-slate-50/60";
+  const rowMainClass = "min-w-0 space-y-0.5";
+  const rowActionsClass = "flex shrink-0 items-center gap-2 self-center";
+
   return (
     <div className="space-y-4">
       <Card className="rounded-2xl border-border bg-card">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={tab === "tests" ? "default" : "secondary"}
-              onClick={() => setTabAndSyncQuery("tests")}
-              type="button"
-            >
-              Тесты
-            </Button>
-            <Button
-              variant={tab === "users" ? "default" : "secondary"}
-              onClick={() => setTabAndSyncQuery("users")}
-              type="button"
-            >
-              Пользователи
-            </Button>
-            <Button
-              variant={tab === "blog" ? "default" : "secondary"}
-              onClick={() => setTabAndSyncQuery("blog")}
-              type="button"
-            >
-              Блог
-            </Button>
-            <Button
-              variant={tab === "notifications" ? "default" : "secondary"}
-              onClick={() => setTabAndSyncQuery("notifications")}
-              type="button"
-            >
-              Уведомления
-            </Button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Поиск..." className="max-w-sm" />
-            {tab === "tests" ? (
-              <Button
-                onClick={() => {
-                  setEditingTest(null);
-                  setTestsForm(defaultTestsForm);
-                  setTestsDrawerOpen(true);
-                }}
-                type="button"
-              >
-                Создать тест
-              </Button>
-            ) : null}
-            {tab === "users" ? (
-              <>
+        <CardContent className="p-0">
+          <div className="sticky top-16 z-10 rounded-t-2xl border-b border-border/80 bg-card/95 p-4 backdrop-blur">
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
                 <Button
-                  onClick={() => {
-                    setEditingUser(null);
-                    setUsersForm(defaultUsersForm);
-                    clearUserFormErrors();
-                    setUsersDrawerOpen(true);
-                  }}
+                  variant={tab === "tests" ? "default" : "secondary"}
+                  onClick={() => setTabAndSyncQuery("tests")}
                   type="button"
                 >
-                  Создать пользователя
+                  Тесты
                 </Button>
-                <select
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  value={usersRoleFilter}
-                  onChange={(event) => setUsersRoleFilter(event.target.value as AdminUserRole | "all")}
-                >
-                  <option value="all">Все роли</option>
-                  <option value="student">Студент</option>
-                  <option value="teacher">Преподаватель</option>
-                  <option value="manager">Менеджер</option>
-                  <option value="admin">Администратор</option>
-                </select>
-              </>
-            ) : null}
-            {tab === "blog" ? (
-              <>
                 <Button
-                  onClick={() => {
-                    setEditingBlogPost(null);
-                    setBlogPostForm(defaultBlogPostForm);
-                    setBlogPostsDrawerOpen(true);
-                  }}
+                  variant={tab === "users" ? "default" : "secondary"}
+                  onClick={() => setTabAndSyncQuery("users")}
                   type="button"
                 >
-                  Создать статью
+                  Пользователи
                 </Button>
-              </>
-            ) : null}
-            {tab === "notifications" ? (
-              <Button
-                onClick={() => {
-                  setEditingNotification(null);
-                  setNotificationForm(defaultNotificationForm);
-                  setNotificationsDrawerOpen(true);
-                }}
-                type="button"
-              >
-                Создать уведомление
-              </Button>
-            ) : null}
-          </div>
+                <Button
+                  variant={tab === "blog" ? "default" : "secondary"}
+                  onClick={() => setTabAndSyncQuery("blog")}
+                  type="button"
+                >
+                  Блог
+                </Button>
+                <Button
+                  variant={tab === "notifications" ? "default" : "secondary"}
+                  onClick={() => setTabAndSyncQuery("notifications")}
+                  type="button"
+                >
+                  Уведомления
+                </Button>
+              </div>
 
-          {actionError ? <p className="text-sm text-red-400">{actionError}</p> : null}
-          {activeListError ? <p className="text-sm text-red-400">{activeListError}</p> : null}
-
-          {tab === "tests" ? (
-            <div className="space-y-2">
-              {activeListLoading && tests.items.length === 0 ? (
-                Array.from({ length: PAGE_SIZE }).map((_, index) => (
-                  <div key={`tests-skeleton-${index}`} className="h-[74px] animate-pulse rounded-xl border border-border bg-muted/35" />
-                ))
-              ) : (
-                tests.items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-                  <div>
-                    <p className="font-medium">{item.title}</p>
-                    <p className="text-xs text-muted-foreground">{item.description ?? "—"}</p>
-                    <p className="text-xs text-muted-foreground">passing: {item.passing_score}% · limit: {item.time_limit_minutes ?? "—"} мин</p>
-                  </div>
-                  <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Поиск..." className="max-w-sm" />
+                {tab === "tests" ? (
+                  <Button
+                    onClick={() => {
+                      setEditingTest(null);
+                      setTestsForm(defaultTestsForm);
+                      setTestsDrawerOpen(true);
+                    }}
+                    type="button"
+                  >
+                    Создать тест
+                  </Button>
+                ) : null}
+                {tab === "users" ? (
+                  <>
                     <Button
-                      variant="secondary"
-                      size="sm"
                       onClick={() => {
-                        setEditingTest(item);
-                        setTestsForm({
-                          title: item.title,
-                          description: item.description ?? "",
-                          lesson_id: item.lesson_id ?? "",
-                          module_id: item.module_id ?? "",
-                          passing_score: String(item.passing_score),
-                          time_limit_minutes: item.time_limit_minutes == null ? "" : String(item.time_limit_minutes),
-                          is_published: item.is_published
-                        });
-                        setTestsDrawerOpen(true);
-                      }}
-                      type="button"
-                    >
-                      Изменить
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={() => void deleteTest(item.id)} type="button">
-                      Удалить
-                    </Button>
-                  </div>
-                </div>
-                ))
-              )}
-            </div>
-          ) : null}
-
-          {tab === "users" ? (
-            <div className="space-y-2">
-              {activeListLoading && users.items.length === 0 ? (
-                Array.from({ length: PAGE_SIZE }).map((_, index) => (
-                  <div key={`users-skeleton-${index}`} className="h-[82px] animate-pulse rounded-xl border border-border bg-muted/35" />
-                ))
-              ) : (
-                users.items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-                  <div>
-                    <p className="font-medium">{`${item.first_name ?? ""} ${item.last_name ?? ""}`.trim() || `User #${item.id.slice(0, 8)}`}</p>
-                    <p className="text-xs text-muted-foreground">{item.email ?? "—"}</p>
-                    <p className="text-xs text-muted-foreground">Роль: {getRoleLabel(item.role)}</p>
-                    {item.role === "student" ? (
-                      <p className="text-xs text-muted-foreground">level: {item.english_level ?? "—"} → {item.target_level ?? "—"}</p>
-                    ) : null}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => {
-                        setEditingUser(item);
-                        setUsersForm({
-                          role: item.role,
-                          first_name: item.first_name ?? "",
-                          last_name: item.last_name ?? "",
-                          email: item.email ?? "",
-                          password: "",
-                          phone: item.phone ? normalizeRuPhoneInput(item.phone) : "+7 ",
-                          birth_date: item.birth_date ?? "",
-                          english_level: item.english_level ?? "",
-                          target_level: item.target_level ?? "",
-                          learning_goal: item.learning_goal ?? "",
-                          notes: item.notes ?? ""
-                        });
+                        setEditingUser(null);
+                        setUsersForm(defaultUsersForm);
                         clearUserFormErrors();
                         setUsersDrawerOpen(true);
                       }}
                       type="button"
                     >
-                      Изменить
+                      Создать пользователя
                     </Button>
-                    <Button variant="secondary" size="sm" onClick={() => void deleteUser(item.id)} type="button">
-                      Удалить
-                    </Button>
-                  </div>
-                </div>
-                ))
-              )}
-            </div>
-          ) : null}
-
-          {tab === "blog" ? (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                {activeListLoading && blogPosts.items.length === 0 ? (
-                  Array.from({ length: PAGE_SIZE }).map((_, index) => (
-                    <div key={`blog-skeleton-${index}`} className="h-[82px] animate-pulse rounded-xl border border-border bg-muted/35" />
-                  ))
-                ) : (
-                  blogPosts.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-                    <div>
-                      <p className="font-medium">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">/{item.slug}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.status} · {item.category?.name ?? "Без категории"} · {item.reading_time_min ?? 5} мин · {item.views_count} просмотров
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setEditingBlogPost(item);
-                          setBlogPostForm({
-                            slug: item.slug,
-                            title: item.title,
-                            excerpt: item.excerpt ?? "",
-                            content: item.content,
-                            cover_image_url: item.cover_image_url ?? "",
-                            status: item.status,
-                            published_at: isoToDateOnly(item.published_at),
-                            author_name: item.author_name ?? "",
-                            category_id: item.category?.id ?? "",
-                            category_name: "",
-                            reading_time_min: item.reading_time_min == null ? "" : String(item.reading_time_min),
-                            views_count: String(item.views_count),
-                            seo_title: item.seo_title ?? "",
-                            seo_description: item.seo_description ?? "",
-                            tag_names: item.tags.map((tag) => tag.name).join(", ")
-                          });
-                          setBlogPostsDrawerOpen(true);
-                        }}
-                        type="button"
-                      >
-                        Изменить
-                      </Button>
-                      <Button variant="secondary" size="sm" onClick={() => void deleteBlogPost(item.id)} type="button">
-                        Удалить
-                      </Button>
-                    </div>
-                  </div>
-                  ))
-                )}
+                    <select
+                      className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      value={usersRoleFilter}
+                      onChange={(event) => setUsersRoleFilter(event.target.value as AdminUserRole | "all")}
+                    >
+                      <option value="all">Все роли</option>
+                      <option value="student">Студент</option>
+                      <option value="teacher">Преподаватель</option>
+                      <option value="manager">Менеджер</option>
+                      <option value="admin">Администратор</option>
+                    </select>
+                  </>
+                ) : null}
+                {tab === "blog" ? (
+                  <Button
+                    onClick={() => {
+                      setEditingBlogPost(null);
+                      setBlogPostForm(defaultBlogPostForm);
+                      setBlogPostsDrawerOpen(true);
+                    }}
+                    type="button"
+                  >
+                    Создать статью
+                  </Button>
+                ) : null}
+                {tab === "notifications" ? (
+                  <Button
+                    onClick={() => {
+                      setEditingNotification(null);
+                      setNotificationForm(defaultNotificationForm);
+                      setNotificationsDrawerOpen(true);
+                    }}
+                    type="button"
+                  >
+                    Создать уведомление
+                  </Button>
+                ) : null}
               </div>
             </div>
-          ) : null}
+          </div>
 
-          {tab === "notifications" ? (
-            <div className="space-y-2">
-              {activeListLoading && notifications.items.length === 0 ? (
-                Array.from({ length: PAGE_SIZE }).map((_, index) => (
-                  <div key={`notifications-skeleton-${index}`} className="h-[90px] animate-pulse rounded-xl border border-border bg-muted/35" />
-                ))
-              ) : (
-                notifications.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-4 rounded-xl border border-border px-3 py-2">
-                    <div className="min-w-0 space-y-1">
-                      <p className="truncate font-medium">{item.title}</p>
-                      <p className="line-clamp-2 text-xs text-muted-foreground">{item.body}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {getNotificationTypeLabel(item.type)} · {item.is_active ? "активно" : "выключено"} · роли: {item.target_roles.join(", ")}
-                      </p>
+          <div className="space-y-4 p-4">
+            {actionError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{actionError}</div>
+            ) : null}
+            {activeListError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{activeListError}</div>
+            ) : null}
+
+            <div className="min-h-[360px] space-y-2">
+              {tab === "tests" ? (
+                <>
+                  {activeListLoading && tests.items.length === 0 ? (
+                    Array.from({ length: PAGE_SIZE }).map((_, index) => (
+                      <div key={`tests-skeleton-${index}`} className="h-[76px] animate-pulse rounded-xl border border-border bg-muted/35" />
+                    ))
+                  ) : tests.items.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+                      <p className="text-sm font-semibold text-foreground">{emptyTitle}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{emptyDescription}</p>
                     </div>
-                    <div className="flex shrink-0 gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setEditingNotification(item);
-                          setNotificationForm({
-                            title: item.title,
-                            body: item.body,
-                            type: item.type,
-                            is_active: item.is_active,
-                            target_roles: item.target_roles,
-                            published_at: toDateTimeLocal(item.published_at),
-                            expires_at: toDateTimeLocal(item.expires_at)
-                          });
-                          setNotificationsDrawerOpen(true);
-                        }}
-                        type="button"
-                      >
-                        Изменить
-                      </Button>
-                      <Button variant="secondary" size="sm" onClick={() => void deleteNotification(item.id)} type="button">
-                        Удалить
-                      </Button>
+                  ) : (
+                    tests.items.map((item) => (
+                      <div key={item.id} className={rowClass}>
+                        <div className={rowMainClass}>
+                          <p className="font-semibold text-foreground">{item.title}</p>
+                          <p className="text-xs leading-tight text-muted-foreground">{item.description ?? "—"}</p>
+                          <p className="text-xs leading-tight text-muted-foreground">passing: {item.passing_score}% · limit: {item.time_limit_minutes ?? "—"} мин</p>
+                        </div>
+                        <div className={rowActionsClass}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setEditingTest(item);
+                              setTestsForm({
+                                title: item.title,
+                                description: item.description ?? "",
+                                lesson_id: item.lesson_id ?? "",
+                                module_id: item.module_id ?? "",
+                                passing_score: String(item.passing_score),
+                                time_limit_minutes: item.time_limit_minutes == null ? "" : String(item.time_limit_minutes),
+                                is_published: item.is_published
+                              });
+                              setTestsDrawerOpen(true);
+                            }}
+                            type="button"
+                          >
+                            Изменить
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => void deleteTest(item.id)} type="button">
+                            Удалить
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </>
+              ) : null}
+
+              {tab === "users" ? (
+                <>
+                  {activeListLoading && users.items.length === 0 ? (
+                    Array.from({ length: PAGE_SIZE }).map((_, index) => (
+                      <div key={`users-skeleton-${index}`} className="h-[76px] animate-pulse rounded-xl border border-border bg-muted/35" />
+                    ))
+                  ) : users.items.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+                      <p className="text-sm font-semibold text-foreground">{emptyTitle}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{emptyDescription}</p>
                     </div>
-                  </div>
-                ))
-              )}
+                  ) : (
+                    users.items.map((item) => (
+                      <div key={item.id} className={rowClass}>
+                        <div className={rowMainClass}>
+                          <p className="font-semibold text-foreground">{`${item.first_name ?? ""} ${item.last_name ?? ""}`.trim() || `User #${item.id.slice(0, 8)}`}</p>
+                          <p className="text-xs leading-tight text-muted-foreground">{item.email ?? "—"}</p>
+                          <p className="text-xs leading-tight text-muted-foreground">Роль: {getRoleLabel(item.role)}</p>
+                          {item.role === "student" ? (
+                            <p className="text-xs leading-tight text-muted-foreground">level: {item.english_level ?? "—"} → {item.target_level ?? "—"}</p>
+                          ) : null}
+                        </div>
+                        <div className={rowActionsClass}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setEditingUser(item);
+                              setUsersForm({
+                                role: item.role,
+                                first_name: item.first_name ?? "",
+                                last_name: item.last_name ?? "",
+                                email: item.email ?? "",
+                                password: "",
+                                phone: item.phone ? normalizeRuPhoneInput(item.phone) : "+7 ",
+                                birth_date: item.birth_date ?? "",
+                                english_level: item.english_level ?? "",
+                                target_level: item.target_level ?? "",
+                                learning_goal: item.learning_goal ?? "",
+                                notes: item.notes ?? ""
+                              });
+                              clearUserFormErrors();
+                              setUsersDrawerOpen(true);
+                            }}
+                            type="button"
+                          >
+                            Изменить
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => void deleteUser(item.id)} type="button">
+                            Удалить
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </>
+              ) : null}
+
+              {tab === "blog" ? (
+                <>
+                  {activeListLoading && blogPosts.items.length === 0 ? (
+                    Array.from({ length: PAGE_SIZE }).map((_, index) => (
+                      <div key={`blog-skeleton-${index}`} className="h-[76px] animate-pulse rounded-xl border border-border bg-muted/35" />
+                    ))
+                  ) : blogPosts.items.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+                      <p className="text-sm font-semibold text-foreground">{emptyTitle}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{emptyDescription}</p>
+                    </div>
+                  ) : (
+                    blogPosts.items.map((item) => (
+                      <div key={item.id} className={rowClass}>
+                        <div className={rowMainClass}>
+                          <p className="font-semibold text-foreground">{item.title}</p>
+                          <p className="text-xs leading-tight text-muted-foreground">/{item.slug}</p>
+                          <p className="text-xs leading-tight text-muted-foreground">
+                            {item.status} · {item.category?.name ?? "Без категории"} · {item.reading_time_min ?? 5} мин · {item.views_count} просмотров
+                          </p>
+                        </div>
+                        <div className={rowActionsClass}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setEditingBlogPost(item);
+                              setBlogPostForm({
+                                slug: item.slug,
+                                title: item.title,
+                                excerpt: item.excerpt ?? "",
+                                content: item.content,
+                                cover_image_url: item.cover_image_url ?? "",
+                                status: item.status,
+                                published_at: isoToDateOnly(item.published_at),
+                                author_name: item.author_name ?? "",
+                                category_id: item.category?.id ?? "",
+                                category_name: "",
+                                reading_time_min: item.reading_time_min == null ? "" : String(item.reading_time_min),
+                                views_count: String(item.views_count),
+                                seo_title: item.seo_title ?? "",
+                                seo_description: item.seo_description ?? "",
+                                tag_names: item.tags.map((tag) => tag.name).join(", ")
+                              });
+                              setBlogPostsDrawerOpen(true);
+                            }}
+                            type="button"
+                          >
+                            Изменить
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => void deleteBlogPost(item.id)} type="button">
+                            Удалить
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </>
+              ) : null}
+
+              {tab === "notifications" ? (
+                <>
+                  {activeListLoading && notifications.items.length === 0 ? (
+                    Array.from({ length: PAGE_SIZE }).map((_, index) => (
+                      <div key={`notifications-skeleton-${index}`} className="h-[76px] animate-pulse rounded-xl border border-border bg-muted/35" />
+                    ))
+                  ) : notifications.items.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+                      <p className="text-sm font-semibold text-foreground">{emptyTitle}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{emptyDescription}</p>
+                    </div>
+                  ) : (
+                    notifications.items.map((item) => (
+                      <div key={item.id} className={rowClass}>
+                        <div className={rowMainClass}>
+                          <p className="truncate font-semibold text-foreground">{item.title}</p>
+                          <p className="line-clamp-2 text-xs leading-tight text-muted-foreground">{item.body}</p>
+                          <p className="text-xs leading-tight text-muted-foreground">
+                            {getNotificationTypeLabel(item.type)} · {item.is_active ? "активно" : "выключено"} · роли: {item.target_roles.join(", ")}
+                          </p>
+                        </div>
+                        <div className={rowActionsClass}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setEditingNotification(item);
+                              setNotificationForm({
+                                title: item.title,
+                                body: item.body,
+                                type: item.type,
+                                is_active: item.is_active,
+                                target_roles: item.target_roles,
+                                published_at: toDateTimeLocal(item.published_at),
+                                expires_at: toDateTimeLocal(item.expires_at)
+                              });
+                              setNotificationsDrawerOpen(true);
+                            }}
+                            type="button"
+                          >
+                            Изменить
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => void deleteNotification(item.id)} type="button">
+                            Удалить
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </>
+              ) : null}
             </div>
-          ) : null}
+          </div>
 
-          <AdminPaginationControls
-            page={activePage}
-            pageCount={activePageCount}
-            onFirst={() => {
-              if (tab === "tests") setTestsPage(1);
-              if (tab === "users") setUsersPage(1);
-              if (tab === "blog") setBlogPage(1);
-              if (tab === "notifications") setNotificationsPage(1);
-            }}
-            onPrev={() => {
-              if (tab === "tests") setTestsPage((prev) => Math.max(1, prev - 1));
-              if (tab === "users") setUsersPage((prev) => Math.max(1, prev - 1));
-              if (tab === "blog") setBlogPage((prev) => Math.max(1, prev - 1));
-              if (tab === "notifications") setNotificationsPage((prev) => Math.max(1, prev - 1));
-            }}
-            onNext={() => {
-              if (tab === "tests") setTestsPage((prev) => Math.min(testsPageCount, prev + 1));
-              if (tab === "users") setUsersPage((prev) => Math.min(usersPageCount, prev + 1));
-              if (tab === "blog") setBlogPage((prev) => Math.min(blogPageCount, prev + 1));
-              if (tab === "notifications") setNotificationsPage((prev) => Math.min(notificationsPageCount, prev + 1));
-            }}
-            onLast={() => {
-              if (tab === "tests") setTestsPage(testsPageCount);
-              if (tab === "users") setUsersPage(usersPageCount);
-              if (tab === "blog") setBlogPage(blogPageCount);
-              if (tab === "notifications") setNotificationsPage(notificationsPageCount);
-            }}
-          />
+          <div className="border-t border-border/80 px-4 py-3">
+            <p className="mb-2 text-xs text-muted-foreground">Показано {activeItemsCount} из {activeTotal}</p>
+            <AdminPaginationControls
+              page={activePage}
+              pageCount={activePageCount}
+              onFirst={() => {
+                if (tab === "tests") setTestsPage(1);
+                if (tab === "users") setUsersPage(1);
+                if (tab === "blog") setBlogPage(1);
+                if (tab === "notifications") setNotificationsPage(1);
+              }}
+              onPrev={() => {
+                if (tab === "tests") setTestsPage((prev) => Math.max(1, prev - 1));
+                if (tab === "users") setUsersPage((prev) => Math.max(1, prev - 1));
+                if (tab === "blog") setBlogPage((prev) => Math.max(1, prev - 1));
+                if (tab === "notifications") setNotificationsPage((prev) => Math.max(1, prev - 1));
+              }}
+              onNext={() => {
+                if (tab === "tests") setTestsPage((prev) => Math.min(testsPageCount, prev + 1));
+                if (tab === "users") setUsersPage((prev) => Math.min(usersPageCount, prev + 1));
+                if (tab === "blog") setBlogPage((prev) => Math.min(blogPageCount, prev + 1));
+                if (tab === "notifications") setNotificationsPage((prev) => Math.min(notificationsPageCount, prev + 1));
+              }}
+              onLast={() => {
+                if (tab === "tests") setTestsPage(testsPageCount);
+                if (tab === "users") setUsersPage(usersPageCount);
+                if (tab === "blog") setBlogPage(blogPageCount);
+                if (tab === "notifications") setNotificationsPage(notificationsPageCount);
+              }}
+            />
+          </div>
         </CardContent>
       </Card>
 

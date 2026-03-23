@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -79,6 +79,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
   const [hasProfileData, setHasProfileData] = useState(true);
   const [currentUserId] = useState<string | null>(initialProfile.userId);
   const [sidebarState, setSidebarState] = useState({ collapsed: false, ready: false });
+  const [sidebarTransitionsEnabled, setSidebarTransitionsEnabled] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -91,10 +92,14 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
   const sidebarCollapsed = sidebarState.collapsed;
   const sidebarReady = sidebarState.ready;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof window === "undefined") return;
     const saved = window.localStorage.getItem(STORAGE_KEY);
     setSidebarState({ collapsed: saved === "1", ready: true });
+    const frameId = window.requestAnimationFrame(() => {
+      setSidebarTransitionsEnabled(true);
+    });
+    return () => window.cancelAnimationFrame(frameId);
   }, []);
 
   useEffect(() => {
@@ -316,15 +321,14 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
   const shellExpandEasingClass = "ease-[cubic-bezier(0.22,1,0.36,1)]";
   const shellCollapseEasingClass = "ease-[cubic-bezier(0.4,0,1,1)]";
   const shellEasingClass = sidebarCollapsed ? shellCollapseEasingClass : shellExpandEasingClass;
-  const sidebarTransitionClass = sidebarReady ? `transition-[width,transform] duration-300 ${shellEasingClass}` : "transition-none";
-  const shellOffsetTransitionClass = sidebarReady ? `transition-[left,margin-left] duration-300 ${shellEasingClass}` : "transition-none";
+  const enableShellTransitions = sidebarReady && sidebarTransitionsEnabled;
+  const sidebarTransitionClass = enableShellTransitions ? `transition-[width,transform] duration-300 ${shellEasingClass}` : "transition-none";
+  const shellOffsetTransitionClass = enableShellTransitions ? `transition-[left,margin-left] duration-300 ${shellEasingClass}` : "transition-none";
   const labelMotionClass = sidebarCollapsed
     ? "transition-[opacity,transform] duration-220 ease-[cubic-bezier(0.4,0,1,1)]"
     : "transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]";
-  const unreadLabel = unreadCount > 99 ? "99+" : String(unreadCount);
   const unreadBadgeClass = cn(
-    "absolute right-[1px] top-[1px] inline-flex items-center justify-center rounded-full border-2 border-white bg-red-500 text-[10px] font-semibold text-white shadow-sm",
-    unreadCount > 9 ? "h-5 min-w-5 px-1 leading-[1.1]" : "h-[18px] min-w-[18px] px-0 leading-none"
+    "absolute right-[9px] top-[9px] h-2 w-2 rounded-full border border-white bg-red-500 shadow-sm"
   );
 
   const notificationTypeMeta: Record<
@@ -577,9 +581,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
           >
             <Bell className="h-5 w-5" />
             {unreadCount > 0 ? (
-              <span className={unreadBadgeClass}>
-                {unreadLabel}
-              </span>
+              <span className={unreadBadgeClass} />
             ) : null}
           </button>
 
