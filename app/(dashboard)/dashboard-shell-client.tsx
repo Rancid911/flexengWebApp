@@ -313,7 +313,14 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
     if (!isAdmin) return baseNavItems;
     return [...baseNavItems, { id: "admin", label: "Управление", href: "/admin", icon: ShieldCheck }];
   }, [isAdmin]);
-  const shellTransitionClass = sidebarReady ? "transition-all duration-300" : "transition-none";
+  const shellExpandEasingClass = "ease-[cubic-bezier(0.22,1,0.36,1)]";
+  const shellCollapseEasingClass = "ease-[cubic-bezier(0.4,0,1,1)]";
+  const shellEasingClass = sidebarCollapsed ? shellCollapseEasingClass : shellExpandEasingClass;
+  const sidebarTransitionClass = sidebarReady ? `transition-[width,transform] duration-300 ${shellEasingClass}` : "transition-none";
+  const shellOffsetTransitionClass = sidebarReady ? `transition-[left,margin-left] duration-300 ${shellEasingClass}` : "transition-none";
+  const labelMotionClass = sidebarCollapsed
+    ? "transition-[opacity,transform] duration-220 ease-[cubic-bezier(0.4,0,1,1)]"
+    : "transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]";
   const unreadLabel = unreadCount > 99 ? "99+" : String(unreadCount);
   const unreadBadgeClass = cn(
     "absolute right-[1px] top-[1px] inline-flex items-center justify-center rounded-full border-2 border-white bg-red-500 text-[10px] font-semibold text-white shadow-sm",
@@ -412,29 +419,30 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-[#dfe3e6] bg-slate-50 px-3 pb-4 pt-3",
-          shellTransitionClass,
+          "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-[#dfe3e6] bg-slate-50 px-3 pb-4 pt-0 sm:pt-0 transform-gpu will-change-transform",
+          sidebarTransitionClass,
           "w-[15.25rem] sm:w-[5.75rem]",
           sidebarCollapsed ? "xl:w-20" : "xl:w-[15.25rem]",
           mobileSidebarOpen ? "translate-x-0" : "-translate-x-[110%] sm:translate-x-0"
         )}
       >
         <nav className="flex flex-1 flex-col gap-1">
-          <Link className="mb-2 flex items-center gap-3 rounded-xl px-2 py-2.5" href="/dashboard">
+          <Link className="mb-0 flex h-16 min-h-16 items-center gap-3 rounded-xl px-2 py-0" href="/dashboard">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#4e44d4_0%,#9895ff_100%)] text-white shadow-lg">
               <BookOpen className="h-5 w-5 stroke-[2.2]" />
             </div>
             <div
               className={cn(
-                "overflow-hidden whitespace-nowrap transition-all duration-200",
+                "overflow-hidden whitespace-nowrap transition-[opacity,transform] duration-200",
                 "hidden xl:block",
-                sidebarCollapsed ? "xl:max-w-0 xl:opacity-0 xl:-translate-x-1" : "xl:max-w-[180px] xl:opacity-100 xl:translate-x-0"
+                sidebarCollapsed ? "xl:opacity-0 xl:-translate-x-1" : "xl:opacity-100 xl:translate-x-0"
               )}
             >
               <h1 className="text-xl font-bold leading-none text-indigo-700">Флексенг</h1>
               <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">Учебный портал</p>
             </div>
           </Link>
+          <div className="mb-1 h-1" />
 
           {navItems.map((item) => {
             const active = isActivePath(pathname, item.href);
@@ -453,9 +461,10 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
                 <item.icon className="h-5 w-5 shrink-0" />
                 <span
                   className={cn(
-                    "overflow-hidden whitespace-nowrap transition-all duration-200",
+                    "overflow-hidden whitespace-nowrap",
+                    labelMotionClass,
                     "hidden xl:inline-block",
-                    sidebarCollapsed ? "xl:max-w-0 xl:opacity-0 xl:-translate-x-1" : "xl:max-w-[160px] xl:opacity-100 xl:translate-x-0"
+                    sidebarCollapsed ? "xl:opacity-0 xl:-translate-x-1 xl:delay-0" : "xl:opacity-100 xl:translate-x-0 xl:delay-75"
                   )}
                 >
                   {item.label}
@@ -480,9 +489,10 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
             />
             <span
               className={cn(
-                "overflow-hidden whitespace-nowrap transition-all duration-200",
+                "overflow-hidden whitespace-nowrap",
+                labelMotionClass,
                 "hidden xl:inline-block",
-                sidebarCollapsed ? "xl:max-w-0 xl:opacity-0 xl:-translate-x-1" : "xl:max-w-[160px] xl:opacity-100 xl:translate-x-0"
+                sidebarCollapsed ? "xl:opacity-0 xl:-translate-x-1 xl:delay-0" : "xl:opacity-100 xl:translate-x-0 xl:delay-75"
               )}
             >
               {sidebarCollapsed ? "Развернуть" : "Свернуть"}
@@ -500,9 +510,10 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
             <Settings className="h-5 w-5 shrink-0" />
             <span
               className={cn(
-                "overflow-hidden whitespace-nowrap transition-all duration-200",
+                "overflow-hidden whitespace-nowrap",
+                labelMotionClass,
                 "hidden xl:inline-block",
-                sidebarCollapsed ? "xl:max-w-0 xl:opacity-0 xl:-translate-x-1" : "xl:max-w-[160px] xl:opacity-100 xl:translate-x-0"
+                sidebarCollapsed ? "xl:opacity-0 xl:-translate-x-1 xl:delay-0" : "xl:opacity-100 xl:translate-x-0 xl:delay-75"
               )}
             >
               Настройки
@@ -518,9 +529,10 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
             <LogOut className="h-5 w-5 shrink-0" />
             <span
               className={cn(
-                "overflow-hidden whitespace-nowrap transition-all duration-200",
+                "overflow-hidden whitespace-nowrap",
+                labelMotionClass,
                 "hidden xl:inline-block",
-                sidebarCollapsed ? "xl:max-w-0 xl:opacity-0 xl:-translate-x-1" : "xl:max-w-[160px] xl:opacity-100 xl:translate-x-0"
+                sidebarCollapsed ? "xl:opacity-0 xl:-translate-x-1 xl:delay-0" : "xl:opacity-100 xl:translate-x-0 xl:delay-75"
               )}
             >
               {isLoggingOut ? "Выход..." : "Выход"}
@@ -532,7 +544,8 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
       <header
         className={cn(
           "fixed right-0 top-0 z-30 flex h-16 items-center justify-between bg-white/80 px-4 shadow-[0_20px_40px_rgba(78,68,212,0.06)] backdrop-blur-md md:px-6",
-          shellTransitionClass,
+          "will-change-[left]",
+          shellOffsetTransitionClass,
           "left-0 sm:left-[5.75rem]",
           sidebarCollapsed ? "xl:left-20" : "xl:left-[15.25rem]"
         )}
@@ -594,7 +607,8 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
       <section
         className={cn(
           "min-h-screen px-4 pb-8 pt-20 md:px-6",
-          shellTransitionClass,
+          "will-change-[margin-left]",
+          shellOffsetTransitionClass,
           "ml-0 sm:ml-[5.75rem]",
           sidebarCollapsed ? "xl:ml-20" : "xl:ml-[15.25rem]"
         )}
