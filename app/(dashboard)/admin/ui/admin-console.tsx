@@ -6,16 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { AdminBlogFormDrawer } from "@/app/(dashboard)/admin/ui/admin-blog-form-drawer";
+import { AdminNotificationFormDrawer } from "@/app/(dashboard)/admin/ui/admin-notification-form-drawer";
 import { AdminPaginationControls } from "@/app/(dashboard)/admin/ui/admin-pagination-controls";
 import { AdminTestFormDrawer } from "@/app/(dashboard)/admin/ui/admin-test-form-drawer";
 import { AdminUserFormDrawer } from "@/app/(dashboard)/admin/ui/admin-user-form-drawer";
 import {
   defaultBlogPostForm,
+  defaultNotificationForm,
   defaultTestsForm,
   defaultUsersForm,
+  getNotificationTypeLabel,
   getRoleLabel,
   PAGE_SIZE,
   type BlogPostForm,
+  type NotificationForm,
   type TestsForm,
   type UsersForm,
   UUID_RE
@@ -23,6 +27,7 @@ import {
 import { ApiRequestError, fetchJson, slugify } from "@/app/(dashboard)/admin/ui/admin-console.utils";
 import { useAdminTabData } from "@/app/(dashboard)/admin/ui/use-admin-tab-data";
 import type {
+  AdminNotificationDto,
   AdminTestDto,
   AdminUserDto,
   AdminUserRole,
@@ -54,6 +59,7 @@ export function AdminConsole() {
     users,
     setUsers,
     blogPosts,
+    notifications,
     blogCategories,
     testsPage,
     setTestsPage,
@@ -63,12 +69,16 @@ export function AdminConsole() {
     setUsersRoleFilter,
     blogPage,
     setBlogPage,
+    notificationsPage,
+    setNotificationsPage,
     testsQuery,
     usersQuery,
     blogQuery,
+    notificationsQuery,
     testsPageCount,
     usersPageCount,
     blogPageCount,
+    notificationsPageCount,
     activePage,
     activePageCount,
     activeListError,
@@ -77,6 +87,7 @@ export function AdminConsole() {
     loadTestsPageData,
     loadUsersPageData,
     loadBlogPageData,
+    loadNotificationsPageData,
     loadBlogMeta,
     prefetchNeighbors
   } = useAdminTabData();
@@ -88,14 +99,18 @@ export function AdminConsole() {
   const [testsDrawerOpen, setTestsDrawerOpen] = useState(false);
   const [usersDrawerOpen, setUsersDrawerOpen] = useState(false);
   const [blogPostsDrawerOpen, setBlogPostsDrawerOpen] = useState(false);
+  const [notificationsDrawerOpen, setNotificationsDrawerOpen] = useState(false);
 
   const [editingTest, setEditingTest] = useState<AdminTestDto | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUserDto | null>(null);
   const [editingBlogPost, setEditingBlogPost] = useState<BlogPostDetailDto | null>(null);
+  const [editingNotification, setEditingNotification] = useState<AdminNotificationDto | null>(null);
 
   const [testsForm, setTestsForm] = useState<TestsForm>(defaultTestsForm);
   const [usersForm, setUsersForm] = useState<UsersForm>(defaultUsersForm);
   const [blogPostForm, setBlogPostForm] = useState<BlogPostForm>(defaultBlogPostForm);
+  const [notificationForm, setNotificationForm] = useState<NotificationForm>(defaultNotificationForm);
+  const [submittingNotification, setSubmittingNotification] = useState(false);
   const activeRole = editingUser?.role ?? usersForm.role;
   const isStudentRole = activeRole === "student";
 
@@ -335,6 +350,80 @@ export function AdminConsole() {
     }
   }
 
+  function toDateTimeLocal(value: string | null | undefined): string {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
+
+  function toIsoDateTimeOrNull(value: string): string | null {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toISOString();
+  }
+
+  async function submitNotification(event: React.FormEvent) {
+    event.preventDefault();
+    if (submittingNotification) return;
+    setSubmittingNotification(true);
+    try {
+      setActionError("");
+      const payload = {
+        title: notificationForm.title.trim(),
+        body: notificationForm.body.trim(),
+        type: notificationForm.type,
+        is_active: notificationForm.is_active,
+        target_roles: notificationForm.target_roles.includes("all") ? ["all"] : notificationForm.target_roles,
+        published_at: toIsoDateTimeOrNull(notificationForm.published_at) ?? new Date().toISOString(),
+        expires_at: toIsoDateTimeOrNull(notificationForm.expires_at)
+      };
+
+      if (editingNotification) {
+        await fetchJson(`/api/admin/notifications/${editingNotification.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload)
+        });
+      } else {
+        await fetchJson("/api/admin/notifications", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+      }
+
+      setNotificationsDrawerOpen(false);
+      setEditingNotification(null);
+      setNotificationForm(defaultNotificationForm);
+      invalidateCacheForQuery("notifications", notificationsQuery);
+      await loadNotificationsPageData(notificationsPage, notificationsQuery, { revalidate: true });
+      prefetchNeighbors("notifications", notificationsPage, notificationsPageCount, notificationsQuery);
+    } catch (requestError) {
+      setActionError(requestError instanceof Error ? requestError.message : "Не удалось сохранить уведомление");
+    } finally {
+      setSubmittingNotification(false);
+    }
+  }
+
+  async function deleteNotification(id: string) {
+    if (!window.confirm("Удалить уведомление?")) return;
+
+    try {
+      setActionError("");
+      await fetchJson(`/api/admin/notifications/${id}`, { method: "DELETE" });
+      invalidateCacheForQuery("notifications", notificationsQuery);
+      await loadNotificationsPageData(notificationsPage, notificationsQuery, { revalidate: true });
+      prefetchNeighbors("notifications", notificationsPage, notificationsPageCount, notificationsQuery);
+    } catch (requestError) {
+      setActionError(requestError instanceof Error ? requestError.message : "Не удалось удалить уведомление");
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card className="rounded-2xl border-border bg-card">
@@ -360,6 +449,13 @@ export function AdminConsole() {
               type="button"
             >
               Блог
+            </Button>
+            <Button
+              variant={tab === "notifications" ? "default" : "secondary"}
+              onClick={() => setTabAndSyncQuery("notifications")}
+              type="button"
+            >
+              Уведомления
             </Button>
           </div>
 
@@ -416,6 +512,18 @@ export function AdminConsole() {
                   Создать статью
                 </Button>
               </>
+            ) : null}
+            {tab === "notifications" ? (
+              <Button
+                onClick={() => {
+                  setEditingNotification(null);
+                  setNotificationForm(defaultNotificationForm);
+                  setNotificationsDrawerOpen(true);
+                }}
+                type="button"
+              >
+                Создать уведомление
+              </Button>
             ) : null}
           </div>
 
@@ -577,6 +685,53 @@ export function AdminConsole() {
             </div>
           ) : null}
 
+          {tab === "notifications" ? (
+            <div className="space-y-2">
+              {activeListLoading && notifications.items.length === 0 ? (
+                Array.from({ length: PAGE_SIZE }).map((_, index) => (
+                  <div key={`notifications-skeleton-${index}`} className="h-[90px] animate-pulse rounded-xl border border-border bg-muted/35" />
+                ))
+              ) : (
+                notifications.items.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-4 rounded-xl border border-border px-3 py-2">
+                    <div className="min-w-0 space-y-1">
+                      <p className="truncate font-medium">{item.title}</p>
+                      <p className="line-clamp-2 text-xs text-muted-foreground">{item.body}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {getNotificationTypeLabel(item.type)} · {item.is_active ? "активно" : "выключено"} · роли: {item.target_roles.join(", ")}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setEditingNotification(item);
+                          setNotificationForm({
+                            title: item.title,
+                            body: item.body,
+                            type: item.type,
+                            is_active: item.is_active,
+                            target_roles: item.target_roles,
+                            published_at: toDateTimeLocal(item.published_at),
+                            expires_at: toDateTimeLocal(item.expires_at)
+                          });
+                          setNotificationsDrawerOpen(true);
+                        }}
+                        type="button"
+                      >
+                        Изменить
+                      </Button>
+                      <Button variant="secondary" size="sm" onClick={() => void deleteNotification(item.id)} type="button">
+                        Удалить
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
+
           <AdminPaginationControls
             page={activePage}
             pageCount={activePageCount}
@@ -584,21 +739,25 @@ export function AdminConsole() {
               if (tab === "tests") setTestsPage(1);
               if (tab === "users") setUsersPage(1);
               if (tab === "blog") setBlogPage(1);
+              if (tab === "notifications") setNotificationsPage(1);
             }}
             onPrev={() => {
               if (tab === "tests") setTestsPage((prev) => Math.max(1, prev - 1));
               if (tab === "users") setUsersPage((prev) => Math.max(1, prev - 1));
               if (tab === "blog") setBlogPage((prev) => Math.max(1, prev - 1));
+              if (tab === "notifications") setNotificationsPage((prev) => Math.max(1, prev - 1));
             }}
             onNext={() => {
               if (tab === "tests") setTestsPage((prev) => Math.min(testsPageCount, prev + 1));
               if (tab === "users") setUsersPage((prev) => Math.min(usersPageCount, prev + 1));
               if (tab === "blog") setBlogPage((prev) => Math.min(blogPageCount, prev + 1));
+              if (tab === "notifications") setNotificationsPage((prev) => Math.min(notificationsPageCount, prev + 1));
             }}
             onLast={() => {
               if (tab === "tests") setTestsPage(testsPageCount);
               if (tab === "users") setUsersPage(usersPageCount);
               if (tab === "blog") setBlogPage(blogPageCount);
+              if (tab === "notifications") setNotificationsPage(notificationsPageCount);
             }}
           />
         </CardContent>
@@ -640,6 +799,17 @@ export function AdminConsole() {
         categories={blogCategories}
         onSubmit={submitBlogPost}
         submitLabel={editingBlogPost ? "Сохранить" : "Создать"}
+      />
+
+      <AdminNotificationFormDrawer
+        open={notificationsDrawerOpen}
+        onClose={() => setNotificationsDrawerOpen(false)}
+        title={editingNotification ? "Изменить уведомление" : "Создать уведомление"}
+        form={notificationForm}
+        setForm={setNotificationForm}
+        onSubmit={submitNotification}
+        submitLabel={editingNotification ? "Сохранить" : "Создать"}
+        submitting={submittingNotification}
       />
     </div>
   );

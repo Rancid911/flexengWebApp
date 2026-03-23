@@ -85,6 +85,25 @@ type MetricCardConfig = {
   };
 };
 
+function MetricCardSkeleton({ index }: { index: number }) {
+  return (
+    <div
+      key={`admin-metric-skeleton-${index}`}
+      className="relative overflow-hidden rounded-2xl border border-[#DCE2EE] bg-[linear-gradient(160deg,#F8FAFD_0%,#F1F5FB_100%)] shadow-[0_8px_20px_rgba(15,23,42,0.05)]"
+    >
+      <span className="absolute left-0 right-0 top-0 h-1.5 bg-[#E7ECF5]" />
+      <div className="space-y-3 p-5 pt-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="h-4 w-32 animate-pulse rounded bg-[#DEE5F0]" />
+          <div className="h-9 w-9 animate-pulse rounded-xl bg-[#E3E9F3]" />
+        </div>
+        <div className="h-10 w-40 animate-pulse rounded-md bg-[#D8E0EC]" />
+        <div className="h-3 w-24 animate-pulse rounded bg-[#E1E7F1]" />
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboardView() {
   const runtimeSnapshot = normalizeSnapshot(readRuntimeCache<AdminDashboardSnapshot>(ADMIN_DASHBOARD_RUNTIME_KEY, ADMIN_DASHBOARD_TTL_MS));
   const [metrics, setMetrics] = useState<AdminDashboardMetricsDto>(runtimeSnapshot?.metrics ?? defaultMetrics);
@@ -268,9 +287,7 @@ export default function AdminDashboardView() {
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {loading && !hasData
-          ? Array.from({ length: 6 }).map((_, index) => (
-              <div key={`admin-metric-skeleton-${index}`} className="h-36 animate-pulse rounded-2xl border border-[#d9deea] bg-[linear-gradient(160deg,#F7F9FC_0%,#EEF2F8_100%)]" />
-            ))
+          ? Array.from({ length: 6 }).map((_, index) => <MetricCardSkeleton key={`admin-metric-skeleton-${index}`} index={index} />)
           : (
               <>
                 {cards.map((card) => (

@@ -1,8 +1,9 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import NextImage from "next/image";
 import { useRouter } from "next/navigation";
+import Cropper, { type Area } from "react-easy-crop";
+import "react-easy-crop/react-easy-crop.css";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,10 @@ import { cn } from "@/lib/utils";
 
 const AVATAR_CROP_SIZE = 220;
 const AVATAR_EXPORT_SIZE = 512;
+const AVATAR_ZOOM_MIN = 0.5;
+const AVATAR_ZOOM_MAX = 4;
+const AVATAR_ZOOM_DEFAULT = 1.15;
+const AVATAR_ZOOM_STEP = 0.05;
 
 type ProfileCacheUpdatedDetail = {
   displayName: string;
@@ -77,17 +82,6 @@ function loadImageFromDataUrl(src: string) {
     img.onerror = () => reject(new Error("Не удалось прочитать изображение"));
     img.src = src;
   });
-}
-
-function clampCropOffset(offsetX: number, offsetY: number, scale: number, width: number, height: number) {
-  const renderedWidth = width * scale;
-  const renderedHeight = height * scale;
-  const maxX = Math.abs(renderedWidth - AVATAR_CROP_SIZE) / 2;
-  const maxY = Math.abs(renderedHeight - AVATAR_CROP_SIZE) / 2;
-  return {
-    x: Math.min(maxX, Math.max(-maxX, offsetX)),
-    y: Math.min(maxY, Math.max(-maxY, offsetY))
-  };
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -158,18 +152,9 @@ export default function SettingsPage() {
   const [avatarMessage, setAvatarMessage] = useState("");
   const [avatarError, setAvatarError] = useState("");
   const [cropSource, setCropSource] = useState<string | null>(null);
-  const [cropImageWidth, setCropImageWidth] = useState(0);
-  const [cropImageHeight, setCropImageHeight] = useState(0);
-  const [cropBaseScale, setCropBaseScale] = useState(1);
-  const [cropScale, setCropScale] = useState(1);
-  const [cropMinScale, setCropMinScale] = useState(1);
-  const [cropOffsetX, setCropOffsetX] = useState(0);
-  const [cropOffsetY, setCropOffsetY] = useState(0);
-  const [cropDragging, setCropDragging] = useState(false);
-  const [cropDragStartX, setCropDragStartX] = useState(0);
-  const [cropDragStartY, setCropDragStartY] = useState(0);
-  const [cropInitialOffsetX, setCropInitialOffsetX] = useState(0);
-  const [cropInitialOffsetY, setCropInitialOffsetY] = useState(0);
+  const [cropZoom, setCropZoom] = useState(AVATAR_ZOOM_DEFAULT);
+  const [cropPosition, setCropPosition] = useState({ x: 0, y: 0 });
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [applyingCrop, setApplyingCrop] = useState(false);
   const [pendingAvatarBlob, setPendingAvatarBlob] = useState<Blob | null>(null);
   const [pendingAvatarDelete, setPendingAvatarDelete] = useState(false);
@@ -623,19 +608,10 @@ export default function SettingsPage() {
         reader.readAsDataURL(file);
       });
 
-      const loadedImage = await loadImageFromDataUrl(dataUrl);
-      const baseScale = Math.max(AVATAR_CROP_SIZE / loadedImage.naturalWidth, AVATAR_CROP_SIZE / loadedImage.naturalHeight);
-      const minScale = baseScale;
-
       setCropSource(dataUrl);
-      setCropImageWidth(loadedImage.naturalWidth);
-      setCropImageHeight(loadedImage.naturalHeight);
-      setCropBaseScale(baseScale);
-      setCropMinScale(minScale);
-      setCropScale(baseScale);
-      setCropOffsetX(0);
-      setCropOffsetY(0);
-      setCropDragging(false);
+      setCropZoom(AVATAR_ZOOM_DEFAULT);
+      setCropPosition({ x: 0, y: 0 });
+      setCroppedAreaPixels(null);
       setAvatarError("");
     } catch (error) {
       setAvatarError(mapUiErrorMessage(error instanceof Error ? error.message : "", "Не удалось загрузить аватар"));
@@ -651,45 +627,13 @@ export default function SettingsPage() {
     setPendingAvatarDelete(true);
     setAvatarUrl(null);
     setCropSource(null);
-    setCropDragging(false);
+    setCropZoom(AVATAR_ZOOM_DEFAULT);
+    setCropPosition({ x: 0, y: 0 });
+    setCroppedAreaPixels(null);
   }
-
-  function handleCropMouseDown(event: React.MouseEvent<HTMLDivElement>) {
-    if (!cropSource || applyingCrop) return;
-    event.preventDefault();
-    setCropDragging(true);
-    setCropDragStartX(event.clientX);
-    setCropDragStartY(event.clientY);
-    setCropInitialOffsetX(cropOffsetX);
-    setCropInitialOffsetY(cropOffsetY);
-  }
-
-  useEffect(() => {
-    if (!cropDragging) return;
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const nextX = cropInitialOffsetX + (event.clientX - cropDragStartX);
-      const nextY = cropInitialOffsetY + (event.clientY - cropDragStartY);
-      const clamped = clampCropOffset(nextX, nextY, cropScale, cropImageWidth, cropImageHeight);
-      setCropOffsetX(clamped.x);
-      setCropOffsetY(clamped.y);
-    };
-
-    const handleMouseUp = () => {
-      setCropDragging(false);
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [cropDragging, cropDragStartX, cropDragStartY, cropImageHeight, cropImageWidth, cropInitialOffsetX, cropInitialOffsetY, cropScale]);
 
   async function applyCroppedAvatar() {
-    if (!cropSource) return;
-    if (!cropImageWidth || !cropImageHeight) return;
+    if (!cropSource || !croppedAreaPixels) return;
 
     setApplyingCrop(true);
     setAvatarError("");
@@ -703,13 +647,10 @@ export default function SettingsPage() {
       if (!context) throw new Error("Не удалось подготовить изображение");
 
       const image = await loadImageFromDataUrl(cropSource);
-      const scaleFactor = AVATAR_EXPORT_SIZE / AVATAR_CROP_SIZE;
-      const renderedWidth = cropImageWidth * cropScale;
-      const renderedHeight = cropImageHeight * cropScale;
-      const drawX = ((AVATAR_CROP_SIZE - renderedWidth) / 2 + cropOffsetX) * scaleFactor;
-      const drawY = ((AVATAR_CROP_SIZE - renderedHeight) / 2 + cropOffsetY) * scaleFactor;
-      const drawWidth = renderedWidth * scaleFactor;
-      const drawHeight = renderedHeight * scaleFactor;
+      const sourceX = Math.max(0, Math.round(croppedAreaPixels.x));
+      const sourceY = Math.max(0, Math.round(croppedAreaPixels.y));
+      const sourceWidth = Math.max(1, Math.round(croppedAreaPixels.width));
+      const sourceHeight = Math.max(1, Math.round(croppedAreaPixels.height));
 
       context.clearRect(0, 0, AVATAR_EXPORT_SIZE, AVATAR_EXPORT_SIZE);
       context.save();
@@ -717,7 +658,7 @@ export default function SettingsPage() {
       context.arc(AVATAR_EXPORT_SIZE / 2, AVATAR_EXPORT_SIZE / 2, AVATAR_EXPORT_SIZE / 2, 0, Math.PI * 2);
       context.closePath();
       context.clip();
-      context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+      context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, AVATAR_EXPORT_SIZE, AVATAR_EXPORT_SIZE);
       context.restore();
 
       const dataUrl = canvas.toDataURL("image/png");
@@ -727,6 +668,9 @@ export default function SettingsPage() {
       setAvatarUrl(dataUrl);
       setAvatarMessage("Новый аватар будет сохранён после нажатия «Сохранить изменения»");
       setCropSource(null);
+      setCropZoom(AVATAR_ZOOM_DEFAULT);
+      setCropPosition({ x: 0, y: 0 });
+      setCroppedAreaPixels(null);
     } catch (error) {
       setAvatarError(mapUiErrorMessage(error instanceof Error ? error.message : "", "Не удалось применить кадрирование"));
     } finally {
@@ -767,25 +711,21 @@ export default function SettingsPage() {
       {cropSource ? (
         <div className="space-y-3 rounded-xl border border-border p-4">
           <p className="text-sm font-medium text-foreground">Подберите позицию аватара</p>
-          <div
-            className="relative select-none overflow-hidden rounded-full border border-border bg-[#f3f4f6]"
-            style={{ width: AVATAR_CROP_SIZE, height: AVATAR_CROP_SIZE, cursor: cropDragging ? "grabbing" : "grab" }}
-            onMouseDown={handleCropMouseDown}
-          >
-            <NextImage
-              src={cropSource}
-              alt="Предпросмотр аватара"
-              width={1}
-              height={1}
-              unoptimized
-              draggable={false}
-              className="pointer-events-none absolute max-w-none"
-              style={{
-                width: `${cropImageWidth * cropScale}px`,
-                height: `${cropImageHeight * cropScale}px`,
-                left: `${(AVATAR_CROP_SIZE - cropImageWidth * cropScale) / 2 + cropOffsetX}px`,
-                top: `${(AVATAR_CROP_SIZE - cropImageHeight * cropScale) / 2 + cropOffsetY}px`
-              }}
+          <div className="relative overflow-hidden rounded-full border border-border bg-[#f3f4f6]" style={{ width: AVATAR_CROP_SIZE, height: AVATAR_CROP_SIZE }}>
+            <Cropper
+              image={cropSource}
+              crop={cropPosition}
+              zoom={cropZoom}
+              aspect={1}
+              cropShape="round"
+              showGrid={false}
+              objectFit="cover"
+              restrictPosition={false}
+              minZoom={AVATAR_ZOOM_MIN}
+              maxZoom={AVATAR_ZOOM_MAX}
+              onCropChange={setCropPosition}
+              onZoomChange={setCropZoom}
+              onCropComplete={(_croppedArea, pixels) => setCroppedAreaPixels(pixels)}
             />
           </div>
           <div className="space-y-1">
@@ -796,30 +736,21 @@ export default function SettingsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const zoomStep = cropBaseScale * 0.05;
-                  const nextScale = Math.max(cropMinScale, cropScale - zoomStep);
-                  const clamped = clampCropOffset(cropOffsetX, cropOffsetY, nextScale, cropImageWidth, cropImageHeight);
-                  setCropScale(nextScale);
-                  setCropOffsetX(clamped.x);
-                  setCropOffsetY(clamped.y);
+                  setCropZoom((prev) => Math.max(AVATAR_ZOOM_MIN, Number((prev - AVATAR_ZOOM_STEP).toFixed(2))));
                 }}
+                disabled={applyingCrop || uploadingAvatar}
               >
                 −
               </Button>
-              <span className="w-20 text-center text-sm text-muted-foreground">{Math.round((cropScale / cropBaseScale) * 100)}%</span>
+              <span className="w-20 text-center text-sm text-muted-foreground">{Math.round(cropZoom * 100)}%</span>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const zoomStep = cropBaseScale * 0.05;
-                  const maxScale = cropBaseScale * 8;
-                  const nextScale = Math.min(maxScale, cropScale + zoomStep);
-                  const clamped = clampCropOffset(cropOffsetX, cropOffsetY, nextScale, cropImageWidth, cropImageHeight);
-                  setCropScale(nextScale);
-                  setCropOffsetX(clamped.x);
-                  setCropOffsetY(clamped.y);
+                  setCropZoom((prev) => Math.min(AVATAR_ZOOM_MAX, Number((prev + AVATAR_ZOOM_STEP).toFixed(2))));
                 }}
+                disabled={applyingCrop || uploadingAvatar}
               >
                 +
               </Button>
@@ -834,7 +765,9 @@ export default function SettingsPage() {
               variant="outline"
               onClick={() => {
                 setCropSource(null);
-                setCropDragging(false);
+                setCropZoom(AVATAR_ZOOM_DEFAULT);
+                setCropPosition({ x: 0, y: 0 });
+                setCroppedAreaPixels(null);
               }}
               disabled={applyingCrop || uploadingAvatar}
             >

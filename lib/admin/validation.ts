@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 const roleEnum = z.enum(["admin", "manager", "teacher", "student"]);
+const notificationTypeEnum = z.enum(["maintenance", "update", "news", "assignments"]);
+const notificationTargetRoleEnum = z.enum(["all", "admin", "manager", "teacher", "student"]);
 
 const nullableString = (max: number) =>
   z.preprocess(
@@ -150,3 +152,43 @@ export const blogPostCreateSchema = z
 export const blogPostUpdateSchema = blogPostCreateSchema.partial().refine((value) => Object.keys(value).length > 0, {
   message: "At least one field must be provided"
 });
+
+const notificationTargetRolesSchema = z
+  .array(notificationTargetRoleEnum)
+  .min(1)
+  .max(5)
+  .refine((roles) => {
+    if (!roles.includes("all")) return true;
+    return roles.length === 1;
+  }, "target_roles with 'all' cannot include other roles")
+  .transform((roles) => Array.from(new Set(roles)));
+
+const adminNotificationShape = z
+  .object({
+    title: z.string().trim().min(1).max(240),
+    body: z.string().trim().min(1).max(6000),
+    type: notificationTypeEnum.optional().default("update"),
+    is_active: z.boolean().optional().default(true),
+    target_roles: notificationTargetRolesSchema.optional().default(["all"]),
+    published_at: z.string().datetime({ offset: true }).nullable().optional(),
+    expires_at: z.string().datetime({ offset: true }).nullable().optional()
+  })
+  .strict();
+
+function validateNotificationDates(value: { published_at?: string | null; expires_at?: string | null }, ctx: z.RefinementCtx) {
+    if (!value.published_at || !value.expires_at) return;
+    if (new Date(value.expires_at).getTime() <= new Date(value.published_at).getTime()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "expires_at must be later than published_at",
+        path: ["expires_at"]
+      });
+    }
+}
+
+export const adminNotificationCreateSchema = adminNotificationShape.superRefine(validateNotificationDates);
+
+export const adminNotificationUpdateSchema = adminNotificationShape
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, { message: "At least one field must be provided" })
+  .superRefine(validateNotificationDates);

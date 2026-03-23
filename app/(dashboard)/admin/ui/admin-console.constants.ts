@@ -1,7 +1,7 @@
-import type { AdminUserRole } from "@/lib/admin/types";
+import type { AdminUserRole, NotificationTargetRole, NotificationType } from "@/lib/admin/types";
 import type { PaginatedResponse } from "@/lib/admin/types";
 
-export type TabId = "tests" | "users" | "blog";
+export type TabId = "tests" | "users" | "blog" | "notifications";
 
 export const PAGE_SIZE = 5;
 export const SEARCH_DEBOUNCE_MS = 400;
@@ -48,6 +48,16 @@ export type BlogPostForm = {
   seo_title: string;
   seo_description: string;
   tag_names: string;
+};
+
+export type NotificationForm = {
+  title: string;
+  body: string;
+  type: NotificationType;
+  target_roles: NotificationTargetRole[];
+  is_active: boolean;
+  published_at: string;
+  expires_at: string;
 };
 
 export type CacheEntry<T> = {
@@ -103,6 +113,16 @@ export const defaultBlogPostForm: BlogPostForm = {
   tag_names: ""
 };
 
+export const defaultNotificationForm: NotificationForm = {
+  title: "",
+  body: "",
+  type: "update",
+  target_roles: ["all"],
+  is_active: true,
+  published_at: "",
+  expires_at: ""
+};
+
 export const englishLevelOptions = [
   { value: "A1", label: "A1 - Beginner" },
   { value: "A2", label: "A2 - Elementary" },
@@ -123,6 +143,18 @@ export function getRoleLabel(role: AdminUserRole | "all"): string {
   if (role === "all") return "Все роли";
   const option = roleOptions.find((item) => item.value === role);
   return option?.label ?? role;
+}
+
+export const notificationTypeOptions: Array<{ value: NotificationType; label: string }> = [
+  { value: "maintenance", label: "Техработы" },
+  { value: "update", label: "Обновления" },
+  { value: "news", label: "Новости" },
+  { value: "assignments", label: "Задания" }
+];
+
+export function getNotificationTypeLabel(type: NotificationType): string {
+  const option = notificationTypeOptions.find((item) => item.value === type);
+  return option?.label ?? type;
 }
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

@@ -54,6 +54,35 @@ export type AdminDashboardMetricsDto = {
   currency: string;
 };
 
+export type NotificationType = "maintenance" | "update" | "news" | "assignments";
+
+export type NotificationTargetRole = "all" | AdminUserRole;
+
+export type AdminNotificationDto = {
+  id: string;
+  title: string;
+  body: string;
+  type: NotificationType;
+  is_active: boolean;
+  target_roles: NotificationTargetRole[];
+  published_at: string | null;
+  expires_at: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type UserNotificationDto = {
+  id: string;
+  title: string;
+  body: string;
+  type: NotificationType;
+  published_at: string | null;
+  expires_at: string | null;
+  created_at: string | null;
+  is_read: boolean;
+};
+
 export type BlogPostStatus = "draft" | "published";
 
 export type BlogCategoryDto = {

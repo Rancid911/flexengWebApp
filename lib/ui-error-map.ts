@@ -90,6 +90,7 @@ export function mapUiErrorByCode(code: unknown, fallback = ""): string {
     case "BLOG_POST_NOT_FOUND":
     case "BLOG_CATEGORY_NOT_FOUND":
     case "BLOG_TAG_NOT_FOUND":
+    case "NOTIFICATION_NOT_FOUND":
       return "Запрашиваемая запись не найдена.";
     case "FORBIDDEN":
       return "Недостаточно прав для выполнения действия.";
@@ -97,6 +98,13 @@ export function mapUiErrorByCode(code: unknown, fallback = ""): string {
       return "Проверьте корректность заполнения полей.";
     case "INTERNAL_ERROR":
       return "Внутренняя ошибка сервера. Попробуйте позже.";
+    case "NOTIFICATIONS_FETCH_FAILED":
+    case "NOTIFICATION_CREATE_FAILED":
+    case "NOTIFICATION_UPDATE_FAILED":
+    case "NOTIFICATION_DELETE_FAILED":
+    case "NOTIFICATION_READ_FAILED":
+    case "NOTIFICATION_DISMISS_FAILED":
+      return "Не удалось обработать уведомления. Попробуйте снова.";
     default:
       return fallback;
   }

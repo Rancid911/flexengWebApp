@@ -11,7 +11,12 @@ import {
   LogOut,
   Search,
   Bell,
+  BellOff,
+  Wrench,
+  Sparkles,
+  Newspaper,
   ChevronLeft,
+  X,
   Menu,
   BookOpen
 } from "lucide-react";
@@ -25,6 +30,8 @@ import { clearDashboardCache, homeCacheKey, profileCacheKey, writeDashboardCache
 import type { UserRole } from "@/lib/auth/get-user-role";
 import { runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
 import { createClient } from "@/lib/supabase/client";
+import type { UserNotificationDto } from "@/lib/admin/types";
+import { mapUiErrorMessage } from "@/lib/ui-error-map";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -73,6 +80,13 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
   const [currentUserId] = useState<string | null>(initialProfile.userId);
   const [sidebarState, setSidebarState] = useState({ collapsed: false, ready: false });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notifications, setNotifications] = useState<UserNotificationDto[]>([]);
+  const [notificationsError, setNotificationsError] = useState("");
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [readingIds, setReadingIds] = useState<Record<string, boolean>>({});
+  const [dismissingIds, setDismissingIds] = useState<Record<string, boolean>>({});
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const sidebarCollapsed = sidebarState.collapsed;
   const sidebarReady = sidebarState.ready;
@@ -102,18 +116,128 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
 
   useEffect(() => {
     setMobileSidebarOpen(false);
+    setNotificationsOpen(false);
   }, [pathname]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setMobileSidebarOpen(false);
+        setNotificationsOpen(false);
       }
     };
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
   }, []);
+
+  async function loadUnreadCount() {
+    try {
+      const response = await fetch("/api/notifications/unread-count", { cache: "no-store" });
+      if (!response.ok) throw new Error("Failed to load unread notifications");
+      const payload = (await response.json()) as { count?: number };
+      setUnreadCount(typeof payload.count === "number" ? payload.count : 0);
+    } catch (error) {
+      console.error("NOTIFICATIONS_UNREAD_COUNT_ERROR", error);
+    }
+  }
+
+  async function loadNotifications() {
+    setNotificationsLoading(true);
+    setNotificationsError("");
+    try {
+      const response = await fetch("/api/notifications", { cache: "no-store" });
+      if (!response.ok) throw new Error("Failed to load notifications");
+      const payload = (await response.json()) as { items?: UserNotificationDto[] };
+      setNotifications(Array.isArray(payload.items) ? payload.items : []);
+    } catch (error) {
+      const message = mapUiErrorMessage(error instanceof Error ? error.message : "", "Не удалось загрузить уведомления");
+      setNotificationsError(message);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }
+
+  async function dismissNotification(notification: UserNotificationDto) {
+    if (dismissingIds[notification.id]) return;
+    const prevNotifications = notifications;
+    const prevUnreadCount = unreadCount;
+    setDismissingIds((prev) => ({ ...prev, [notification.id]: true }));
+    setNotifications((prev) => prev.filter((item) => item.id !== notification.id));
+    if (!notification.is_read) {
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    }
+
+    try {
+      const response = await fetch(`/api/notifications/${notification.id}/dismiss`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { message?: string; code?: string } | null;
+        throw new Error(payload?.message || payload?.code || "Failed to dismiss notification");
+      }
+      void loadUnreadCount();
+    } catch (error) {
+      console.error("NOTIFICATIONS_DISMISS_ERROR", error);
+      setNotifications(prevNotifications);
+      setUnreadCount(prevUnreadCount);
+      setNotificationsError(
+        mapUiErrorMessage(error instanceof Error ? error.message : "", "Не удалось скрыть уведомление. Попробуйте ещё раз.")
+      );
+    } finally {
+      setDismissingIds((prev) => {
+        const next = { ...prev };
+        delete next[notification.id];
+        return next;
+      });
+    }
+  }
+
+  async function markNotificationRead(notification: UserNotificationDto) {
+    if (notification.is_read || readingIds[notification.id] || dismissingIds[notification.id]) return;
+    const prevNotifications = notifications;
+    const prevUnreadCount = unreadCount;
+    setReadingIds((prev) => ({ ...prev, [notification.id]: true }));
+    setNotifications((prev) => prev.map((item) => (item.id === notification.id ? { ...item, is_read: true } : item)));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+
+    try {
+      const response = await fetch(`/api/notifications/${notification.id}/read`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { message?: string; code?: string } | null;
+        throw new Error(payload?.message || payload?.code || "Failed to mark notification as read");
+      }
+      void loadUnreadCount();
+    } catch (error) {
+      console.error("NOTIFICATIONS_READ_ERROR", error);
+      setNotifications(prevNotifications);
+      setUnreadCount(prevUnreadCount);
+    } finally {
+      setReadingIds((prev) => {
+        const next = { ...prev };
+        delete next[notification.id];
+        return next;
+      });
+    }
+  }
+
+  useEffect(() => {
+    void loadUnreadCount();
+    const handle = window.setInterval(() => {
+      void loadUnreadCount();
+    }, 75_000);
+    return () => window.clearInterval(handle);
+  }, []);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    void loadNotifications();
+    void loadUnreadCount();
+  }, [notificationsOpen]);
 
   useEffect(() => {
     writeDashboardCache(profileCacheKey(initialProfile.userId), {
@@ -190,6 +314,66 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
     return [...baseNavItems, { id: "admin", label: "Управление", href: "/admin", icon: ShieldCheck }];
   }, [isAdmin]);
   const shellTransitionClass = sidebarReady ? "transition-all duration-300" : "transition-none";
+  const unreadLabel = unreadCount > 99 ? "99+" : String(unreadCount);
+  const unreadBadgeClass = cn(
+    "absolute right-[1px] top-[1px] inline-flex items-center justify-center rounded-full border-2 border-white bg-red-500 text-[10px] font-semibold text-white shadow-sm",
+    unreadCount > 9 ? "h-5 min-w-5 px-1 leading-[1.1]" : "h-[18px] min-w-[18px] px-0 leading-none"
+  );
+
+  const notificationTypeMeta: Record<
+    UserNotificationDto["type"],
+    {
+      label: string;
+      icon: React.ComponentType<{ className?: string }>;
+      chipClass: string;
+      unreadAccentClass: string;
+      dotClass: string;
+    }
+  > = {
+    maintenance: {
+      label: "Техработы",
+      icon: Wrench,
+      chipClass: "bg-amber-100 text-amber-700",
+      unreadAccentClass: "bg-amber-50/70 border-amber-300",
+      dotClass: "bg-amber-500"
+    },
+    update: {
+      label: "Обновления",
+      icon: Sparkles,
+      chipClass: "bg-indigo-100 text-indigo-700",
+      unreadAccentClass: "bg-indigo-50/70 border-indigo-300",
+      dotClass: "bg-indigo-500"
+    },
+    news: {
+      label: "Новости",
+      icon: Newspaper,
+      chipClass: "bg-sky-100 text-sky-700",
+      unreadAccentClass: "bg-sky-50/70 border-sky-300",
+      dotClass: "bg-sky-500"
+    },
+    assignments: {
+      label: "Задания",
+      icon: ClipboardList,
+      chipClass: "bg-emerald-100 text-emerald-700",
+      unreadAccentClass: "bg-emerald-50/70 border-emerald-300",
+      dotClass: "bg-emerald-500"
+    }
+  };
+
+  function formatNotificationDate(value: string | null) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(todayStart.getDate() - 1);
+    const timePart = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(date);
+
+    if (date >= todayStart) return `Сегодня ${timePart}`;
+    if (date >= yesterdayStart && date < todayStart) return `Вчера ${timePart}`;
+    return `${new Intl.DateTimeFormat("ru-RU", { dateStyle: "short" }).format(date)} ${timePart}`;
+  }
 
   const shellThemeVars = {
     "--background": "210 20% 97%",
@@ -285,21 +469,20 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
           <button
             type="button"
             onClick={() => setSidebarState((prev) => ({ ...prev, collapsed: !prev.collapsed }))}
-            className="hidden items-center gap-3 rounded-xl px-4 py-3 text-slate-500 transition-colors hover:bg-white/80 xl:flex"
+            className="hidden items-center gap-3 rounded-xl py-3 text-sm font-semibold text-slate-500 transition-all hover:bg-white/80 hover:text-indigo-600 xl:flex xl:justify-start xl:px-4"
             aria-label={sidebarCollapsed ? "Развернуть боковое меню" : "Свернуть боковое меню"}
           >
-            <span className="flex h-5 w-5 items-center justify-center">
-              <ChevronLeft
-                className={cn(
-                  "h-5 w-5 shrink-0 transform-gpu stroke-[2.25] transition-transform",
-                  sidebarCollapsed ? "scale-x-[-1]" : "scale-x-100"
-                )}
-              />
-            </span>
+            <ChevronLeft
+              className={cn(
+                "h-5 w-5 shrink-0 transform-gpu stroke-[2.25] transition-transform",
+                sidebarCollapsed ? "scale-x-[-1]" : "scale-x-100"
+              )}
+            />
             <span
               className={cn(
                 "overflow-hidden whitespace-nowrap transition-all duration-200",
-                sidebarCollapsed ? "max-w-0 opacity-0 -translate-x-1" : "max-w-[160px] opacity-100 translate-x-0"
+                "hidden xl:inline-block",
+                sidebarCollapsed ? "xl:max-w-0 xl:opacity-0 xl:-translate-x-1" : "xl:max-w-[160px] xl:opacity-100 xl:translate-x-0"
               )}
             >
               {sidebarCollapsed ? "Развернуть" : "Свернуть"}
@@ -309,7 +492,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
           <Link
             href="/settings"
             className={cn(
-              "flex items-center gap-3 rounded-xl py-3 text-slate-500 transition-all hover:bg-white/80 hover:text-indigo-600",
+              "flex items-center gap-3 rounded-xl py-3 text-sm font-semibold text-slate-500 transition-all hover:bg-white/80 hover:text-indigo-600",
               "justify-center px-2 sm:justify-center sm:px-2 xl:justify-start xl:px-4",
               isActivePath(pathname, "/settings") ? "bg-white text-indigo-700 shadow-sm" : ""
             )}
@@ -327,7 +510,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
           </Link>
 
           <button
-            className="flex items-center justify-center gap-3 rounded-xl px-2 py-3 text-slate-500 transition-all hover:bg-white/80 hover:text-indigo-600 xl:justify-start xl:px-4"
+            className="flex items-center gap-3 rounded-xl py-3 text-sm font-semibold text-slate-500 transition-all hover:bg-white/80 hover:text-indigo-600 justify-center px-2 sm:justify-center sm:px-2 xl:justify-start xl:px-4"
             onClick={handleLogout}
             type="button"
             disabled={isLoggingOut}
@@ -335,7 +518,8 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
             <LogOut className="h-5 w-5 shrink-0" />
             <span
               className={cn(
-                "hidden overflow-hidden whitespace-nowrap transition-all duration-200 xl:inline-block",
+                "overflow-hidden whitespace-nowrap transition-all duration-200",
+                "hidden xl:inline-block",
                 sidebarCollapsed ? "xl:max-w-0 xl:opacity-0 xl:-translate-x-1" : "xl:max-w-[160px] xl:opacity-100 xl:translate-x-0"
               )}
             >
@@ -372,9 +556,18 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
-          <button type="button" className="relative rounded-full p-2 text-slate-500 transition-all hover:bg-indigo-50">
+          <button
+            type="button"
+            onClick={() => setNotificationsOpen((prev) => !prev)}
+            className="relative rounded-full p-2 text-slate-500 transition-all hover:bg-indigo-50"
+            aria-label="Открыть уведомления"
+          >
             <Bell className="h-5 w-5" />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full border-2 border-white bg-red-500" />
+            {unreadCount > 0 ? (
+              <span className={unreadBadgeClass}>
+                {unreadLabel}
+              </span>
+            ) : null}
           </button>
 
           <div className="ml-1 flex items-center gap-2 sm:ml-4 sm:gap-3">
@@ -408,6 +601,144 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
       >
         <div className="mx-0 w-full max-w-none">{children}</div>
       </section>
+
+      {notificationsOpen ? (
+        <button
+          type="button"
+          aria-label="Закрыть уведомления"
+          onClick={() => setNotificationsOpen(false)}
+          className="fixed inset-0 z-40 bg-black/25"
+        />
+      ) : null}
+
+      <aside
+        className={cn(
+          "fixed right-0 top-0 z-50 h-dvh w-full max-w-md border-l border-border bg-white shadow-[-12px_0_40px_rgba(15,23,42,0.18)] transition-transform duration-200 ease-out",
+          notificationsOpen ? "translate-x-0" : "translate-x-full"
+        )}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Уведомления"
+      >
+        <div className="flex h-16 items-center justify-between border-b border-border px-4">
+          <div>
+            <p className="text-base font-semibold text-slate-900">Уведомления</p>
+            <p className="text-xs text-slate-500">Непрочитано: {unreadCount}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setNotificationsOpen(false)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+            aria-label="Закрыть уведомления"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="h-[calc(100dvh-4rem)] overflow-y-auto px-4 py-4">
+          {notificationsLoading && notifications.length === 0 ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={`notifications-drawer-skeleton-${index}`} className="animate-pulse rounded-xl border border-slate-200 bg-white p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="h-5 w-24 rounded-full bg-slate-200" />
+                    <div className="h-3 w-16 rounded bg-slate-200" />
+                  </div>
+                  <div className="h-4 w-3/4 rounded bg-slate-200" />
+                  <div className="mt-2 h-3 w-full rounded bg-slate-200" />
+                  <div className="mt-1 h-3 w-2/3 rounded bg-slate-200" />
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {notificationsError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              <p>{notificationsError}</p>
+              <button
+                type="button"
+                onClick={() => void loadNotifications()}
+                className="mt-2 inline-flex rounded-md bg-white px-2 py-1 text-xs font-medium text-red-700 shadow-sm transition-colors hover:bg-red-100"
+              >
+                Повторить
+              </button>
+            </div>
+          ) : null}
+
+          {!notificationsLoading && notifications.length === 0 && !notificationsError ? (
+            <div className="rounded-lg border border-border bg-slate-50 px-3 py-5 text-center text-slate-500">
+              <BellOff className="mx-auto h-5 w-5 text-slate-400" />
+              <p className="mt-2 text-sm font-medium">Новых уведомлений нет</p>
+              <p className="mt-1 text-xs text-slate-400">Когда появятся новые сообщения, они отобразятся здесь.</p>
+            </div>
+          ) : null}
+
+          <div className="space-y-3">
+            {notifications.map((item) => {
+              const meta = notificationTypeMeta[item.type];
+              const Icon = meta.icon;
+              const isProcessing = Boolean(dismissingIds[item.id] || readingIds[item.id]);
+              return (
+                <article
+                  key={item.id}
+                  className={cn(
+                    "group rounded-xl border p-3 shadow-sm transition-all",
+                    item.is_read ? "border-border bg-white hover:border-slate-300 hover:shadow-md" : cn("border-l-4", meta.unreadAccentClass, "hover:shadow-md")
+                  )}
+                  role={item.is_read ? undefined : "button"}
+                  tabIndex={item.is_read ? -1 : 0}
+                  aria-label={item.is_read ? undefined : `Отметить как прочитанное: ${item.title}`}
+                  onClick={() => void markNotificationRead(item)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    void markNotificationRead(item);
+                  }}
+                >
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      {!item.is_read ? <span className={cn("h-2 w-2 rounded-full", meta.dotClass)} /> : null}
+                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", meta.chipClass)}>
+                        <Icon className="h-3.5 w-3.5" />
+                        {meta.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] text-slate-400">{formatNotificationDate(item.published_at || item.created_at)}</span>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void dismissNotification(item);
+                        }}
+                        disabled={isProcessing}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-0 transition-all hover:bg-slate-100 hover:text-slate-600 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Скрыть уведомление"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                    <p
+                      className="mt-1 text-sm text-slate-600"
+                      style={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden"
+                      }}
+                    >
+                      {item.body}
+                    </p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </aside>
     </main>
   );
 }

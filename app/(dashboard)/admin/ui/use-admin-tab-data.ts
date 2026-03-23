@@ -12,7 +12,7 @@ import {
   type TabId
 } from "@/app/(dashboard)/admin/ui/admin-console.constants";
 import { fetchJson } from "@/app/(dashboard)/admin/ui/admin-console.utils";
-import type { AdminTestDto, AdminUserDto, AdminUserRole, BlogCategoryDto, BlogPostDetailDto, PaginatedResponse } from "@/lib/admin/types";
+import type { AdminNotificationDto, AdminTestDto, AdminUserDto, AdminUserRole, BlogCategoryDto, BlogPostDetailDto, PaginatedResponse } from "@/lib/admin/types";
 
 const ADMIN_UI_SNAPSHOT_KEY = "admin-ui-state";
 
@@ -23,13 +23,16 @@ type AdminUiSnapshot = {
   testsPage: number;
   usersPage: number;
   blogPage: number;
+  notificationsPage: number;
   testsQuery: string;
   usersQuery: string;
   blogQuery: string;
+  notificationsQuery: string;
   usersRoleFilter: AdminUserRole | "all";
   tests: PaginatedResponse<AdminTestDto>;
   users: PaginatedResponse<AdminUserDto>;
   blogPosts: PaginatedResponse<BlogPostDetailDto>;
+  notifications: PaginatedResponse<AdminNotificationDto>;
 };
 
 let adminRuntimeSnapshot: AdminUiSnapshot | null = null;
@@ -50,9 +53,11 @@ function isValidSnapshot(value: unknown): value is AdminUiSnapshot {
     typeof snapshot.testsPage === "number" &&
     typeof snapshot.usersPage === "number" &&
     typeof snapshot.blogPage === "number" &&
+    typeof snapshot.notificationsPage === "number" &&
     typeof snapshot.testsQuery === "string" &&
     typeof snapshot.usersQuery === "string" &&
     typeof snapshot.blogQuery === "string" &&
+    typeof snapshot.notificationsQuery === "string" &&
     (snapshot.usersRoleFilter === "all" ||
       snapshot.usersRoleFilter === "student" ||
       snapshot.usersRoleFilter === "teacher" ||
@@ -60,7 +65,8 @@ function isValidSnapshot(value: unknown): value is AdminUiSnapshot {
       snapshot.usersRoleFilter === "admin") &&
     isPaginatedShape(snapshot.tests) &&
     isPaginatedShape(snapshot.users) &&
-    isPaginatedShape(snapshot.blogPosts)
+    isPaginatedShape(snapshot.blogPosts) &&
+    isPaginatedShape(snapshot.notifications)
   );
 }
 
@@ -94,18 +100,22 @@ export function useAdminTabData() {
   const [testsPage, setTestsPage] = useState(adminRuntimeSnapshot?.testsPage ?? 1);
   const [usersPage, setUsersPage] = useState(adminRuntimeSnapshot?.usersPage ?? 1);
   const [blogPage, setBlogPage] = useState(adminRuntimeSnapshot?.blogPage ?? 1);
+  const [notificationsPage, setNotificationsPage] = useState(adminRuntimeSnapshot?.notificationsPage ?? 1);
 
   const [testsQuery, setTestsQuery] = useState(adminRuntimeSnapshot?.testsQuery ?? "");
   const [usersQuery, setUsersQuery] = useState(adminRuntimeSnapshot?.usersQuery ?? "");
   const [blogQuery, setBlogQuery] = useState(adminRuntimeSnapshot?.blogQuery ?? "");
+  const [notificationsQuery, setNotificationsQuery] = useState(adminRuntimeSnapshot?.notificationsQuery ?? "");
   const [usersRoleFilter, setUsersRoleFilter] = useState<AdminUserRole | "all">(adminRuntimeSnapshot?.usersRoleFilter ?? "all");
 
   const [testsError, setTestsError] = useState("");
   const [usersError, setUsersError] = useState("");
   const [blogError, setBlogError] = useState("");
+  const [notificationsError, setNotificationsError] = useState("");
   const [testsLoading, setTestsLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [blogLoading, setBlogLoading] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
 
   const [tests, setTests] = useState<PaginatedResponse<AdminTestDto>>(
     adminRuntimeSnapshot?.tests ?? { items: [], total: 0, page: 1, pageSize: PAGE_SIZE }
@@ -116,6 +126,9 @@ export function useAdminTabData() {
   const [blogPosts, setBlogPosts] = useState<PaginatedResponse<BlogPostDetailDto>>(
     adminRuntimeSnapshot?.blogPosts ?? { items: [], total: 0, page: 1, pageSize: PAGE_SIZE }
   );
+  const [notifications, setNotifications] = useState<PaginatedResponse<AdminNotificationDto>>(
+    adminRuntimeSnapshot?.notifications ?? { items: [], total: 0, page: 1, pageSize: PAGE_SIZE }
+  );
   const [blogCategories, setBlogCategories] = useState<BlogCategoryDto[]>([]);
 
   const [bootstrapped, setBootstrapped] = useState(adminRuntimeSnapshot !== null);
@@ -123,6 +136,7 @@ export function useAdminTabData() {
   const testsCacheRef = useRef(new Map<string, CacheEntry<AdminTestDto>>());
   const usersCacheRef = useRef(new Map<string, CacheEntry<AdminUserDto>>());
   const blogCacheRef = useRef(new Map<string, CacheEntry<BlogPostDetailDto>>());
+  const notificationsCacheRef = useRef(new Map<string, CacheEntry<AdminNotificationDto>>());
   const blogMetaLoadedRef = useRef(false);
   const prefetchRunIdRef = useRef(0);
   const bootstrappedFromSessionRef = useRef(false);
@@ -130,10 +144,11 @@ export function useAdminTabData() {
   const testsPageCount = useMemo(() => Math.max(1, Math.ceil(tests.total / PAGE_SIZE)), [tests.total]);
   const usersPageCount = useMemo(() => Math.max(1, Math.ceil(users.total / PAGE_SIZE)), [users.total]);
   const blogPageCount = useMemo(() => Math.max(1, Math.ceil(blogPosts.total / PAGE_SIZE)), [blogPosts.total]);
-  const activePage = tab === "tests" ? testsPage : tab === "users" ? usersPage : blogPage;
-  const activePageCount = tab === "tests" ? testsPageCount : tab === "users" ? usersPageCount : blogPageCount;
-  const activeListError = tab === "tests" ? testsError : tab === "users" ? usersError : blogError;
-  const activeListLoading = tab === "tests" ? testsLoading : tab === "users" ? usersLoading : blogLoading;
+  const notificationsPageCount = useMemo(() => Math.max(1, Math.ceil(notifications.total / PAGE_SIZE)), [notifications.total]);
+  const activePage = tab === "tests" ? testsPage : tab === "users" ? usersPage : tab === "blog" ? blogPage : notificationsPage;
+  const activePageCount = tab === "tests" ? testsPageCount : tab === "users" ? usersPageCount : tab === "blog" ? blogPageCount : notificationsPageCount;
+  const activeListError = tab === "tests" ? testsError : tab === "users" ? usersError : tab === "blog" ? blogError : notificationsError;
+  const activeListLoading = tab === "tests" ? testsLoading : tab === "users" ? usersLoading : tab === "blog" ? blogLoading : notificationsLoading;
 
   const makeCacheKey = useCallback((query: string, pageNumber: number) => `${query}::${pageNumber}`, []);
   const makeUsersCacheKey = useCallback((query: string, role: AdminUserRole | "all", pageNumber: number) => `${query}::${role}::${pageNumber}`, []);
@@ -152,6 +167,10 @@ export function useAdminTabData() {
         makeCacheKey(adminRuntimeSnapshot.blogQuery, adminRuntimeSnapshot.blogPosts.page),
         { data: adminRuntimeSnapshot.blogPosts, fetchedAt: adminRuntimeSnapshot.fetchedAt }
       );
+      notificationsCacheRef.current.set(
+        makeCacheKey(adminRuntimeSnapshot.notificationsQuery, adminRuntimeSnapshot.notifications.page),
+        { data: adminRuntimeSnapshot.notifications, fetchedAt: adminRuntimeSnapshot.fetchedAt }
+      );
       return;
     }
 
@@ -166,13 +185,16 @@ export function useAdminTabData() {
     setTestsPage(snapshot.testsPage);
     setUsersPage(snapshot.usersPage);
     setBlogPage(snapshot.blogPage);
+    setNotificationsPage(snapshot.notificationsPage);
     setTestsQuery(snapshot.testsQuery);
     setUsersQuery(snapshot.usersQuery);
     setBlogQuery(snapshot.blogQuery);
+    setNotificationsQuery(snapshot.notificationsQuery);
     setUsersRoleFilter(snapshot.usersRoleFilter);
     setTests(snapshot.tests);
     setUsers(snapshot.users);
     setBlogPosts(snapshot.blogPosts);
+    setNotifications(snapshot.notifications);
 
     testsCacheRef.current.set(makeCacheKey(snapshot.testsQuery, snapshot.tests.page), {
       data: snapshot.tests,
@@ -184,6 +206,10 @@ export function useAdminTabData() {
     });
     blogCacheRef.current.set(makeCacheKey(snapshot.blogQuery, snapshot.blogPosts.page), {
       data: snapshot.blogPosts,
+      fetchedAt: snapshot.fetchedAt
+    });
+    notificationsCacheRef.current.set(makeCacheKey(snapshot.notificationsQuery, snapshot.notifications.page), {
+      data: snapshot.notifications,
       fetchedAt: snapshot.fetchedAt
     });
     setBootstrapped(true);
@@ -200,7 +226,14 @@ export function useAdminTabData() {
   }, []);
 
   const invalidateCacheForQuery = useCallback((tabId: TabId, query: string, roleFilter: AdminUserRole | "all" = "all") => {
-    const map = tabId === "tests" ? testsCacheRef.current : tabId === "users" ? usersCacheRef.current : blogCacheRef.current;
+    const map =
+      tabId === "tests"
+        ? testsCacheRef.current
+        : tabId === "users"
+          ? usersCacheRef.current
+          : tabId === "blog"
+            ? blogCacheRef.current
+            : notificationsCacheRef.current;
     const prefix = tabId === "users" ? `${query}::${roleFilter}::` : `${query}::`;
     for (const key of map.keys()) {
       if (key.startsWith(prefix)) {
@@ -318,6 +351,42 @@ export function useAdminTabData() {
     [getFreshCacheEntry, loadBlogMeta, makeCacheKey]
   );
 
+  const loadNotificationsPageData = useCallback(
+    async (pageNumber: number, query: string, options?: LoadOptions) => {
+      const shouldApplyToView = !options?.background;
+      const cacheKey = makeCacheKey(query, pageNumber);
+      const cached = options?.preferCache ? getFreshCacheEntry(notificationsCacheRef.current, cacheKey) : null;
+
+      if (cached) {
+        if (shouldApplyToView) setNotifications(cached.data);
+        if (!options?.revalidate) return cached.data;
+      }
+
+      setNotificationsError("");
+      if (shouldApplyToView && !cached) {
+        setNotificationsLoading(true);
+        setNotifications((prev) => ({ ...prev, items: [], page: pageNumber, pageSize: PAGE_SIZE }));
+      }
+
+      try {
+        const data = await fetchJson<PaginatedResponse<AdminNotificationDto>>(
+          `/api/admin/notifications?q=${encodeURIComponent(query)}&page=${pageNumber}&pageSize=${PAGE_SIZE}`
+        );
+        notificationsCacheRef.current.set(cacheKey, { data, fetchedAt: Date.now() });
+        if (shouldApplyToView) setNotifications(data);
+        return data;
+      } catch (requestError) {
+        if (shouldApplyToView) {
+          setNotificationsError(requestError instanceof Error ? requestError.message : "Не удалось загрузить уведомления");
+        }
+        return null;
+      } finally {
+        if (shouldApplyToView) setNotificationsLoading(false);
+      }
+    },
+    [getFreshCacheEntry, makeCacheKey]
+  );
+
   const runPrefetchQueue = useCallback(async (tasks: Array<() => Promise<void>>, runId: number) => {
     let index = 0;
     const workers = Array.from({ length: BACKGROUND_PREFETCH_CONCURRENCY }, async () => {
@@ -344,15 +413,19 @@ export function useAdminTabData() {
           tasks.push(async () => {
             await loadUsersPageData(pageNumber, query, roleFilter, { background: true, preferCache: true, revalidate: false });
           });
-        } else {
+        } else if (tabId === "blog") {
           tasks.push(async () => {
             await loadBlogPageData(pageNumber, query, { background: true, preferCache: true, revalidate: false });
+          });
+        } else {
+          tasks.push(async () => {
+            await loadNotificationsPageData(pageNumber, query, { background: true, preferCache: true, revalidate: false });
           });
         }
       }
       await runPrefetchQueue(tasks, runId);
     },
-    [loadBlogPageData, loadTestsPageData, loadUsersPageData, runPrefetchQueue]
+    [loadBlogPageData, loadNotificationsPageData, loadTestsPageData, loadUsersPageData, runPrefetchQueue]
   );
 
   const prefetchNeighbors = useCallback(
@@ -363,12 +436,14 @@ export function useAdminTabData() {
           void loadTestsPageData(neighborPage, query, { background: true, preferCache: true, revalidate: false });
         } else if (tabId === "users") {
           void loadUsersPageData(neighborPage, query, roleFilter, { background: true, preferCache: true, revalidate: false });
-        } else {
+        } else if (tabId === "blog") {
           void loadBlogPageData(neighborPage, query, { background: true, preferCache: true, revalidate: false });
+        } else {
+          void loadNotificationsPageData(neighborPage, query, { background: true, preferCache: true, revalidate: false });
         }
       }
     },
-    [loadBlogPageData, loadTestsPageData, loadUsersPageData]
+    [loadBlogPageData, loadNotificationsPageData, loadTestsPageData, loadUsersPageData]
   );
 
   useEffect(() => {
@@ -381,10 +456,11 @@ export function useAdminTabData() {
     prefetchRunIdRef.current = runId;
 
     async function bootstrap() {
-      const [testsFirst, usersFirst, blogFirst] = await Promise.all([
+      const [testsFirst, usersFirst, blogFirst, notificationsFirst] = await Promise.all([
         loadTestsPageData(1, testsQuery, { preferCache: true, revalidate: true }),
         loadUsersPageData(1, usersQuery, usersRoleFilter, { preferCache: true, revalidate: true }),
-        loadBlogPageData(1, blogQuery, { preferCache: true, revalidate: true })
+        loadBlogPageData(1, blogQuery, { preferCache: true, revalidate: true }),
+        loadNotificationsPageData(1, notificationsQuery, { preferCache: true, revalidate: true })
       ]);
       if (cancelled) return;
       setBootstrapped(true);
@@ -392,7 +468,8 @@ export function useAdminTabData() {
       void Promise.all([
         prefetchTabPages("tests", testsFirst ? Math.max(1, Math.ceil(testsFirst.total / PAGE_SIZE)) : 1, testsQuery, "all", runId),
         prefetchTabPages("users", usersFirst ? Math.max(1, Math.ceil(usersFirst.total / PAGE_SIZE)) : 1, usersQuery, usersRoleFilter, runId),
-        prefetchTabPages("blog", blogFirst ? Math.max(1, Math.ceil(blogFirst.total / PAGE_SIZE)) : 1, blogQuery, "all", runId)
+        prefetchTabPages("blog", blogFirst ? Math.max(1, Math.ceil(blogFirst.total / PAGE_SIZE)) : 1, blogQuery, "all", runId),
+        prefetchTabPages("notifications", notificationsFirst ? Math.max(1, Math.ceil(notificationsFirst.total / PAGE_SIZE)) : 1, notificationsQuery, "all", runId)
       ]);
     }
 
@@ -401,7 +478,7 @@ export function useAdminTabData() {
       cancelled = true;
       prefetchRunIdRef.current += 1;
     };
-  }, [blogQuery, loadBlogPageData, loadTestsPageData, loadUsersPageData, prefetchTabPages, testsQuery, usersQuery, usersRoleFilter]);
+  }, [blogQuery, loadBlogPageData, loadNotificationsPageData, loadTestsPageData, loadUsersPageData, notificationsQuery, prefetchTabPages, testsQuery, usersQuery, usersRoleFilter]);
 
   useEffect(() => {
     if (!bootstrapped) return;
@@ -412,17 +489,20 @@ export function useAdminTabData() {
       testsPage,
       usersPage,
       blogPage,
+      notificationsPage,
       testsQuery,
       usersQuery,
       blogQuery,
+      notificationsQuery,
       usersRoleFilter,
       tests,
       users,
-      blogPosts
+      blogPosts,
+      notifications
     };
     adminRuntimeSnapshot = snapshot;
     writeSessionSnapshot(snapshot);
-  }, [blogPage, blogPosts, blogQuery, bootstrapped, q, tab, tests, testsPage, testsQuery, users, usersPage, usersQuery, usersRoleFilter]);
+  }, [blogPage, blogPosts, blogQuery, bootstrapped, notifications, notificationsPage, notificationsQuery, q, tab, tests, testsPage, testsQuery, users, usersPage, usersQuery, usersRoleFilter]);
 
   useEffect(() => {
     if (!bootstrapped) return;
@@ -440,9 +520,16 @@ export function useAdminTabData() {
       });
       return;
     }
+    if (tab === "blog") {
+      queueMicrotask(() => {
+        void loadBlogPageData(blogPage, blogQuery, { preferCache: true, revalidate: true });
+        prefetchNeighbors("blog", blogPage, blogPageCount, blogQuery);
+      });
+      return;
+    }
     queueMicrotask(() => {
-      void loadBlogPageData(blogPage, blogQuery, { preferCache: true, revalidate: true });
-      prefetchNeighbors("blog", blogPage, blogPageCount, blogQuery);
+      void loadNotificationsPageData(notificationsPage, notificationsQuery, { preferCache: true, revalidate: true });
+      prefetchNeighbors("notifications", notificationsPage, notificationsPageCount, notificationsQuery);
     });
   }, [
     blogPage,
@@ -450,8 +537,12 @@ export function useAdminTabData() {
     blogQuery,
     bootstrapped,
     loadBlogPageData,
+    loadNotificationsPageData,
     loadTestsPageData,
     loadUsersPageData,
+    notificationsPage,
+    notificationsPageCount,
+    notificationsQuery,
     prefetchNeighbors,
     tab,
     testsPage,
@@ -484,15 +575,21 @@ export function useAdminTabData() {
         setUsersPage(1);
         return;
       }
-
-      if (nextQuery === blogQuery) return;
+      if (tab === "blog") {
+        if (nextQuery === blogQuery) return;
+        prefetchRunIdRef.current += 1;
+        setBlogQuery(nextQuery);
+        setBlogPage(1);
+        return;
+      }
+      if (nextQuery === notificationsQuery) return;
       prefetchRunIdRef.current += 1;
-      setBlogQuery(nextQuery);
-      setBlogPage(1);
+      setNotificationsQuery(nextQuery);
+      setNotificationsPage(1);
     }, SEARCH_DEBOUNCE_MS);
 
     return () => window.clearTimeout(handle);
-  }, [blogQuery, q, tab, testsQuery, usersQuery]);
+  }, [blogQuery, notificationsQuery, q, tab, testsQuery, usersQuery]);
 
   const setUsersRoleFilterAndSync = useCallback((nextRole: AdminUserRole | "all") => {
     if (nextRole === usersRoleFilter) return;
@@ -507,8 +604,9 @@ export function useAdminTabData() {
       if (nextTab === "tests") setQ(testsQuery);
       if (nextTab === "users") setQ(usersQuery);
       if (nextTab === "blog") setQ(blogQuery);
+      if (nextTab === "notifications") setQ(notificationsQuery);
     },
-    [blogQuery, testsQuery, usersQuery]
+    [blogQuery, notificationsQuery, testsQuery, usersQuery]
   );
 
   return {
@@ -528,14 +626,20 @@ export function useAdminTabData() {
     setUsersPage,
     blogPage,
     setBlogPage,
+    notifications,
+    setNotifications,
+    notificationsPage,
+    setNotificationsPage,
     testsQuery,
     usersQuery,
     usersRoleFilter,
     setUsersRoleFilter: setUsersRoleFilterAndSync,
     blogQuery,
+    notificationsQuery,
     testsPageCount,
     usersPageCount,
     blogPageCount,
+    notificationsPageCount,
     activePage,
     activePageCount,
     activeListError,
@@ -544,6 +648,7 @@ export function useAdminTabData() {
     loadTestsPageData,
     loadUsersPageData,
     loadBlogPageData,
+    loadNotificationsPageData,
     loadBlogMeta,
     prefetchNeighbors
   };
