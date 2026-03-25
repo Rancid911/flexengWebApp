@@ -11,6 +11,32 @@ npm run dev
 
 Откройте `http://localhost:3000`.
 
+## GitHub workflow
+
+Рабочий git-репозиторий проекта находится в директории `dashboard-next-next16`.
+Внешняя директория `dashboard-next` содержит отдельный `.git`, но не должна использоваться для commit/push этого приложения.
+
+Используйте один из двух вариантов:
+
+```bash
+cd /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboard-next/dashboard-next-next16
+git status
+git push origin main
+```
+
+или запускайте команды явно через `-C`:
+
+```bash
+git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboard-next/dashboard-next-next16 status
+git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboard-next/dashboard-next-next16 push origin main
+```
+
+Проверка remote без отправки изменений:
+
+```bash
+git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboard-next/dashboard-next-next16 push --dry-run origin main
+```
+
 ## Настройка Supabase
 
 1. Создайте проект в Supabase и включите Email/Password провайдер в Authentication.

@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+jobs:
+  quality:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run test:unit
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:smoke:ui
+
+  smoke-auth:
+    if: github.event_name != 'schedule' && github.ref == 'refs/heads/main' && secrets.E2E_STUDENT_EMAIL != '' && secrets.E2E_STUDENT_PASSWORD != '' && secrets.E2E_ADMIN_EMAIL != '' && secrets.E2E_ADMIN_PASSWORD != ''
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:smoke
+        env:
+          E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
+          E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+
+  nightly-e2e:
+    if: github.event_name == 'schedule' && secrets.E2E_STUDENT_EMAIL != '' && secrets.E2E_STUDENT_PASSWORD != '' && secrets.E2E_ADMIN_EMAIL != '' && secrets.E2E_ADMIN_PASSWORD != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
+          E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+

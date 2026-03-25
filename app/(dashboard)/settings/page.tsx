@@ -696,10 +696,10 @@ export default function SettingsPage() {
           <p className="text-sm text-muted-foreground">Аватар профиля</p>
           <div className="flex flex-wrap gap-2">
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
-            <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={uploadingAvatar || savingAll}>
+            <Button data-testid="settings-avatar-upload" type="button" variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={uploadingAvatar || savingAll}>
               {uploadingAvatar ? "Загрузка..." : "Загрузить"}
             </Button>
-            <Button type="button" variant="outline" onClick={handleAvatarDelete} disabled={uploadingAvatar || savingAll || (!avatarUrl && !pendingAvatarBlob)}>
+            <Button data-testid="settings-avatar-delete" type="button" variant="outline" onClick={handleAvatarDelete} disabled={uploadingAvatar || savingAll || (!avatarUrl && !pendingAvatarBlob)}>
               Удалить
             </Button>
           </div>
@@ -757,7 +757,7 @@ export default function SettingsPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={() => void applyCroppedAvatar()} disabled={applyingCrop || uploadingAvatar}>
+            <Button data-testid="settings-avatar-apply" type="button" onClick={() => void applyCroppedAvatar()} disabled={applyingCrop || uploadingAvatar}>
               {applyingCrop || uploadingAvatar ? "Сохранение..." : "Применить"}
             </Button>
             <Button
@@ -804,6 +804,7 @@ export default function SettingsPage() {
           <div className="max-w-md space-y-1">
             <label className="text-sm text-muted-foreground">Телефон</label>
             <Input
+              data-testid="settings-phone-input"
               value={phone}
               onChange={(event) => setPhone(normalizeRuPhoneInput(event.target.value))}
               onKeyDown={(event) => {
@@ -831,6 +832,7 @@ export default function SettingsPage() {
       <div className="space-y-1">
         <label className="text-sm text-muted-foreground">Новый email</label>
         <Input
+          data-testid="settings-email-input"
           type="email"
           value={newEmail}
           onChange={(event) => setNewEmail(event.target.value)}
@@ -850,6 +852,7 @@ export default function SettingsPage() {
       <div className="space-y-1">
         <label className="text-sm text-muted-foreground">Текущий пароль</label>
         <Input
+          data-testid="settings-current-password-input"
           type="password"
           value={currentPassword}
           onChange={(event) => setCurrentPassword(event.target.value)}
@@ -860,6 +863,7 @@ export default function SettingsPage() {
       <div className="space-y-1">
         <label className="text-sm text-muted-foreground">Новый пароль</label>
         <Input
+          data-testid="settings-next-password-input"
           type="password"
           value={nextPassword}
           onChange={(event) => setNextPassword(event.target.value)}
@@ -870,6 +874,7 @@ export default function SettingsPage() {
       <div className="space-y-1">
         <label className="text-sm text-muted-foreground">Подтверждение нового пароля</label>
         <Input
+          data-testid="settings-confirm-password-input"
           type="password"
           value={confirmPassword}
           onChange={(event) => setConfirmPassword(event.target.value)}
@@ -882,7 +887,7 @@ export default function SettingsPage() {
   );
 
   const saveButton = (
-    <Button type="submit" disabled={savingAll}>
+    <Button data-testid="settings-save-button" type="submit" disabled={savingAll}>
       {savingAll ? "Сохранение..." : "Сохранить изменения"}
     </Button>
   );

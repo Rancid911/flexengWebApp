@@ -22,12 +22,22 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { clearDashboardCache, homeCacheKey, profileCacheKey, writeDashboardCache, type ProfileCacheData } from "@/lib/dashboard-cache";
+import {
+  clearDashboardCache,
+  homeCacheKey,
+  notificationsCacheKey,
+  profileCacheKey,
+  readDashboardCache,
+  writeDashboardCache,
+  type NotificationsCacheData,
+  type ProfileCacheData
+} from "@/lib/dashboard-cache";
 import type { UserRole } from "@/lib/auth/get-user-role";
+import { clearRuntimeCache, readRuntimeCache, writeRuntimeCache } from "@/lib/session-runtime-cache";
 import { runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
 import { createClient } from "@/lib/supabase/client";
 import type { UserNotificationDto } from "@/lib/admin/types";
@@ -55,6 +65,8 @@ type DashboardShellClientProps = {
 };
 
 const STORAGE_KEY = "flexengSidebarCollapsed";
+const NOTIFICATIONS_CACHE_TTL_MS = 10 * 60 * 1000;
+const NOTIFICATIONS_STALE_MS = 75_000;
 
 const baseNavItems: NavItem[] = [
   { id: "dashboard", label: "Рабочий стол", href: "/dashboard", icon: LayoutDashboard },
@@ -66,6 +78,15 @@ const baseNavItems: NavItem[] = [
 
 function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function notificationsRuntimeKey(userId: string) {
+  return `dashboard:notifications:${userId}`;
+}
+
+function isNotificationsSnapshotStale(snapshot: NotificationsCacheData | null) {
+  if (!snapshot) return true;
+  return Date.now() - snapshot.fetchedAt > NOTIFICATIONS_STALE_MS;
 }
 
 export default function DashboardShellClient({ initialProfile, children }: DashboardShellClientProps) {
@@ -85,12 +106,39 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notifications, setNotifications] = useState<UserNotificationDto[]>([]);
   const [notificationsError, setNotificationsError] = useState("");
+  const [hasNotificationsData, setHasNotificationsData] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [readingIds, setReadingIds] = useState<Record<string, boolean>>({});
   const [dismissingIds, setDismissingIds] = useState<Record<string, boolean>>({});
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const notificationsLoadIdRef = useRef(0);
+  const notificationsRequestInFlightRef = useRef(false);
+  const notificationsSnapshotRef = useRef<NotificationsCacheData | null>(null);
   const sidebarCollapsed = sidebarState.collapsed;
   const sidebarReady = sidebarState.ready;
+
+  const readCachedNotifications = useCallback((): NotificationsCacheData | null => {
+    if (typeof window === "undefined" || !currentUserId) return null;
+
+    return (
+      readRuntimeCache<NotificationsCacheData>(notificationsRuntimeKey(currentUserId), NOTIFICATIONS_CACHE_TTL_MS) ??
+      readDashboardCache<NotificationsCacheData>(notificationsCacheKey(currentUserId))
+    );
+  }, [currentUserId]);
+
+  const applyNotificationsSnapshot = useCallback(
+    (snapshot: NotificationsCacheData, options?: { persist?: boolean }) => {
+      notificationsSnapshotRef.current = snapshot;
+      setNotifications(snapshot.items);
+      setUnreadCount(snapshot.unreadCount);
+      setHasNotificationsData(true);
+
+      if (typeof window === "undefined" || !currentUserId || options?.persist === false) return;
+      writeRuntimeCache(notificationsRuntimeKey(currentUserId), snapshot);
+      writeDashboardCache(notificationsCacheKey(currentUserId), snapshot);
+    },
+    [currentUserId]
+  );
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -124,6 +172,12 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
     setNotificationsOpen(false);
   }, [pathname]);
 
+  useLayoutEffect(() => {
+    const cachedSnapshot = readCachedNotifications();
+    if (!cachedSnapshot) return;
+    applyNotificationsSnapshot(cachedSnapshot);
+  }, [applyNotificationsSnapshot, readCachedNotifications]);
+
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -136,42 +190,70 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
     return () => window.removeEventListener("keydown", handleEscape);
   }, []);
 
-  async function loadUnreadCount() {
-    try {
-      const response = await fetch("/api/notifications/unread-count", { cache: "no-store" });
-      if (!response.ok) throw new Error("Failed to load unread notifications");
-      const payload = (await response.json()) as { count?: number };
-      setUnreadCount(typeof payload.count === "number" ? payload.count : 0);
-    } catch (error) {
-      console.error("NOTIFICATIONS_UNREAD_COUNT_ERROR", error);
-    }
-  }
+  const loadNotifications = useCallback(
+    async (options?: { silent?: boolean; onlyIfStale?: boolean }) => {
+      if (!currentUserId) return;
 
-  async function loadNotifications() {
-    setNotificationsLoading(true);
-    setNotificationsError("");
-    try {
-      const response = await fetch("/api/notifications", { cache: "no-store" });
-      if (!response.ok) throw new Error("Failed to load notifications");
-      const payload = (await response.json()) as { items?: UserNotificationDto[] };
-      setNotifications(Array.isArray(payload.items) ? payload.items : []);
-    } catch (error) {
-      const message = mapUiErrorMessage(error instanceof Error ? error.message : "", "Не удалось загрузить уведомления");
-      setNotificationsError(message);
-    } finally {
-      setNotificationsLoading(false);
-    }
-  }
+      const cachedSnapshot = notificationsSnapshotRef.current ?? readCachedNotifications();
+      if (options?.onlyIfStale && cachedSnapshot && !isNotificationsSnapshotStale(cachedSnapshot)) {
+        return;
+      }
+
+      if (notificationsRequestInFlightRef.current) {
+        return;
+      }
+
+      const requestId = ++notificationsLoadIdRef.current;
+      notificationsRequestInFlightRef.current = true;
+      if (!options?.silent && !cachedSnapshot) {
+        setNotificationsLoading(true);
+      }
+
+      try {
+        const response = await fetch("/api/notifications", { cache: "no-store" });
+        if (!response.ok) throw new Error("Failed to load notifications");
+        const payload = (await response.json()) as { items?: UserNotificationDto[]; unreadCount?: number };
+        const items = Array.isArray(payload.items) ? payload.items : [];
+        const snapshot: NotificationsCacheData = {
+          items,
+          unreadCount: typeof payload.unreadCount === "number" ? payload.unreadCount : items.filter((item) => !item.is_read).length,
+          fetchedAt: Date.now()
+        };
+
+        if (requestId !== notificationsLoadIdRef.current) return;
+        applyNotificationsSnapshot(snapshot);
+        setNotificationsError("");
+      } catch (error) {
+        if (requestId !== notificationsLoadIdRef.current) return;
+        const message = mapUiErrorMessage(error instanceof Error ? error.message : "", "Не удалось загрузить уведомления");
+        setNotificationsError(message);
+      } finally {
+        if (requestId === notificationsLoadIdRef.current) {
+          setNotificationsLoading(false);
+          notificationsRequestInFlightRef.current = false;
+        }
+      }
+    },
+    [applyNotificationsSnapshot, currentUserId, readCachedNotifications]
+  );
 
   async function dismissNotification(notification: UserNotificationDto) {
     if (dismissingIds[notification.id]) return;
-    const prevNotifications = notifications;
-    const prevUnreadCount = unreadCount;
+    const prevSnapshot =
+      notificationsSnapshotRef.current ??
+      ({
+        items: notifications,
+        unreadCount,
+        fetchedAt: Date.now()
+      } satisfies NotificationsCacheData);
+    const nextSnapshot: NotificationsCacheData = {
+      items: prevSnapshot.items.filter((item) => item.id !== notification.id),
+      unreadCount: notification.is_read ? prevSnapshot.unreadCount : Math.max(0, prevSnapshot.unreadCount - 1),
+      fetchedAt: Date.now()
+    };
+
     setDismissingIds((prev) => ({ ...prev, [notification.id]: true }));
-    setNotifications((prev) => prev.filter((item) => item.id !== notification.id));
-    if (!notification.is_read) {
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-    }
+    applyNotificationsSnapshot(nextSnapshot);
 
     try {
       const response = await fetch(`/api/notifications/${notification.id}/dismiss`, {
@@ -182,11 +264,10 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
         const payload = (await response.json().catch(() => null)) as { message?: string; code?: string } | null;
         throw new Error(payload?.message || payload?.code || "Failed to dismiss notification");
       }
-      void loadUnreadCount();
+      void loadNotifications({ silent: true, onlyIfStale: false });
     } catch (error) {
       console.error("NOTIFICATIONS_DISMISS_ERROR", error);
-      setNotifications(prevNotifications);
-      setUnreadCount(prevUnreadCount);
+      applyNotificationsSnapshot(prevSnapshot);
       setNotificationsError(
         mapUiErrorMessage(error instanceof Error ? error.message : "", "Не удалось скрыть уведомление. Попробуйте ещё раз.")
       );
@@ -201,11 +282,21 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
 
   async function markNotificationRead(notification: UserNotificationDto) {
     if (notification.is_read || readingIds[notification.id] || dismissingIds[notification.id]) return;
-    const prevNotifications = notifications;
-    const prevUnreadCount = unreadCount;
+    const prevSnapshot =
+      notificationsSnapshotRef.current ??
+      ({
+        items: notifications,
+        unreadCount,
+        fetchedAt: Date.now()
+      } satisfies NotificationsCacheData);
+    const nextSnapshot: NotificationsCacheData = {
+      items: prevSnapshot.items.map((item) => (item.id === notification.id ? { ...item, is_read: true } : item)),
+      unreadCount: Math.max(0, prevSnapshot.unreadCount - 1),
+      fetchedAt: Date.now()
+    };
+
     setReadingIds((prev) => ({ ...prev, [notification.id]: true }));
-    setNotifications((prev) => prev.map((item) => (item.id === notification.id ? { ...item, is_read: true } : item)));
-    setUnreadCount((prev) => Math.max(0, prev - 1));
+    applyNotificationsSnapshot(nextSnapshot);
 
     try {
       const response = await fetch(`/api/notifications/${notification.id}/read`, {
@@ -216,11 +307,10 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
         const payload = (await response.json().catch(() => null)) as { message?: string; code?: string } | null;
         throw new Error(payload?.message || payload?.code || "Failed to mark notification as read");
       }
-      void loadUnreadCount();
+      void loadNotifications({ silent: true, onlyIfStale: false });
     } catch (error) {
       console.error("NOTIFICATIONS_READ_ERROR", error);
-      setNotifications(prevNotifications);
-      setUnreadCount(prevUnreadCount);
+      applyNotificationsSnapshot(prevSnapshot);
     } finally {
       setReadingIds((prev) => {
         const next = { ...prev };
@@ -231,18 +321,17 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
   }
 
   useEffect(() => {
-    void loadUnreadCount();
-    const handle = window.setInterval(() => {
-      void loadUnreadCount();
-    }, 75_000);
-    return () => window.clearInterval(handle);
-  }, []);
+    void loadNotifications({ silent: Boolean(readCachedNotifications()) });
+  }, [loadNotifications, readCachedNotifications]);
+
+  useEffect(() => {
+    void loadNotifications({ silent: true, onlyIfStale: true });
+  }, [loadNotifications, pathname]);
 
   useEffect(() => {
     if (!notificationsOpen) return;
-    void loadNotifications();
-    void loadUnreadCount();
-  }, [notificationsOpen]);
+    void loadNotifications({ silent: true });
+  }, [loadNotifications, notificationsOpen]);
 
   useEffect(() => {
     writeDashboardCache(profileCacheKey(initialProfile.userId), {
@@ -279,6 +368,8 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
     if (currentUserId) {
       clearDashboardCache(profileCacheKey(currentUserId));
       clearDashboardCache(homeCacheKey(currentUserId));
+      clearDashboardCache(notificationsCacheKey(currentUserId));
+      clearRuntimeCache(notificationsRuntimeKey(currentUserId));
     }
 
     try {
@@ -422,6 +513,8 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
       ) : null}
 
       <aside
+        data-testid="dashboard-sidebar"
+        data-collapsed={sidebarCollapsed ? "true" : "false"}
         className={cn(
           "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-[#dfe3e6] bg-slate-50 px-3 pb-4 pt-0 sm:pt-0 transform-gpu will-change-transform",
           sidebarTransitionClass,
@@ -480,6 +573,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
 
         <div className="mt-auto flex flex-col gap-1">
           <button
+            data-testid="sidebar-toggle"
             type="button"
             onClick={() => setSidebarState((prev) => ({ ...prev, collapsed: !prev.collapsed }))}
             className="hidden items-center gap-3 rounded-xl py-3 text-sm font-semibold text-slate-500 transition-all hover:bg-white/80 hover:text-indigo-600 xl:flex xl:justify-start xl:px-4"
@@ -525,6 +619,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
           </Link>
 
           <button
+            data-testid="logout-button"
             className="flex items-center gap-3 rounded-xl py-3 text-sm font-semibold text-slate-500 transition-all hover:bg-white/80 hover:text-indigo-600 justify-center px-2 sm:justify-center sm:px-2 xl:justify-start xl:px-4"
             onClick={handleLogout}
             type="button"
@@ -574,6 +669,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
 
         <div className="flex items-center gap-2 md:gap-4">
           <button
+            data-testid="notifications-bell"
             type="button"
             onClick={() => setNotificationsOpen((prev) => !prev)}
             className="relative rounded-full p-2 text-slate-500 transition-all hover:bg-indigo-50"
@@ -581,7 +677,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
           >
             <Bell className="h-5 w-5" />
             {unreadCount > 0 ? (
-              <span className={unreadBadgeClass} />
+              <span data-testid="notifications-unread-dot" className={unreadBadgeClass} />
             ) : null}
           </button>
 
@@ -628,6 +724,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
       ) : null}
 
       <aside
+        data-testid="notifications-drawer"
         className={cn(
           "fixed right-0 top-0 z-50 h-dvh w-full max-w-md border-l border-border bg-white shadow-[-12px_0_40px_rgba(15,23,42,0.18)] transition-transform duration-200 ease-out",
           notificationsOpen ? "translate-x-0" : "translate-x-full"
@@ -652,7 +749,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
         </div>
 
         <div className="h-[calc(100dvh-4rem)] overflow-y-auto px-4 py-4">
-          {notificationsLoading && notifications.length === 0 ? (
+          {notificationsLoading && !hasNotificationsData ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, index) => (
                 <div key={`notifications-drawer-skeleton-${index}`} className="animate-pulse rounded-xl border border-slate-200 bg-white p-3">
@@ -681,7 +778,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
             </div>
           ) : null}
 
-          {!notificationsLoading && notifications.length === 0 && !notificationsError ? (
+          {!notificationsLoading && hasNotificationsData && notifications.length === 0 && !notificationsError ? (
             <div className="rounded-lg border border-border bg-slate-50 px-3 py-5 text-center text-slate-500">
               <BellOff className="mx-auto h-5 w-5 text-slate-400" />
               <p className="mt-2 text-sm font-medium">Новых уведомлений нет</p>
@@ -722,6 +819,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
                     <div className="flex items-center gap-1">
                       <span className="text-[11px] text-slate-400">{formatNotificationDate(item.published_at || item.created_at)}</span>
                       <button
+                        data-testid={`notification-dismiss-${item.id}`}
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();

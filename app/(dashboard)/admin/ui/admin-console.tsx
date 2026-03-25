@@ -455,6 +455,7 @@ export function AdminConsole() {
                   Тесты
                 </Button>
                 <Button
+                  data-testid="admin-tab-users"
                   variant={tab === "users" ? "default" : "secondary"}
                   onClick={() => setTabAndSyncQuery("users")}
                   type="button"
@@ -494,6 +495,7 @@ export function AdminConsole() {
                 {tab === "users" ? (
                   <>
                     <Button
+                      data-testid="admin-create-user"
                       onClick={() => {
                         setEditingUser(null);
                         setUsersForm(defaultUsersForm);
@@ -505,6 +507,7 @@ export function AdminConsole() {
                       Создать пользователя
                     </Button>
                     <select
+                      data-testid="admin-users-role-filter"
                       className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                       value={usersRoleFilter}
                       onChange={(event) => setUsersRoleFilter(event.target.value as AdminUserRole | "all")}
@@ -519,6 +522,7 @@ export function AdminConsole() {
                 ) : null}
                 {tab === "blog" ? (
                   <Button
+                    data-testid="admin-create-blog"
                     onClick={() => {
                       setEditingBlogPost(null);
                       setBlogPostForm(defaultBlogPostForm);
@@ -531,6 +535,7 @@ export function AdminConsole() {
                 ) : null}
                 {tab === "notifications" ? (
                   <Button
+                    data-testid="admin-create-notification"
                     onClick={() => {
                       setEditingNotification(null);
                       setNotificationForm(defaultNotificationForm);
@@ -567,7 +572,7 @@ export function AdminConsole() {
                     </div>
                   ) : (
                     tests.items.map((item) => (
-                      <div key={item.id} className={rowClass}>
+                      <div key={item.id} data-testid={`admin-user-row-${item.id}`} className={rowClass}>
                         <div className={rowMainClass}>
                           <p className="font-semibold text-foreground">{item.title}</p>
                           <p className="text-xs leading-tight text-muted-foreground">{item.description ?? "—"}</p>
@@ -575,6 +580,7 @@ export function AdminConsole() {
                         </div>
                         <div className={rowActionsClass}>
                           <Button
+                            data-testid={`admin-user-edit-${item.id}`}
                             variant="secondary"
                             size="sm"
                             onClick={() => {
@@ -652,7 +658,7 @@ export function AdminConsole() {
                           >
                             Изменить
                           </Button>
-                          <Button variant="secondary" size="sm" onClick={() => void deleteUser(item.id)} type="button">
+                          <Button data-testid={`admin-user-delete-${item.id}`} variant="secondary" size="sm" onClick={() => void deleteUser(item.id)} type="button">
                             Удалить
                           </Button>
                         </div>
@@ -675,7 +681,7 @@ export function AdminConsole() {
                     </div>
                   ) : (
                     blogPosts.items.map((item) => (
-                      <div key={item.id} className={rowClass}>
+                      <div key={item.id} data-testid={`admin-blog-row-${item.id}`} className={rowClass}>
                         <div className={rowMainClass}>
                           <p className="font-semibold text-foreground">{item.title}</p>
                           <p className="text-xs leading-tight text-muted-foreground">/{item.slug}</p>
@@ -685,6 +691,7 @@ export function AdminConsole() {
                         </div>
                         <div className={rowActionsClass}>
                           <Button
+                            data-testid={`admin-blog-edit-${item.id}`}
                             variant="secondary"
                             size="sm"
                             onClick={() => {
@@ -712,7 +719,7 @@ export function AdminConsole() {
                           >
                             Изменить
                           </Button>
-                          <Button variant="secondary" size="sm" onClick={() => void deleteBlogPost(item.id)} type="button">
+                          <Button data-testid={`admin-blog-delete-${item.id}`} variant="secondary" size="sm" onClick={() => void deleteBlogPost(item.id)} type="button">
                             Удалить
                           </Button>
                         </div>
@@ -735,7 +742,7 @@ export function AdminConsole() {
                     </div>
                   ) : (
                     notifications.items.map((item) => (
-                      <div key={item.id} className={rowClass}>
+                      <div key={item.id} data-testid={`admin-notification-row-${item.id}`} className={rowClass}>
                         <div className={rowMainClass}>
                           <p className="truncate font-semibold text-foreground">{item.title}</p>
                           <p className="line-clamp-2 text-xs leading-tight text-muted-foreground">{item.body}</p>
@@ -745,6 +752,7 @@ export function AdminConsole() {
                         </div>
                         <div className={rowActionsClass}>
                           <Button
+                            data-testid={`admin-notification-edit-${item.id}`}
                             variant="secondary"
                             size="sm"
                             onClick={() => {
@@ -764,7 +772,7 @@ export function AdminConsole() {
                           >
                             Изменить
                           </Button>
-                          <Button variant="secondary" size="sm" onClick={() => void deleteNotification(item.id)} type="button">
+                          <Button data-testid={`admin-notification-delete-${item.id}`} variant="secondary" size="sm" onClick={() => void deleteNotification(item.id)} type="button">
                             Удалить
                           </Button>
                         </div>

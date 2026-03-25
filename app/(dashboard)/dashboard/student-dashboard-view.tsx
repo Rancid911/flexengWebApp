@@ -5,13 +5,11 @@ import {
   BookOpen,
   CalendarCheck2,
   Clock3,
-  Eye,
   Layers,
-  Trophy,
-  Users
+  Sparkles
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,9 +43,15 @@ type DashboardRuntimeSnapshot = {
 };
 
 const moduleLoadingCards = [{ id: "loading-basics" }, { id: "loading-daily-life" }];
-const progressRadius = 46;
-const progressCircleLength = 2 * Math.PI * progressRadius;
 const DASHBOARD_RUNTIME_KEY = "student-dashboard:v1";
+
+type HomeworkCard = {
+  id: string;
+  title: string;
+  subtitle: string;
+  status: string;
+  statusTone: "primary" | "warning" | "muted";
+};
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -300,274 +304,255 @@ export default function DashboardPage() {
     loadData();
   }, [router]);
 
-  const userName = displayName.trim();
-  const progressOffset = useMemo(
-    () => progressCircleLength - (Math.max(0, Math.min(progressValue, 100)) / 100) * progressCircleLength,
-    [progressValue]
+  const lessonOfTheDay = useMemo(
+    () =>
+      modulesData[0] ?? {
+        id: "lesson-of-the-day",
+        title: "Ваш следующий урок",
+        description: "Откройте раздел обучения, чтобы продолжить занятия и увидеть персональные рекомендации.",
+        courseTitle: "Флексенг"
+      },
+    [modulesData]
   );
 
+  const learnerName = displayName.trim();
+
+  const homeworkCards = useMemo<HomeworkCard[]>(
+    () =>
+      modulesData.slice(0, 2).map((module, index): HomeworkCard => ({
+        id: module.id,
+        title: module.title,
+        subtitle: index === 0 ? "Следующий шаг по программе" : `Курс: ${module.courseTitle}`,
+        status: index === 0 ? "Не начато" : "В процессе",
+        statusTone: index === 0 ? "muted" : "primary"
+      })),
+    [modulesData]
+  );
+
+  const recommendationCards = useMemo(
+    () =>
+      (modulesData.slice(1, 3).length > 0 ? modulesData.slice(1, 3) : modulesData.slice(0, 2)).map((module) => ({
+        id: module.id,
+        title: module.title,
+        subtitle: module.description
+      })),
+    [modulesData]
+  );
+
+  const resultPercent = useMemo(() => {
+    const match = lastResultText.match(/(\d+)%/);
+    return match ? `${match[1]}%` : "—";
+  }, [lastResultText]);
+
+  const vocabularyCount = useMemo(() => {
+    if (modulesData.length === 0) return "0";
+    return String(modulesData.length * 6);
+  }, [modulesData.length]);
+
   return (
-    <div className="space-y-8 pb-8">
-      <section className="flex flex-col items-start justify-between gap-5 lg:flex-row lg:items-end">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
-            {userName ? `С возвращением, ${userName}` : "С возвращением"}
-          </h1>
-          <p className="text-base text-slate-600">Продолжим ваше изучение английского</p>
-        </div>
-        <div className="flex w-full items-center gap-4 rounded-2xl border border-[#dde2e9] bg-[#eef1f3] p-3 shadow-sm sm:w-auto">
-          <div className="flex -space-x-3">
-            <div className="h-10 w-10 rounded-full border-4 border-[#eef1f3] bg-[linear-gradient(135deg,#6c63ff,#4f46e5)]" />
-            <div className="h-10 w-10 rounded-full border-4 border-[#eef1f3] bg-[linear-gradient(135deg,#f59e0b,#f97316)]" />
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border-4 border-[#eef1f3] bg-[#4f46e5] text-[11px] font-bold text-white">
-              +4
-            </div>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-slate-900">Учебная группа</p>
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">Сейчас активна</p>
-          </div>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="space-y-6 xl:col-span-8">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card className="rounded-3xl border-[#dde2e9] bg-white shadow-[0_20px_40px_rgba(78,68,212,0.07)]">
-              <CardContent className="flex items-center justify-between gap-4 p-6 sm:p-7">
-                <div className="space-y-2">
-                  <h2 className="text-xl font-bold text-slate-900">Прогресс по курсам</h2>
-                  {!hasHomeData && isInitialLoading ? (
-                    <>
-                      <SkeletonLine className="h-4 w-44" />
-                      <SkeletonLine className="h-9 w-24" />
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm text-slate-600">{progressText}</p>
-                      <div className="flex items-end gap-2">
-                        <span className="text-4xl font-black text-indigo-700">{progressValue}%</span>
-                        <span className="pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">всего</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-                <div className="relative flex h-24 w-24 shrink-0 items-center justify-center sm:h-28 sm:w-28">
-                  {!hasHomeData && isInitialLoading ? (
-                    <div className="h-full w-full animate-pulse rounded-full bg-slate-200" />
-                  ) : (
-                    <>
-                      <svg viewBox="0 0 112 112" className="h-full w-full -rotate-90">
-                        <circle cx="56" cy="56" r={progressRadius} fill="transparent" stroke="#e6ebf2" strokeWidth="8" />
-                        <circle
-                          cx="56"
-                          cy="56"
-                          r={progressRadius}
-                          fill="transparent"
-                          stroke="#5b21b6"
-                          strokeDasharray={progressCircleLength}
-                          strokeDashoffset={progressOffset}
-                          strokeLinecap="round"
-                          strokeWidth="8"
-                        />
-                      </svg>
-                      <BookOpen className="absolute h-8 w-8 text-indigo-700" />
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-3xl border-[#dde2e9] bg-white shadow-[0_20px_40px_rgba(78,68,212,0.07)]">
-              <CardContent className="space-y-3 p-6 sm:p-7">
-                <div className="flex items-center gap-2 text-indigo-700">
-                  <Trophy className="h-5 w-5" />
-                  <h2 className="text-xl font-bold text-slate-900">Последний результат</h2>
-                </div>
-                {!hasHomeData && isInitialLoading ? (
-                  <>
-                    <SkeletonLine className="h-4 w-full" />
-                    <SkeletonLine className="h-4 w-4/5" />
-                    <SkeletonLine className="h-4 w-3/4" />
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-slate-600">{lastResultText}</p>
-                    <div className="grid grid-cols-2 gap-3 pt-2">
-                      <CompactStat
-                        icon={<CalendarCheck2 className="h-4 w-4 text-indigo-700" />}
-                        label="Тестов"
-                        value={quickStats.tests}
-                      />
-                      <CompactStat icon={<Clock3 className="h-4 w-4 text-indigo-700" />} label="Время" value={quickStats.learningTime} />
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-slate-900">Модули обучения</h2>
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-9 rounded-xl px-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
-                onClick={() => router.push("/learning")}
-              >
-                Все модули
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="grid gap-4">
-              {!hasHomeData && isInitialLoading ? (
-                moduleLoadingCards.map((card) => (
-                  <Card key={card.id} className="rounded-3xl border-[#dde2e9] bg-white">
-                    <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
-                      <div className="flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl bg-slate-200" />
-                      <div className="flex-1 space-y-2">
-                        <SkeletonLine className="h-5 w-1/2" />
-                        <SkeletonLine className="h-4 w-full" />
-                        <SkeletonLine className="h-4 w-2/3" />
-                      </div>
-                      <SkeletonLine className="h-8 w-24 rounded-xl" />
-                    </CardContent>
-                  </Card>
-                ))
-              ) : null}
-
-              {hasHomeData && modulesData.length === 0 ? (
-                <Card className="rounded-3xl border-[#dde2e9] bg-white">
-                  <CardContent className="p-5 text-sm text-slate-600">Нет доступных модулей для вашей роли.</CardContent>
-                </Card>
-              ) : null}
-
-              {modulesData.map((module, index) => (
-                <Card key={module.id} className="rounded-3xl border-[#dde2e9] bg-white transition-transform hover:translate-x-1">
-                  <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-5">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
-                      <Layers className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <h3 className="text-lg font-bold text-slate-900">{module.title}</h3>
-                      <p className="text-sm text-slate-600">{module.description}</p>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{module.courseTitle}</p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant={index % 2 === 0 ? "default" : "secondary"}
-                      className={index % 2 === 0 ? "bg-indigo-700 hover:bg-indigo-800" : ""}
-                    >
-                      Открыть
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <aside className="space-y-6 xl:col-span-4">
-          <Card className="rounded-[2rem] border-[#d9dfe7] bg-[#eef1f3]">
-            <CardContent className="space-y-4 p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-slate-900">Быстрая статистика</h2>
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-indigo-700 text-xs font-bold text-white">
-                  3
-                </span>
-              </div>
-
-              {!hasHomeData && isInitialLoading ? (
+    <div className="space-y-5 pb-8">
+      <section className="relative overflow-hidden rounded-[2rem] border border-[#dfe9fb] bg-[linear-gradient(135deg,#6658f5_0%,#8b74ff_56%,#9f81ff_100%)] text-white shadow-[0_18px_44px_rgba(89,71,236,0.2)]">
+        <div aria-hidden className="pointer-events-none absolute right-[-30px] top-[-40px] h-[220px] w-[220px] rounded-full bg-white/20" />
+        <div aria-hidden className="pointer-events-none absolute bottom-[-55px] right-[120px] h-[140px] w-[140px] rounded-full bg-white/20 max-sm:right-[40px]" />
+        <div className="grid gap-5 p-6 md:grid-cols-[1.35fr_0.95fr] md:p-7">
+          <div className="space-y-5">
+            <span className="inline-flex items-center gap-2 rounded-full bg-[#fff1b8] px-3 py-1.5 text-xs font-black uppercase tracking-[0.08em] text-[#8a6400]">
+              <BookOpen className="h-3.5 w-3.5" />
+              Урок дня
+            </span>
+            <div className="space-y-3">
+              {isInitialLoading && !hasHomeData ? (
                 <>
-                  <QuickStatSkeleton />
-                  <QuickStatSkeleton />
-                  <QuickStatSkeleton />
+                  <SkeletonLine className="h-11 w-48 bg-white/25" />
+                  <SkeletonLine className="h-5 w-full max-w-xl bg-white/20" />
+                  <SkeletonLine className="h-5 w-4/5 bg-white/20" />
                 </>
               ) : (
                 <>
-                  <QuickStatRow
-                    icon={<BookOpen className="h-4 w-4 text-indigo-700" />}
-                    label="Пройдено тестов"
-                    value={quickStats.tests}
-                  />
-                  <QuickStatRow
-                    icon={<Users className="h-4 w-4 text-indigo-700" />}
-                    label="Текущая серия"
-                    value={quickStats.streak}
-                  />
-                  <QuickStatRow
-                    icon={<Clock3 className="h-4 w-4 text-indigo-700" />}
-                    label="Время обучения"
-                    value={quickStats.learningTime}
-                  />
+                  <h1 className="text-4xl font-black tracking-[-0.06em] text-white sm:text-5xl">{lessonOfTheDay.title}</h1>
+                  <p className="max-w-2xl text-sm leading-6 text-[#ecf6ff] sm:text-base">{lessonOfTheDay.description}</p>
                 </>
               )}
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl border-[#dde2e9] bg-white">
-            <CardContent className="space-y-4 p-6">
-              <div className="flex items-center gap-2">
-                <Eye className="h-5 w-5 text-indigo-700" />
-                <h2 className="text-xl font-bold text-slate-900">Домашние задания</h2>
-              </div>
-              <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                В этом разделе вы увидите задания преподавателя, дедлайны и комментарии к проверке.
-              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <MetaPill icon={<Clock3 className="h-4 w-4" />} text={quickStats.learningTime === "…" ? "6 минут" : quickStats.learningTime} />
+              <MetaPill icon={<CalendarCheck2 className="h-4 w-4" />} text={`${progressValue}% пройдено`} />
+              <MetaPill icon={<Layers className="h-4 w-4" />} text={`${Math.max(1, modulesData.length)} разделов в курсе`} />
+            </div>
+            <div className="flex flex-wrap gap-3">
               <Button
                 type="button"
-                className="w-full rounded-xl bg-indigo-700 text-white hover:bg-indigo-800"
-                onClick={() => router.push("/assignments")}
+                className="h-12 rounded-[1.15rem] bg-[#ffd84d] px-5 font-black text-[#6b5000] shadow-[0_14px_26px_rgba(255,216,77,0.28)] hover:bg-[#ffe78f]"
+                onClick={() => router.push("/learning")}
               >
-                Перейти к заданиям
+                Продолжить
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 rounded-[1.15rem] border-white/35 bg-transparent px-5 font-black text-white hover:border-white/45 hover:bg-white/10 hover:text-white"
+                onClick={() => router.push("/tests")}
+              >
+                Открыть практику
+              </Button>
+            </div>
+          </div>
+
+          <Card className="border-white/20 bg-white/12 text-white shadow-none backdrop-blur-sm">
+            <CardContent className="space-y-5 p-5 sm:p-6">
+              <div>
+                <p className="text-sm font-semibold text-[#e7f4ff]">Прогресс по теме</p>
+                {isInitialLoading && !hasHomeData ? (
+                  <>
+                    <SkeletonLine className="mt-3 h-12 w-28 bg-white/25" />
+                    <SkeletonLine className="mt-4 h-3 w-full rounded-full bg-white/20" />
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-2 text-5xl font-black tracking-[-0.06em]">{progressValue}%</p>
+                    <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/20">
+                      <span
+                        className="block h-full rounded-full bg-white transition-[width] duration-500"
+                        style={{ width: `${Math.max(0, Math.min(progressValue, 100))}%` }}
+                      />
+                    </div>
+                    <p className="mt-3 text-sm text-[#e7f4ff]">{progressText}</p>
+                  </>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <HeroInfoCard label="Точность" value={resultPercent} />
+                <HeroInfoCard label="Стрик" value={quickStats.streak} />
+                <HeroInfoCard label="Слов" value={vocabularyCount} />
+              </div>
             </CardContent>
           </Card>
-        </aside>
-      </div>
+        </div>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-2">
+        <Card className="rounded-[2rem] border-[#dfe9fb] bg-white shadow-[0_18px_44px_rgba(27,73,155,0.1)]">
+          <CardContent className="space-y-4 p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-xl font-black tracking-[-0.04em] text-[#12203b]">Домашние задания</h2>
+              <StatusBadge tone="warning">{homeworkCards.length > 0 ? `${homeworkCards.length} активных` : "Пусто"}</StatusBadge>
+            </div>
+            <div className="space-y-3">
+              {isInitialLoading && !hasHomeData ? (
+                moduleLoadingCards.map((card) => (
+                  <div key={card.id} className="rounded-[1.35rem] border border-[#dfe9fb] bg-white p-4">
+                    <SkeletonLine className="h-5 w-1/2" />
+                    <SkeletonLine className="mt-2 h-4 w-32" />
+                  </div>
+                ))
+              ) : homeworkCards.length > 0 ? (
+                homeworkCards.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => router.push("/assignments")}
+                    className="flex w-full items-center justify-between gap-4 rounded-[1.35rem] border border-[#dfe9fb] bg-white px-4 py-4 text-left transition hover:bg-[#fafdff]"
+                  >
+                    <div>
+                      <p className="font-black text-[#12203b]">{item.title}</p>
+                      <p className="mt-1 text-sm text-[#6d7fa3]">{item.subtitle}</p>
+                    </div>
+                    <StatusBadge tone={item.statusTone}>{item.status}</StatusBadge>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-[1.35rem] border border-[#dfe9fb] bg-[#f8fbff] px-4 py-5 text-sm text-[#6d7fa3]">
+                  Домашних заданий пока нет. Следующий материал появится после открытия следующего урока.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-[2rem] border-[#dfe9fb] bg-white shadow-[0_18px_44px_rgba(27,73,155,0.1)]">
+          <CardContent className="space-y-4 p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-xl font-black tracking-[-0.04em] text-[#12203b]">Рекомендовано</h2>
+              <StatusBadge tone="primary">Под ваш уровень</StatusBadge>
+            </div>
+            <div className="space-y-3">
+              {isInitialLoading && !hasHomeData ? (
+                moduleLoadingCards.map((card) => (
+                  <div key={card.id} className="rounded-[1.35rem] border border-[#dfe9fb] bg-white p-4">
+                    <SkeletonLine className="h-5 w-3/5" />
+                    <SkeletonLine className="mt-2 h-4 w-4/5" />
+                  </div>
+                ))
+              ) : recommendationCards.length > 0 ? (
+                recommendationCards.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => router.push("/learning")}
+                    className="flex w-full items-center justify-between gap-4 rounded-[1.35rem] border border-[#dfe9fb] bg-white px-4 py-4 text-left transition hover:bg-[#fafdff]"
+                  >
+                    <div>
+                      <p className="font-black text-[#12203b]">{item.title}</p>
+                      <p className="mt-1 text-sm text-[#6d7fa3]">{item.subtitle}</p>
+                    </div>
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#dfe9fb] bg-[#f5f9ff] text-[#587198]">
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-[1.35rem] border border-[#dfe9fb] bg-[#f8fbff] px-4 py-5 text-sm text-[#6d7fa3]">
+                  {learnerName ? `${learnerName}, рекомендации появятся после первых выполненных заданий и тестов.` : "Рекомендации появятся после того, как вы выполните первые задания и тесты."}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-3">
+        <SummaryCard label="Сегодня" value={quickStats.learningTime} chip="продуктивно" icon={<Sparkles className="h-4 w-4" />} />
+        <SummaryCard label="Сделано тестов" value={quickStats.tests} chip="за месяц" icon={<BookOpen className="h-4 w-4" />} />
+        <SummaryCard label="Карточек в повторении" value={vocabularyCount} chip="словарь" icon={<Layers className="h-4 w-4" />} />
+      </section>
     </div>
   );
 }
 
-function CompactStat({
-  icon,
-  label,
-  value
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) {
+function HeroInfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[#e4e8ef] bg-slate-50 px-3 py-2">
-      <div className="flex items-center gap-1 text-xs font-semibold text-slate-500">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <p className="mt-1 text-sm font-bold text-slate-900">{value}</p>
+    <div className="rounded-[1.35rem] border border-white/20 bg-white/12 px-4 py-3">
+      <p className="text-sm text-[#e7f4ff]">{label}</p>
+      <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-white">{value}</p>
     </div>
   );
 }
 
-function QuickStatRow({
-  icon,
-  label,
-  value
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) {
+function MetaPill({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-white px-3 py-3">
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="text-sm text-slate-600">{label}</span>
-      </div>
-      <span className="text-sm font-bold text-slate-900">{value}</span>
-    </div>
+    <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/15 px-3.5 py-2 text-sm font-bold text-[#eef7ff]">
+      {icon}
+      {text}
+    </span>
+  );
+}
+
+function StatusBadge({
+  children,
+  tone
+}: {
+  children: React.ReactNode;
+  tone: "primary" | "warning" | "muted";
+}) {
+  const className =
+    tone === "primary"
+      ? "bg-[#eaf4ff] text-[#1f7aff]"
+      : tone === "warning"
+        ? "bg-[#fff4df] text-[#bc7500]"
+        : "bg-[#f3f6fc] text-[#60708e]";
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-black ${className}`}>{children}</span>
   );
 }
 
@@ -575,11 +560,27 @@ function SkeletonLine({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded-md bg-slate-200 ${className}`} />;
 }
 
-function QuickStatSkeleton() {
+function SummaryCard({
+  label,
+  value,
+  chip,
+  icon
+}: {
+  label: string;
+  value: string;
+  chip: string;
+  icon: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-white px-3 py-3">
-      <SkeletonLine className="h-4 w-1/2" />
-      <SkeletonLine className="h-4 w-16" />
-    </div>
+    <Card className="rounded-[1.7rem] border-[#dfe9fb] bg-white shadow-[0_8px_24px_rgba(27,73,155,0.08)]">
+      <CardContent className="space-y-3 p-5">
+        <p className="text-sm text-[#6d7fa3]">{label}</p>
+        <p className="text-4xl font-black tracking-[-0.05em] text-[#12203b]">{value}</p>
+        <span className="inline-flex items-center gap-2 rounded-full border border-[#dfe9fb] bg-[#f5f9ff] px-3 py-1.5 text-sm font-bold text-[#5b6990]">
+          {icon}
+          {chip}
+        </span>
+      </CardContent>
+    </Card>
   );
 }

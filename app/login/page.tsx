@@ -105,6 +105,7 @@ export default function LoginPage() {
 
           <form className="space-y-3" onSubmit={onSubmit}>
             <Input
+              data-testid="login-email"
               type="email"
               placeholder="Email"
               value={email}
@@ -113,6 +114,7 @@ export default function LoginPage() {
               className="h-11 border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
             />
             <Input
+              data-testid="login-password"
               type="password"
               placeholder="Пароль"
               value={password}
@@ -122,7 +124,12 @@ export default function LoginPage() {
             />
             {error ? <p className="text-sm text-rose-600">{error}</p> : null}
             {confirmError ? <p className="text-sm text-rose-600">Ссылка подтверждения недействительна или устарела.</p> : null}
-            <Button type="submit" className="h-11 w-full rounded-xl bg-[#8D70FF] text-white hover:bg-[#654ED6]" disabled={loading}>
+            <Button
+              data-testid="login-submit"
+              type="submit"
+              className="h-11 w-full rounded-xl bg-[#8D70FF] text-white hover:bg-[#654ED6]"
+              disabled={loading}
+            >
               {loading ? "Вход..." : "Войти"}
             </Button>
           </form>

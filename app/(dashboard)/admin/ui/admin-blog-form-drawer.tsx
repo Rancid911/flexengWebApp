@@ -25,7 +25,12 @@ export function AdminBlogFormDrawer({ open, title, form, categories, onClose, on
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="space-y-1">
             <label className="text-sm text-muted-foreground">Заголовок</label>
-            <Input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} required />
+            <Input
+              data-testid="admin-blog-title-input"
+              value={form.title}
+              onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+              required
+            />
           </div>
           <div className="space-y-1">
             <label className="text-sm text-muted-foreground">Slug</label>
@@ -38,6 +43,7 @@ export function AdminBlogFormDrawer({ open, title, form, categories, onClose, on
           <div className="space-y-1 md:col-span-2">
             <label className="text-sm text-muted-foreground">Контент</label>
             <textarea
+              data-testid="admin-blog-content-input"
               value={form.content}
               onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))}
               className="min-h-40 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -55,6 +61,7 @@ export function AdminBlogFormDrawer({ open, title, form, categories, onClose, on
           <div className="space-y-1">
             <label className="text-sm text-muted-foreground">Статус</label>
             <select
+              data-testid="admin-blog-status-select"
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
               value={form.status}
               onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as "draft" | "published" }))}
@@ -112,7 +119,9 @@ export function AdminBlogFormDrawer({ open, title, form, categories, onClose, on
           </div>
         </div>
 
-        <Button type="submit">{submitLabel}</Button>
+        <Button data-testid="admin-blog-submit" type="submit">
+          {submitLabel}
+        </Button>
       </form>
     </AdminDrawer>
   );

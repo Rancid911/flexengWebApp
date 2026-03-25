@@ -39,12 +39,18 @@ export function AdminNotificationFormDrawer({
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="space-y-1">
           <label className="text-sm text-muted-foreground">Заголовок</label>
-          <Input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} required />
+          <Input
+            data-testid="admin-notification-title-input"
+            value={form.title}
+            onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+            required
+          />
         </div>
 
         <div className="space-y-1">
           <label className="text-sm text-muted-foreground">Текст уведомления</label>
           <textarea
+            data-testid="admin-notification-body-input"
             value={form.body}
             onChange={(event) => setForm((prev) => ({ ...prev, body: event.target.value }))}
             className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -56,6 +62,7 @@ export function AdminNotificationFormDrawer({
           <div className="space-y-1">
             <label className="text-sm text-muted-foreground">Тип</label>
             <select
+              data-testid="admin-notification-type-select"
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
               value={form.type}
               onChange={(event) => setForm((prev) => ({ ...prev, type: event.target.value as NotificationForm["type"] }))}
@@ -133,7 +140,7 @@ export function AdminNotificationFormDrawer({
           </div>
         </div>
 
-        <Button type="submit" disabled={submitting}>
+        <Button data-testid="admin-notification-submit" type="submit" disabled={submitting}>
           {submitting ? "Сохранение..." : submitLabel}
         </Button>
       </form>

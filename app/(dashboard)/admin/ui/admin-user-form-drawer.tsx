@@ -57,6 +57,7 @@ export function AdminUserFormDrawer({
             <Input value={getRoleLabel(form.role)} disabled className="ml-1 max-w-[14rem]" />
           ) : (
             <select
+              data-testid="admin-user-role-select"
               className="ml-1 h-9 w-full max-w-[14rem] rounded-md border border-input bg-background px-3 text-sm"
               value={form.role}
               onChange={(event) => setForm("role", event.target.value as UsersForm["role"])}
@@ -75,6 +76,7 @@ export function AdminUserFormDrawer({
           <div className="space-y-1">
             <label className="text-sm text-muted-foreground">Имя</label>
             <Input
+              data-testid="admin-user-first-name-input"
               value={form.first_name}
               onChange={(event) => setForm("first_name", event.target.value)}
               className={cn(fieldErrors.first_name && "border-red-500")}
@@ -85,6 +87,7 @@ export function AdminUserFormDrawer({
           <div className="space-y-1">
             <label className="text-sm text-muted-foreground">Фамилия</label>
             <Input
+              data-testid="admin-user-last-name-input"
               value={form.last_name}
               onChange={(event) => setForm("last_name", event.target.value)}
               className={cn(fieldErrors.last_name && "border-red-500")}
@@ -95,6 +98,7 @@ export function AdminUserFormDrawer({
           <div className="space-y-1">
             <label className="text-sm text-muted-foreground">Email</label>
             <Input
+              data-testid="admin-user-email-input"
               value={form.email}
               onChange={(event) => setForm("email", event.target.value)}
               type="email"
@@ -106,6 +110,7 @@ export function AdminUserFormDrawer({
           <div className="space-y-1">
             <label className="text-sm text-muted-foreground">Пароль</label>
             <Input
+              data-testid="admin-user-password-input"
               value={form.password}
               onChange={(event) => setForm("password", event.target.value)}
               type="password"
@@ -118,6 +123,7 @@ export function AdminUserFormDrawer({
           <div className="space-y-1">
             <label className="text-sm text-muted-foreground">Телефон</label>
             <Input
+              data-testid="admin-user-phone-input"
               value={form.phone}
               onChange={(event) => setForm("phone", normalizeRuPhoneInput(event.target.value))}
               onKeyDown={(event) => {
@@ -205,9 +211,9 @@ export function AdminUserFormDrawer({
           ) : null}
         </div>
 
-        {formError ? <p className="text-sm text-red-500">{formError}</p> : null}
+        {formError ? <p data-testid="admin-user-form-error" className="text-sm text-red-500">{formError}</p> : null}
 
-        <Button type="submit" disabled={submitting}>
+        <Button data-testid="admin-user-submit" type="submit" disabled={submitting}>
           {submitting ? "Сохранение..." : editingUser ? "Сохранить" : "Создать"}
         </Button>
       </form>

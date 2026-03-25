@@ -1,3 +1,5 @@
+import type { UserNotificationDto } from "@/lib/admin/types";
+
 const CACHE_VERSION = 1;
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -33,12 +35,22 @@ export type HomeCacheData = {
   };
 };
 
+export type NotificationsCacheData = {
+  items: UserNotificationDto[];
+  unreadCount: number;
+  fetchedAt: number;
+};
+
 export function profileCacheKey(userId: string) {
   return `dashboard:profile:${userId}`;
 }
 
 export function homeCacheKey(userId: string) {
   return `dashboard:home:${userId}`;
+}
+
+export function notificationsCacheKey(userId: string) {
+  return `dashboard:notifications:${userId}`;
 }
 
 export function readDashboardCache<T>(key: string): T | null {
