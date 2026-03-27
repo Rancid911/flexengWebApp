@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { getUserRoleById } from "@/lib/auth/get-user-role";
+import { getStudentDashboardData } from "@/lib/dashboard/student-dashboard";
 import { createClient } from "@/lib/supabase/server";
 
 import AdminDashboardView from "./admin-dashboard-view";
@@ -21,7 +22,8 @@ export default async function DashboardPage() {
   const role = await getUserRoleById(supabase, user.id);
 
   if (role === "student") {
-    return <StudentDashboardView />;
+    const data = await getStudentDashboardData();
+    return <StudentDashboardView data={data} />;
   }
 
   if (role === "admin") {

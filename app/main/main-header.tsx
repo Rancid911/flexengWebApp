@@ -6,34 +6,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { siteDropdownMenus, type SiteNavItem } from "./site-navigation";
 
-type NavItem = {
-  href: string;
-  label: string;
-};
-
-const dropdownMenus = [
-  {
-    id: "about",
-    label: "О школе",
-    links: [
-      { label: "Наша методика", href: "/about", description: "Как выстраиваем программу под цель ученика" },
-      { label: "Преподаватели", href: "/about", description: "Кто ведет занятия и как проходит отбор" },
-      { label: "Результаты учеников", href: "/about", description: "Отзывы и реальные кейсы прогресса" }
-    ]
-  },
-  {
-    id: "resources",
-    label: "Ресурсы",
-    links: [
-      { label: "Блог", href: "/articles", description: "Материалы по английскому и обучению" },
-      { label: "FAQ", href: "/faq", description: "Ответы на частые вопросы перед стартом" },
-      { label: "Поддержка", href: "/support", description: "Помощь и связь с командой Флексенг" }
-    ]
-  }
-] as const;
-
-export function MainHeader({ navItems }: { navItems: NavItem[] }) {
+export function MainHeader({ navItems }: { navItems: SiteNavItem[] }) {
   const [open, setOpen] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [openMobileSections, setOpenMobileSections] = useState<Record<string, boolean>>({});
@@ -94,11 +69,11 @@ export function MainHeader({ navItems }: { navItems: NavItem[] }) {
 
         <nav className="hidden items-center gap-5 md:flex">
           {navItems.map((item) => (
-            <a key={item.href} href={item.href} className="text-base font-medium text-[#706E88] transition-colors hover:text-[#322F55]">
+            <Link key={item.href} href={item.href} className="text-base font-medium text-[#706E88] transition-colors hover:text-[#322F55]">
               {item.label}
-            </a>
+            </Link>
           ))}
-          {dropdownMenus.map((menu) => (
+          {siteDropdownMenus.map((menu) => (
             <div
               key={menu.id}
               className="relative"
@@ -121,10 +96,10 @@ export function MainHeader({ navItems }: { navItems: NavItem[] }) {
                 <div className="absolute left-1/2 top-[calc(100%+10px)] z-50 w-[340px] -translate-x-1/2 rounded-2xl border border-[#E4E1EF] bg-white p-3 shadow-[0_16px_36px_rgba(34,28,62,0.14)]">
                   <div className="grid gap-1">
                     {menu.links.map((link) => (
-                      <a key={link.label} href={link.href} className="rounded-xl px-3 py-2 transition-colors hover:bg-[#F4F5F7]">
+                      <Link key={link.label} href={link.href} className="rounded-xl px-3 py-2 transition-colors hover:bg-[#F4F5F7]">
                         <p className="text-sm font-semibold text-[#322F55]">{link.label}</p>
                         <p className="text-xs text-[#6F6A86]">{link.description}</p>
-                      </a>
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -175,18 +150,18 @@ export function MainHeader({ navItems }: { navItems: NavItem[] }) {
             </div>
             <nav className="space-y-1">
               {navItems.map((item) => (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
                   onClick={closeMobileMenu}
                   className="block rounded-xl px-3 py-2 text-base font-medium text-[#4A4476] transition-colors hover:bg-[#EEE8FF]"
                 >
                   {item.label}
-                </a>
+                </Link>
               ))}
             </nav>
             <div className="mt-3 space-y-3 border-t border-[#E6E0F2] pt-3">
-              {dropdownMenus.map((menu) => (
+              {siteDropdownMenus.map((menu) => (
                 <div key={menu.id} className="space-y-1">
                   <button
                     type="button"
@@ -203,14 +178,14 @@ export function MainHeader({ navItems }: { navItems: NavItem[] }) {
                   {openMobileSections[menu.id] ? (
                     <div id={`mobile-menu-section-${menu.id}`} className="ml-3 space-y-1 pl-2">
                       {menu.links.map((link) => (
-                        <a
+                        <Link
                           key={link.label}
                           href={link.href}
                           onClick={closeMobileMenu}
                           className="block rounded-xl px-3 py-2 text-sm text-[#4A4476] transition-colors hover:bg-[#EEE8FF]"
                         >
                           {link.label}
-                        </a>
+                        </Link>
                       ))}
                     </div>
                   ) : null}

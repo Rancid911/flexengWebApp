@@ -126,10 +126,10 @@ export function BlogLiveSearchShell({
               onClick={() => {
                 setCategory("");
               }}
-              className={`rounded-full border px-3 py-1 text-xs transition ${
+              className={`inline-flex h-9 items-center rounded-xl border px-3.5 text-sm font-medium transition ${
                 !category
-                  ? "border-[#8D70FF] bg-[#4A4476] text-white"
-                  : "border-white/35 bg-white/10 text-[#ECE8FF] hover:border-white/55 hover:bg-white/20 hover:text-white"
+                  ? "border-white/30 bg-white text-[#2f2a4c] shadow-[0_8px_20px_rgba(17,12,31,0.16)]"
+                  : "border-white/12 bg-white/6 text-[#ddd7f2] hover:border-white/20 hover:bg-white/10 hover:text-white"
               }`}
             >
               Все категории
@@ -141,10 +141,10 @@ export function BlogLiveSearchShell({
                 onClick={() => {
                   setCategory(item.slug);
                 }}
-                className={`rounded-full border px-3 py-1 text-xs transition ${
+                className={`inline-flex h-9 items-center rounded-xl border px-3.5 text-sm font-medium transition ${
                   category === item.slug
-                    ? "border-[#8D70FF] bg-[#4A4476] text-white"
-                    : "border-white/35 bg-white/10 text-[#ECE8FF] hover:border-white/55 hover:bg-white/20 hover:text-white"
+                    ? "border-white/30 bg-white text-[#2f2a4c] shadow-[0_8px_20px_rgba(17,12,31,0.16)]"
+                    : "border-white/12 bg-white/6 text-[#ddd7f2] hover:border-white/20 hover:bg-white/10 hover:text-white"
                 }`}
               >
                 {item.name}
@@ -162,20 +162,20 @@ export function BlogLiveSearchShell({
               <Link
                 key={`${post.id || post.slug || "editorial"}-${index}`}
                 href={`/articles/${post.slug}`}
-                className="group rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition-all duration-75 ease-out hover:duration-300 hover:-translate-y-0.5 hover:border-[#322F55] hover:bg-[#4A4476] hover:shadow-md"
+                className="group rounded-2xl border border-[#E5E7EB] bg-[linear-gradient(180deg,#ffffff_0%,#fbfcff_100%)] p-4 shadow-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:border-[#d7dff0] hover:bg-[linear-gradient(180deg,#ffffff_0%,#f7faff_100%)] hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)]"
               >
                 <div className="mb-3 h-40 overflow-hidden rounded-xl bg-[linear-gradient(145deg,#F3F4F6_0%,#F9FAFB_60%,#F3F4F6_100%)]">
                   {post.cover_image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={post.cover_image_url} alt={post.title} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-sm font-semibold text-[#374151] transition-colors duration-75 ease-out group-hover:duration-300 group-hover:text-[#F3EEFF]">Статья Флексенг</div>
+                    <div className="flex h-full items-center justify-center text-sm font-semibold text-[#374151]">Статья Флексенг</div>
                   )}
                 </div>
-                <p className="text-xs text-[#6B7280] transition-colors duration-75 ease-out group-hover:duration-300 group-hover:text-[#DAD3F3]">{post.category?.name ?? "Без категории"}</p>
-                <h3 className="mt-1 line-clamp-2 text-lg font-semibold text-[#111111] transition-colors duration-75 ease-out group-hover:duration-300 group-hover:text-[#F3EEFF]">{post.title}</h3>
-                <p className="mt-2 line-clamp-3 text-sm text-[#4B5563] transition-colors duration-75 ease-out group-hover:duration-300 group-hover:text-[#DAD3F3]">{post.excerpt ?? "Откройте статью, чтобы прочитать материал."}</p>
-                <div className="mt-3 flex items-center gap-3 text-xs text-[#6B7280] transition-colors duration-75 ease-out group-hover:duration-300 group-hover:text-[#DAD3F3]">
+                <p className="text-xs text-[#6B7280]">{post.category?.name ?? "Без категории"}</p>
+                <h3 className="mt-1 line-clamp-2 text-lg font-semibold text-[#111111] transition-colors duration-150 group-hover:text-[#2f2a4c]">{post.title}</h3>
+                <p className="mt-2 line-clamp-3 text-sm text-[#4B5563]">{post.excerpt ?? "Откройте статью, чтобы прочитать материал."}</p>
+                <div className="mt-3 flex items-center gap-3 text-xs text-[#6B7280]">
                   <span className="inline-flex items-center gap-1">
                     <Clock3 className="h-3.5 w-3.5" />
                     {post.reading_time_min ?? 5} мин
@@ -211,7 +211,11 @@ export function BlogLiveSearchShell({
                 <Link
                   key={`${item.id || item.slug || "tag"}-${index}`}
                   href={`/articles?tag=${encodeURIComponent(item.slug)}&sort=${sort}${query ? `&q=${encodeURIComponent(query)}` : ""}`}
-                  className={`rounded-full border px-2.5 py-1 text-xs transition-all duration-75 ease-out hover:duration-300 ${tag === item.slug ? "border-[#322F55] bg-[#4A4476] text-[#F3EEFF]" : "border-[#D1D5DB] text-[#374151] hover:border-[#322F55] hover:bg-[#4A4476] hover:text-[#F3EEFF]"}`}
+                  className={`rounded-full border px-2.5 py-1 text-xs transition-all duration-75 ease-out hover:duration-300 ${
+                    tag === item.slug
+                      ? "border-[#322F55] bg-[#4A4476] text-[#F3EEFF]"
+                      : "border-[#D1D5DB] text-[#374151] hover:border-[#322F55] hover:bg-[#4A4476] hover:text-[#F3EEFF]"
+                  }`}
                 >
                   #{item.name}
                 </Link>
@@ -226,7 +230,7 @@ export function BlogLiveSearchShell({
                 <Link
                   key={`${item.id || item.slug || "popular"}-${index}`}
                   href={`/articles/${item.slug}`}
-                  className="block rounded px-2 py-1.5 text-sm text-[#111111] transition-all duration-75 ease-out hover:duration-300 hover:bg-[#4A4476] hover:text-[#F3EEFF]"
+                  className="block rounded-xl px-2.5 py-2 text-sm text-[#111111] transition hover:bg-[#f7f9ff] hover:text-[#2f2a4c]"
                 >
                   {item.title}
                 </Link>

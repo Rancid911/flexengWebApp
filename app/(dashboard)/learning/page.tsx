@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function LearningPage() {
-  return <div className="flex-1" />;
+  redirect("/practice");
 }

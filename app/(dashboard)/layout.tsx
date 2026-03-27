@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { redirect } from "next/navigation";
 
 import type { UserRole } from "@/lib/auth/get-user-role";
@@ -52,5 +54,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
     role
   };
 
-  return <DashboardShellClient initialProfile={initialProfile}>{children}</DashboardShellClient>;
+  let appVersion = "0.1.0";
+  try {
+    const packageJsonPath = path.join(process.cwd(), "package.json");
+    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as { version?: string };
+    if (typeof packageJson.version === "string" && packageJson.version.trim()) {
+      appVersion = packageJson.version.trim();
+    }
+  } catch (versionError) {
+    console.error("Failed to read app version from package.json:", versionError);
+  }
+
+  return (
+    <DashboardShellClient initialProfile={initialProfile} appVersion={appVersion}>
+      {children}
+    </DashboardShellClient>
+  );
 }

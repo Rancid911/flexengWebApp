@@ -147,12 +147,12 @@ export function BlogFeedClient({
             <Link
               key={`${post.id || post.slug || "post"}-${index}`}
               href={`/articles/${post.slug}`}
-              className="group rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition-all duration-75 ease-out hover:duration-300 hover:border-[#322F55] hover:bg-[#4A4476] hover:shadow-md"
+              className="group rounded-2xl border border-[#E5E7EB] bg-[linear-gradient(180deg,#ffffff_0%,#fbfcff_100%)] p-4 shadow-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:border-[#d7dff0] hover:bg-[linear-gradient(180deg,#ffffff_0%,#f7faff_100%)] hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)]"
             >
-              <p className="text-xs text-[#6B7280] transition-colors duration-75 ease-out group-hover:duration-300 group-hover:text-[#DAD3F3]">{post.category?.name ?? "Без категории"}</p>
-              <h3 className="mt-1 text-lg font-semibold text-[#111111] transition-colors duration-75 ease-out group-hover:duration-300 group-hover:text-white">{post.title}</h3>
-              <p className="mt-2 line-clamp-2 text-sm text-[#4B5563] transition-colors duration-75 ease-out group-hover:duration-300 group-hover:text-white">{post.excerpt ?? "Откройте статью, чтобы прочитать материал."}</p>
-              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#6B7280] transition-colors duration-75 ease-out group-hover:duration-300 group-hover:text-white">
+              <p className="text-xs text-[#6B7280]">{post.category?.name ?? "Без категории"}</p>
+              <h3 className="mt-1 text-lg font-semibold text-[#111111] transition-colors duration-150 group-hover:text-[#2f2a4c]">{post.title}</h3>
+              <p className="mt-2 line-clamp-2 text-sm text-[#4B5563]">{post.excerpt ?? "Откройте статью, чтобы прочитать материал."}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#6B7280]">
                 <span className="inline-flex items-center gap-1">
                   <Clock3 className="h-3.5 w-3.5" />
                   {post.reading_time_min ?? 5} мин

@@ -3,13 +3,11 @@
 import {
   LayoutDashboard,
   GraduationCap,
-  ClipboardCheck,
   Layers,
   ClipboardList,
   ShieldCheck,
   Settings,
   LogOut,
-  Search,
   Bell,
   BellOff,
   Wrench,
@@ -18,14 +16,17 @@ import {
   ChevronLeft,
   X,
   Menu,
-  BookOpen
+  BookOpen,
+  ChartColumn,
+  CreditCard,
+  CalendarRange
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
+import { DashboardGlobalSearch } from "@/components/search/dashboard-global-search";
 import {
   clearDashboardCache,
   homeCacheKey,
@@ -51,6 +52,10 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
 };
 
+type MobileActionItem =
+  | { id: string; label: string; href: string; icon: React.ComponentType<{ className?: string }>; kind: "link" }
+  | { id: string; label: string; icon: React.ComponentType<{ className?: string }>; kind: "button"; danger?: boolean };
+
 type LayoutProfileCache = {
   userId: string;
   displayName: string;
@@ -61,6 +66,7 @@ type LayoutProfileCache = {
 
 type DashboardShellClientProps = {
   initialProfile: LayoutProfileCache;
+  appVersion: string;
   children: React.ReactNode;
 };
 
@@ -70,11 +76,54 @@ const NOTIFICATIONS_STALE_MS = 75_000;
 
 const baseNavItems: NavItem[] = [
   { id: "dashboard", label: "Рабочий стол", href: "/dashboard", icon: LayoutDashboard },
-  { id: "learning", label: "Мои курсы", href: "/learning", icon: GraduationCap },
-  { id: "tests", label: "Тесты", href: "/tests", icon: ClipboardCheck },
-  { id: "flashcards", label: "Карточки", href: "/flashcards", icon: Layers },
-  { id: "assignments", label: "Домашние задания", href: "/assignments", icon: ClipboardList }
+  { id: "schedule", label: "Расписание", href: "/schedule", icon: CalendarRange },
+  { id: "practice", label: "Практика", href: "/practice", icon: GraduationCap },
+  { id: "homework", label: "Домашнее задание", href: "/homework", icon: ClipboardList },
+  { id: "words", label: "Слова", href: "/words", icon: Layers },
+  { id: "progress", label: "Прогресс", href: "/progress", icon: ChartColumn }
 ];
+
+const adminNavItem: NavItem = { id: "admin", label: "Управление", href: "/admin", icon: ShieldCheck };
+
+const adminPrimaryNavItems: NavItem[] = [
+  { id: "dashboard", label: "Дашборд", href: "/dashboard", icon: LayoutDashboard },
+  { id: "student-dashboard", label: "Рабочий стол", href: "/student-dashboard", icon: BookOpen },
+  { id: "schedule", label: "Расписание", href: "/schedule", icon: CalendarRange },
+  adminNavItem,
+  { id: "practice", label: "Практика", href: "/practice", icon: GraduationCap },
+  { id: "homework", label: "Домашнее задание", href: "/homework", icon: ClipboardList },
+  { id: "words", label: "Слова", href: "/words", icon: Layers },
+  { id: "progress", label: "Прогресс", href: "/progress", icon: ChartColumn }
+];
+
+const settingsNavItems: NavItem[] = [
+  { id: "profile", label: "Профиль", href: "/settings/profile", icon: Settings },
+  { id: "payments", label: "Оплата", href: "/settings/payments", icon: CreditCard }
+];
+
+function getSidebarItemClass(active: boolean, secondary = false) {
+  return cn(
+    "group flex items-center gap-3 rounded-2xl py-2.5 text-sm font-semibold transition-all duration-200",
+    "justify-center px-2 xl:justify-start xl:px-3.5",
+    active
+      ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_100%)] text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.07)] ring-1 ring-white/90"
+      : secondary
+        ? "text-slate-500 hover:bg-white/70 hover:text-slate-800"
+        : "text-slate-600 hover:bg-white/80 hover:text-slate-900"
+  );
+}
+
+function getSidebarTokenClass(active: boolean, secondary = false) {
+  return cn(
+    "flex h-[2.125rem] w-[2.125rem] shrink-0 items-center justify-center rounded-2xl transition-all duration-200",
+    "bg-slate-100 text-slate-600",
+    active
+      ? "bg-slate-200 text-slate-800 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.65),0_8px_18px_rgba(15,23,42,0.08)]"
+      : secondary
+        ? "opacity-90 group-hover:opacity-100"
+        : "group-hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.5)]"
+  );
+}
 
 function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -89,7 +138,39 @@ function isNotificationsSnapshotStale(snapshot: NotificationsCacheData | null) {
   return Date.now() - snapshot.fetchedAt > NOTIFICATIONS_STALE_MS;
 }
 
-export default function DashboardShellClient({ initialProfile, children }: DashboardShellClientProps) {
+function renderSidebarNavItem({
+  item,
+  active,
+  secondary,
+  sidebarCollapsed,
+  labelMotionClass
+}: {
+  item: NavItem;
+  active: boolean;
+  secondary: boolean;
+  sidebarCollapsed: boolean;
+  labelMotionClass: string;
+}) {
+  return (
+    <Link key={item.id} href={item.href} className={getSidebarItemClass(active, secondary)}>
+      <span className={getSidebarTokenClass(active, secondary)}>
+        <item.icon className="h-[1.125rem] w-[1.125rem] shrink-0" />
+      </span>
+      <span
+        className={cn(
+          "overflow-hidden whitespace-nowrap",
+          labelMotionClass,
+          "hidden xl:inline-block",
+          sidebarCollapsed ? "xl:opacity-0 xl:-translate-x-1 xl:delay-0" : "xl:opacity-100 xl:translate-x-0 xl:delay-75"
+        )}
+      >
+        {item.label}
+      </span>
+    </Link>
+  );
+}
+
+export default function DashboardShellClient({ initialProfile, appVersion, children }: DashboardShellClientProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -101,7 +182,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
   const [currentUserId] = useState<string | null>(initialProfile.userId);
   const [sidebarState, setSidebarState] = useState({ collapsed: false, ready: false });
   const [sidebarTransitionsEnabled, setSidebarTransitionsEnabled] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileMoreSheetOpen, setMobileMoreSheetOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notifications, setNotifications] = useState<UserNotificationDto[]>([]);
@@ -114,6 +195,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
   const notificationsLoadIdRef = useRef(0);
   const notificationsRequestInFlightRef = useRef(false);
   const notificationsSnapshotRef = useRef<NotificationsCacheData | null>(null);
+  const mobileMoreSheetCloseRef = useRef<HTMLButtonElement | null>(null);
   const sidebarCollapsed = sidebarState.collapsed;
   const sidebarReady = sidebarState.ready;
 
@@ -158,8 +240,8 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
 
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 640) {
-        setMobileSidebarOpen(false);
+      if (window.innerWidth >= 1280) {
+        setMobileMoreSheetOpen(false);
       }
     };
 
@@ -168,7 +250,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
   }, []);
 
   useEffect(() => {
-    setMobileSidebarOpen(false);
+    setMobileMoreSheetOpen(false);
     setNotificationsOpen(false);
   }, [pathname]);
 
@@ -181,7 +263,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setMobileSidebarOpen(false);
+        setMobileMoreSheetOpen(false);
         setNotificationsOpen(false);
       }
     };
@@ -405,10 +487,39 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
       .join("") || email[0]?.toUpperCase() || "U";
 
   const isAdmin = currentRole === "admin";
-  const navItems = useMemo(() => {
+  const adminDashboardNavItem = adminPrimaryNavItems[0];
+  const adminControlNavItem = adminPrimaryNavItems[2];
+  const adminStudentNavItems = adminPrimaryNavItems.slice(1, 2).concat(adminPrimaryNavItems.slice(3));
+  const desktopNavItems = useMemo(() => {
     if (!isAdmin) return baseNavItems;
-    return [...baseNavItems, { id: "admin", label: "Управление", href: "/admin", icon: ShieldCheck }];
+    return adminPrimaryNavItems;
   }, [isAdmin]);
+  const primaryMobileNavItems = useMemo(() => {
+    if (!isAdmin) return baseNavItems;
+    return adminPrimaryNavItems.slice(0, 5);
+  }, [isAdmin]);
+  const mobileSheetNavItems = useMemo(() => {
+    const items: MobileActionItem[] = isAdmin
+      ? [
+          { id: "words", label: "Слова", href: "/words", icon: Layers, kind: "link" },
+          { id: "progress", label: "Прогресс", href: "/progress", icon: ChartColumn, kind: "link" },
+          { id: "profile", label: "Профиль", href: "/settings/profile", icon: Settings, kind: "link" },
+          { id: "payments", label: "Оплата", href: "/settings/payments", icon: CreditCard, kind: "link" }
+        ]
+      : [
+          { id: "profile", label: "Профиль", href: "/settings/profile", icon: Settings, kind: "link" },
+          { id: "payments", label: "Оплата", href: "/settings/payments", icon: CreditCard, kind: "link" }
+        ];
+    items.push(
+      { id: "logout", label: isLoggingOut ? "Выход..." : "Выход", icon: LogOut, kind: "button", danger: true }
+    );
+    return items;
+  }, [isAdmin, isLoggingOut]);
+  const mobileSheetLinkItems = useMemo(
+    () => mobileSheetNavItems.filter((item): item is Extract<MobileActionItem, { kind: "link" }> => item.kind === "link"),
+    [mobileSheetNavItems]
+  );
+  const mobileMoreActive = mobileSheetLinkItems.some((item) => isActivePath(pathname, item.href));
   const shellExpandEasingClass = "ease-[cubic-bezier(0.22,1,0.36,1)]";
   const shellCollapseEasingClass = "ease-[cubic-bezier(0.4,0,1,1)]";
   const shellEasingClass = sidebarCollapsed ? shellCollapseEasingClass : shellExpandEasingClass;
@@ -421,6 +532,13 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
   const unreadBadgeClass = cn(
     "absolute right-[9px] top-[9px] h-2 w-2 rounded-full border border-white bg-red-500 shadow-sm"
   );
+  const roleLabel =
+    currentRole === "admin" ? "администратор" : currentRole === "manager" ? "менеджер" : currentRole === "teacher" ? "преподаватель" : "студент";
+
+  useEffect(() => {
+    if (!mobileMoreSheetOpen) return;
+    mobileMoreSheetCloseRef.current?.focus();
+  }, [mobileMoreSheetOpen]);
 
   const notificationTypeMeta: Record<
     UserNotificationDto["type"],
@@ -503,12 +621,12 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
 
   return (
     <main className={cn("min-h-screen bg-[#f5f7f9] text-foreground", sidebarReady ? "opacity-100" : "opacity-0")} style={shellThemeVars}>
-      {mobileSidebarOpen ? (
+      {mobileMoreSheetOpen ? (
         <button
           type="button"
-          onClick={() => setMobileSidebarOpen(false)}
-          className="fixed inset-0 z-30 bg-black/35 sm:hidden"
-          aria-label="Закрыть меню"
+          onClick={() => setMobileMoreSheetOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-950/30 xl:hidden"
+          aria-label="Закрыть дополнительное меню"
         />
       ) : null}
 
@@ -516,11 +634,11 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
         data-testid="dashboard-sidebar"
         data-collapsed={sidebarCollapsed ? "true" : "false"}
         className={cn(
-          "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-[#dfe3e6] bg-slate-50 px-3 pb-4 pt-0 sm:pt-0 transform-gpu will-change-transform",
+          "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-[#dfe3e6] bg-slate-50 px-3 pb-4 pt-0 shadow-[inset_-1px_0_0_rgba(255,255,255,0.55)] transform-gpu will-change-transform xl:flex",
           sidebarTransitionClass,
-          "w-[15.25rem] sm:w-[5.75rem]",
+          "w-[15.25rem]",
           sidebarCollapsed ? "xl:w-20" : "xl:w-[15.25rem]",
-          mobileSidebarOpen ? "translate-x-0" : "-translate-x-[110%] sm:translate-x-0"
+          "translate-x-0"
         )}
       >
         <nav className="flex flex-1 flex-col gap-1">
@@ -539,23 +657,58 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
               <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">Учебный портал</p>
             </div>
           </Link>
-          <div className="mb-1 h-1" />
+          <div className="mb-1 h-6" />
 
-          {navItems.map((item) => {
+          {isAdmin
+            ? [
+                renderSidebarNavItem({
+                  item: adminDashboardNavItem,
+                  active: isActivePath(pathname, adminDashboardNavItem.href),
+                  secondary: false,
+                  sidebarCollapsed,
+                  labelMotionClass
+                }),
+                renderSidebarNavItem({
+                  item: adminControlNavItem,
+                  active: isActivePath(pathname, adminControlNavItem.href),
+                  secondary: false,
+                  sidebarCollapsed,
+                  labelMotionClass
+                }),
+                <div key="admin-student-gap" aria-hidden="true" className="mt-2 h-2" />,
+                ...adminStudentNavItems.map((item) =>
+                  renderSidebarNavItem({
+                    item,
+                    active: isActivePath(pathname, item.href),
+                    secondary: true,
+                    sidebarCollapsed,
+                    labelMotionClass
+                  })
+                )
+              ]
+            : desktopNavItems.map((item) =>
+                renderSidebarNavItem({
+                  item,
+                  active: isActivePath(pathname, item.href),
+                  secondary: item.id !== "dashboard",
+                  sidebarCollapsed,
+                  labelMotionClass
+                })
+              )}
+
+          <div aria-hidden="true" className="mt-4 h-2" />
+
+          {settingsNavItems.map((item) => {
             const active = isActivePath(pathname, item.href);
             return (
               <Link
                 key={item.id}
                 href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl py-3 text-sm font-semibold transition-all",
-                  "justify-center px-2 sm:justify-center sm:px-2 xl:justify-start xl:px-4",
-                  active
-                    ? "bg-white text-indigo-700 shadow-sm"
-                    : "text-slate-500 hover:bg-white/80 hover:text-indigo-600"
-                )}
+                className={getSidebarItemClass(active, true)}
               >
-                <item.icon className="h-5 w-5 shrink-0" />
+                <span className={getSidebarTokenClass(active, true)}>
+                  <item.icon className="h-[1.0625rem] w-[1.0625rem] shrink-0" />
+                </span>
                 <span
                   className={cn(
                     "overflow-hidden whitespace-nowrap",
@@ -569,22 +722,25 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
               </Link>
             );
           })}
+
         </nav>
 
-        <div className="mt-auto flex flex-col gap-1">
+        <div className="mt-auto flex flex-col gap-1 pt-6">
           <button
             data-testid="sidebar-toggle"
             type="button"
             onClick={() => setSidebarState((prev) => ({ ...prev, collapsed: !prev.collapsed }))}
-            className="hidden items-center gap-3 rounded-xl py-3 text-sm font-semibold text-slate-500 transition-all hover:bg-white/80 hover:text-indigo-600 xl:flex xl:justify-start xl:px-4"
+            className="hidden items-center gap-3 rounded-2xl py-2.5 text-sm font-semibold text-slate-500 transition-all duration-200 hover:bg-white/70 hover:text-slate-900 xl:flex xl:justify-start xl:px-3.5"
             aria-label={sidebarCollapsed ? "Развернуть боковое меню" : "Свернуть боковое меню"}
           >
-            <ChevronLeft
-              className={cn(
-                "h-5 w-5 shrink-0 transform-gpu stroke-[2.25] transition-transform",
-                sidebarCollapsed ? "scale-x-[-1]" : "scale-x-100"
-              )}
-            />
+            <span className={getSidebarTokenClass(false, true)}>
+              <ChevronLeft
+                className={cn(
+                  "h-[1.125rem] w-[1.125rem] shrink-0 transform-gpu stroke-[2.25] transition-transform",
+                  sidebarCollapsed ? "scale-x-[-1]" : "scale-x-100"
+                )}
+              />
+            </span>
             <span
               className={cn(
                 "overflow-hidden whitespace-nowrap",
@@ -597,35 +753,16 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
             </span>
           </button>
 
-          <Link
-            href="/settings"
-            className={cn(
-              "flex items-center gap-3 rounded-xl py-3 text-sm font-semibold text-slate-500 transition-all hover:bg-white/80 hover:text-indigo-600",
-              "justify-center px-2 sm:justify-center sm:px-2 xl:justify-start xl:px-4",
-              isActivePath(pathname, "/settings") ? "bg-white text-indigo-700 shadow-sm" : ""
-            )}
-          >
-            <Settings className="h-5 w-5 shrink-0" />
-            <span
-              className={cn(
-                "overflow-hidden whitespace-nowrap",
-                labelMotionClass,
-                "hidden xl:inline-block",
-                sidebarCollapsed ? "xl:opacity-0 xl:-translate-x-1 xl:delay-0" : "xl:opacity-100 xl:translate-x-0 xl:delay-75"
-              )}
-            >
-              Настройки
-            </span>
-          </Link>
-
           <button
             data-testid="logout-button"
-            className="flex items-center gap-3 rounded-xl py-3 text-sm font-semibold text-slate-500 transition-all hover:bg-white/80 hover:text-indigo-600 justify-center px-2 sm:justify-center sm:px-2 xl:justify-start xl:px-4"
+            className="group flex items-center gap-3 rounded-2xl py-2.5 text-sm font-semibold text-slate-500 transition-all duration-200 hover:bg-white/70 hover:text-slate-900 justify-center px-2 xl:justify-start xl:px-3.5"
             onClick={handleLogout}
             type="button"
             disabled={isLoggingOut}
           >
-            <LogOut className="h-5 w-5 shrink-0" />
+            <span className="flex h-[2.125rem] w-[2.125rem] shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 transition-all duration-200 group-hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.55)]">
+              <LogOut className="h-[1.125rem] w-[1.125rem] shrink-0" />
+            </span>
             <span
               className={cn(
                 "overflow-hidden whitespace-nowrap",
@@ -637,6 +774,17 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
               {isLoggingOut ? "Выход..." : "Выход"}
             </span>
           </button>
+
+          <div
+            aria-label={`Версия проекта v${appVersion}`}
+            className={cn(
+              "hidden xl:block rounded-2xl bg-white/55 px-3.5 py-2 text-left text-[11px] font-medium tracking-[0.08em] text-slate-400 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.5)]",
+              labelMotionClass,
+              sidebarCollapsed ? "xl:pointer-events-none xl:opacity-0 xl:-translate-x-1 xl:delay-0" : "xl:opacity-100 xl:translate-x-0 xl:delay-75"
+            )}
+          >
+            {`v${appVersion}`}
+          </div>
         </div>
       </aside>
 
@@ -645,26 +793,12 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
           "fixed right-0 top-0 z-30 flex h-16 items-center justify-between bg-white/80 px-4 shadow-[0_20px_40px_rgba(78,68,212,0.06)] backdrop-blur-md md:px-6",
           "will-change-[left]",
           shellOffsetTransitionClass,
-          "left-0 sm:left-[5.75rem]",
+          "left-0",
           sidebarCollapsed ? "xl:left-20" : "xl:left-[15.25rem]"
         )}
       >
         <div className="flex max-w-xl flex-1 items-center gap-3 sm:gap-4">
-          <button
-            type="button"
-            onClick={() => setMobileSidebarOpen((prev) => !prev)}
-            className="mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-white/70 sm:hidden"
-            aria-label={mobileSidebarOpen ? "Закрыть меню" : "Открыть меню"}
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <div className="relative w-full max-w-xl">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-            <Input
-              className="h-10 border-none bg-[#eef1f3] pl-10 pr-4 text-sm placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-200"
-              placeholder="Поиск курсов, заметок или преподавателей..."
-            />
-          </div>
+          <DashboardGlobalSearch />
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
@@ -684,9 +818,7 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
           <div className="ml-1 flex items-center gap-2 sm:ml-4 sm:gap-3">
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold leading-tight text-slate-800">{displayName || "Пользователь"}</p>
-              <p className="text-[10px] uppercase tracking-wider text-slate-500">
-                {currentRole === "admin" ? "администратор" : currentRole === "manager" ? "менеджер" : currentRole === "teacher" ? "преподаватель" : "студент"}
-              </p>
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">{roleLabel}</p>
             </div>
             {!hasProfileData ? (
               <div className="h-9 w-9 animate-pulse rounded-full bg-slate-200" />
@@ -704,15 +836,135 @@ export default function DashboardShellClient({ initialProfile, children }: Dashb
 
       <section
         className={cn(
-          "min-h-screen px-4 pb-8 pt-20 md:px-6",
+          "min-h-screen px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-20 md:px-6 xl:pb-8",
           "will-change-[margin-left]",
           shellOffsetTransitionClass,
-          "ml-0 sm:ml-[5.75rem]",
+          "ml-0",
           sidebarCollapsed ? "xl:ml-20" : "xl:ml-[15.25rem]"
         )}
       >
         <div className="mx-0 w-full max-w-none">{children}</div>
       </section>
+
+      <nav
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-white/70 bg-[rgba(255,255,255,0.92)] px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_34px_rgba(15,23,42,0.08)] backdrop-blur-xl xl:hidden"
+        aria-label="Основная навигация"
+      >
+        <div className="mx-auto grid max-w-3xl grid-cols-6 gap-1">
+          {primaryMobileNavItems.map((item) => {
+            const active = isActivePath(pathname, item.href);
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={cn(
+                  "flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-center text-[11px] font-semibold transition-all",
+                  active ? "bg-indigo-50 text-indigo-700 shadow-[inset_0_0_0_1px_rgba(99,102,241,0.14)]" : "text-slate-500 hover:bg-white"
+                )}
+                aria-current={active ? "page" : undefined}
+              >
+                <item.icon className={cn("h-[18px] w-[18px] shrink-0", active ? "stroke-[2.4]" : "stroke-[2.1]")} />
+                <span className="leading-none">{item.label}</span>
+              </Link>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setMobileMoreSheetOpen(true)}
+            className={cn(
+              "flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-center text-[11px] font-semibold transition-all",
+              mobileMoreActive || mobileMoreSheetOpen ? "bg-indigo-50 text-indigo-700 shadow-[inset_0_0_0_1px_rgba(99,102,241,0.14)]" : "text-slate-500 hover:bg-white"
+            )}
+            aria-haspopup="dialog"
+            aria-expanded={mobileMoreSheetOpen}
+            aria-controls="mobile-more-sheet"
+          >
+            <Menu className={cn("h-[18px] w-[18px] shrink-0", mobileMoreActive || mobileMoreSheetOpen ? "stroke-[2.4]" : "stroke-[2.1]")} />
+            <span className="leading-none">Ещё</span>
+          </button>
+        </div>
+      </nav>
+
+      <aside
+        id="mobile-more-sheet"
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-50 rounded-t-[2rem] border-t border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_60px_rgba(15,23,42,0.16)] backdrop-blur-xl transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] xl:hidden",
+          mobileMoreSheetOpen ? "translate-y-0" : "translate-y-[105%]"
+        )}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Дополнительное меню"
+      >
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-300" />
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            {!hasProfileData ? (
+              <div className="h-12 w-12 animate-pulse rounded-full bg-slate-200" />
+            ) : (
+              <Avatar className="h-12 w-12 border border-white/80 shadow-sm">
+                <AvatarImage src={avatarUrl ?? undefined} alt={displayName} />
+                <AvatarFallback className={cn("p-0 text-sm font-bold", avatarUrl ? "bg-slate-100 text-transparent" : "")}>
+                  {avatarUrl ? "" : initials}
+                </AvatarFallback>
+              </Avatar>
+            )}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">{displayName || "Пользователь"}</p>
+              <p className="truncate text-xs text-slate-500">{roleLabel}</p>
+              <p className="truncate text-xs text-slate-400">{email}</p>
+            </div>
+          </div>
+          <button
+            ref={mobileMoreSheetCloseRef}
+            type="button"
+            onClick={() => setMobileMoreSheetOpen(false)}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+            aria-label="Закрыть дополнительное меню"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <nav className="space-y-2" aria-label="Дополнительные действия">
+          {mobileSheetNavItems.map((item) =>
+            item.kind === "link" ? (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={cn(
+                  "flex min-h-12 items-center justify-between rounded-2xl border px-4 py-3 text-sm font-semibold transition-all",
+                  isActivePath(pathname, item.href)
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                    : "border-white/70 bg-white/80 text-slate-700 hover:border-slate-200 hover:bg-white"
+                )}
+              >
+                <span className="flex items-center gap-3">
+                  <item.icon className="h-5 w-5 shrink-0" />
+                  {item.label}
+                </span>
+                <ChevronLeft className="h-4 w-4 scale-x-[-1] text-slate-400" />
+              </Link>
+            ) : (
+              <button
+                key={item.id}
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className={cn(
+                  "flex min-h-12 w-full items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition-all",
+                  item.danger
+                    ? "border-red-100 bg-red-50/80 text-red-700 hover:bg-red-50"
+                    : "border-white/70 bg-white/80 text-slate-700 hover:border-slate-200 hover:bg-white",
+                  isLoggingOut ? "cursor-not-allowed opacity-60" : ""
+                )}
+              >
+                <item.icon className="h-5 w-5 shrink-0" />
+                {item.label}
+              </button>
+            )
+          )}
+        </nav>
+      </aside>
 
       {notificationsOpen ? (
         <button
