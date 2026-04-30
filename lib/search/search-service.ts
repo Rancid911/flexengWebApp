@@ -1,8 +1,13 @@
 import { AdminHttpError } from "@/lib/admin/http";
+import { extractAssignedTestIdsFromHomeworkRows } from "@/lib/homework/assignments.mappers";
+import { createHomeworkAssignmentsRepository, type HomeworkAssignmentsRepositoryClient } from "@/lib/homework/assignments.repository";
 import { createClient } from "@/lib/supabase/server";
+import type { AccessMode } from "@/lib/supabase/access";
 import { fetchSearchDocumentCandidates } from "@/lib/search/sources/search-documents";
 import { getSearchContext } from "@/lib/search/sources/search-context";
 import type { SearchContext, SearchDocumentCandidate, SearchGroupDto, SearchResultDto, SearchSection } from "@/lib/search/types";
+
+export const SEARCH_ENROLLMENT_ACCESS_MODE: AccessMode = "user_scoped";
 
 const GROUP_LABELS: Record<Exclude<SearchSection, "all">, string> = {
   practice: "Практика",
@@ -21,30 +26,74 @@ function isSchemaMissing(message: string) {
   return normalized.includes("does not exist") || normalized.includes("schema cache") || normalized.includes("could not find");
 }
 
-async function getStudentEnrollmentCourseIds(studentId: string): Promise<Set<string>> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("student_course_enrollments")
-    .select("course_id")
-    .eq("student_id", studentId)
-    .eq("status", "active");
+type StudentPracticeSearchAccess = {
+  englishLevel: string | null;
+  assignedTestIds: Set<string>;
+  testsById: Map<string, { assessmentKind: string | null; cefrLevel: string | null }>;
+};
 
-  if (error) {
-    if (isSchemaMissing(error.message)) return new Set();
-    throw new AdminHttpError(500, "SEARCH_ENROLLMENTS_FETCH_FAILED", "Failed to fetch enrollments", error.message);
+async function getStudentPracticeSearchAccess(
+  studentId: string,
+  candidates: SearchDocumentCandidate[]
+): Promise<StudentPracticeSearchAccess> {
+  void SEARCH_ENROLLMENT_ACCESS_MODE;
+  const supabase = await createClient();
+  const homeworkRepository = createHomeworkAssignmentsRepository(supabase as HomeworkAssignmentsRepositoryClient);
+  const practiceTestIds = candidates
+    .filter((candidate) => candidate.section === "practice" && candidate.entityType === "test")
+    .map((candidate) => candidate.entityId);
+
+  const [studentResponse, assignmentsResponse, testsResponse] = await Promise.all([
+    supabase.from("students").select("english_level").eq("id", studentId).maybeSingle(),
+    homeworkRepository.listSearchAssignedHomeworkItems(studentId),
+    practiceTestIds.length > 0
+      ? supabase.from("tests").select("id, assessment_kind, cefr_level").in("id", practiceTestIds)
+      : Promise.resolve({ data: [], error: null })
+  ]);
+
+  if (studentResponse.error && !isSchemaMissing(studentResponse.error.message)) {
+    throw new AdminHttpError(500, "SEARCH_STUDENT_LEVEL_FETCH_FAILED", "Failed to fetch student level", studentResponse.error.message);
   }
 
-  return new Set((data ?? []).map((row) => String(row.course_id ?? "")).filter(Boolean));
+  if (assignmentsResponse.error && !isSchemaMissing(assignmentsResponse.error.message)) {
+    throw new AdminHttpError(500, "SEARCH_ASSIGNMENTS_FETCH_FAILED", "Failed to fetch assigned tests", assignmentsResponse.error.message);
+  }
+
+  if (testsResponse.error && !isSchemaMissing(testsResponse.error.message)) {
+    throw new AdminHttpError(500, "SEARCH_TESTS_FETCH_FAILED", "Failed to fetch practice tests", testsResponse.error.message);
+  }
+
+  const assignedTestIds = extractAssignedTestIdsFromHomeworkRows(assignmentsResponse.data ?? []);
+
+  const testsById = new Map<string, { assessmentKind: string | null; cefrLevel: string | null }>();
+  for (const row of (testsResponse.data ?? []) as Array<{ id: string | null; assessment_kind: string | null; cefr_level: string | null }>) {
+    if (!row.id) continue;
+    testsById.set(String(row.id), {
+      assessmentKind: row.assessment_kind ?? null,
+      cefrLevel: row.cefr_level ?? null
+    });
+  }
+
+  return {
+    englishLevel: studentResponse.data?.english_level ?? null,
+    assignedTestIds,
+    testsById
+  };
 }
 
 function canAccessRoleScopedDocument(candidate: SearchDocumentCandidate, context: SearchContext) {
   if (!context.isAuthenticated || !context.role) return false;
-  if (context.role === "admin") return true;
-  return candidate.roleScope.includes("all") || candidate.roleScope.includes(context.role);
+  if (context.capabilities.includes("staff_admin")) return true;
+
+  const accessibleRoles = new Set<string>([context.role]);
+  if (context.capabilities.includes("student")) accessibleRoles.add("student");
+  if (context.capabilities.includes("teacher")) accessibleRoles.add("teacher");
+
+  return candidate.roleScope.includes("all") || candidate.roleScope.some((role) => accessibleRoles.has(role));
 }
 
-function canSeeCandidate(candidate: SearchDocumentCandidate, context: SearchContext, enrolledCourseIds: Set<string>) {
-  if (context.role === "admin") {
+function canSeeCandidate(candidate: SearchDocumentCandidate, context: SearchContext, practiceAccess: StudentPracticeSearchAccess | null) {
+  if (context.capabilities.includes("staff_admin")) {
     return true;
   }
 
@@ -63,11 +112,25 @@ function canSeeCandidate(candidate: SearchDocumentCandidate, context: SearchCont
   if (candidate.visibility === "enrollment") {
     if (!candidate.isPublished) return false;
 
-    if (context.role === "student") {
-      return Boolean(context.studentId && candidate.courseId && enrolledCourseIds.has(candidate.courseId));
+    if (context.capabilities.includes("student") && context.studentId) {
+      if (candidate.section === "practice") {
+        if (!practiceAccess) return false;
+        if (candidate.entityType !== "test") return true;
+
+        const test = practiceAccess.testsById.get(candidate.entityId);
+        if (!test) return false;
+        if (test.assessmentKind === "placement") {
+          return practiceAccess.assignedTestIds.has(candidate.entityId);
+        }
+        if (practiceAccess.assignedTestIds.has(candidate.entityId)) return true;
+        if (!practiceAccess.englishLevel) return true;
+        return test.cefrLevel === practiceAccess.englishLevel;
+      }
+
+      return false;
     }
 
-    if (context.role === "teacher" || context.role === "manager") {
+    if (context.capabilities.includes("teacher")) {
       return true;
     }
 
@@ -123,12 +186,12 @@ export async function searchSite(params: {
 
   const context = await getSearchContext();
   const candidates = await fetchSearchDocumentCandidates({ query, limit, section });
-  const enrolledCourseIds = context.studentId ? await getStudentEnrollmentCourseIds(context.studentId) : new Set<string>();
+  const practiceAccess = context.studentId ? await getStudentPracticeSearchAccess(context.studentId, candidates) : null;
   const dedupe = new Set<string>();
   const items: SearchResultDto[] = [];
 
   for (const candidate of candidates) {
-    if (!canSeeCandidate(candidate, context, enrolledCourseIds)) continue;
+    if (!canSeeCandidate(candidate, context, practiceAccess)) continue;
     const result = toResult(candidate);
     if (!result) continue;
 

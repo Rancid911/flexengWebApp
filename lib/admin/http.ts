@@ -1,51 +1,13 @@
-import { NextResponse } from "next/server";
+import type { PaginatedResponse } from "@/lib/admin/types";
+import { HttpError, toErrorResponse, withApiErrorHandling } from "@/lib/server/http";
+import type { NextResponse } from "next/server";
 
-import type { ApiErrorShape, PaginatedResponse } from "@/lib/admin/types";
+export class AdminHttpError extends HttpError {}
 
-export class AdminHttpError extends Error {
-  status: number;
-  code: string;
-  details?: unknown;
-  exposeDetails: boolean;
+export { toErrorResponse };
 
-  constructor(status: number, code: string, message: string, details?: unknown, options?: { exposeDetails?: boolean }) {
-    super(message);
-    this.status = status;
-    this.code = code;
-    this.details = details;
-    this.exposeDetails = options?.exposeDetails ?? status < 500;
-  }
-}
-
-export function toErrorResponse(error: unknown) {
-  if (error instanceof AdminHttpError) {
-    const payload: ApiErrorShape = {
-      code: error.code,
-      message: error.message
-    };
-    if (error.exposeDetails && error.details !== undefined) {
-      payload.details = error.details;
-    }
-    return NextResponse.json(payload, { status: error.status });
-  }
-
-  const payload: ApiErrorShape = {
-    code: "INTERNAL_ERROR",
-    message: "Internal server error"
-  };
-  return NextResponse.json(payload, { status: 500 });
-}
-
-export function withAdminErrorHandling<TArgs extends unknown[]>(
-  handler: (...args: TArgs) => Promise<NextResponse>
-) {
-  return async (...args: TArgs) => {
-    try {
-      return await handler(...args);
-    } catch (error) {
-      return toErrorResponse(error);
-    }
-  };
+export function withAdminErrorHandling<TArgs extends unknown[]>(handler: (...args: TArgs) => Promise<NextResponse>) {
+  return withApiErrorHandling(handler);
 }
 
 export function parsePagination(url: URL) {

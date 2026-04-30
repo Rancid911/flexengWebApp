@@ -1,14 +1,27 @@
 import type {
+  LessonAttendanceStatus,
   ScheduleLessonStatus,
   StudentScheduleLessonDto,
   StudentSchedulePreview
 } from "@/lib/schedule/types";
+import { formatRuDayMonthWeekday, formatRuTime } from "@/lib/dates/format-ru-date";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function safeDate(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function hasLessonEnded(endsAt: string, referenceDate = new Date()) {
+  const endDate = safeDate(endsAt);
+  if (!endDate) return false;
+  return referenceDate.getTime() >= endDate.getTime();
+}
+
+export function getLessonCompletionAvailableAtLabel(endsAt: string) {
+  const formatted = formatRuTime(endsAt);
+  return formatted ? `после ${formatted}` : "после окончания урока";
 }
 
 export function getScheduleStatusLabel(status: ScheduleLessonStatus) {
@@ -30,6 +43,36 @@ export function getScheduleStatusTone(status: ScheduleLessonStatus) {
       return "rose";
     default:
       return "sky";
+  }
+}
+
+export function getAttendanceStatusLabel(status: LessonAttendanceStatus) {
+  switch (status) {
+    case "completed":
+      return "Проведён";
+    case "missed_by_student":
+      return "Пропуск ученика";
+    case "missed_by_teacher":
+      return "Пропуск преподавателя";
+    case "canceled":
+      return "Отменён";
+    default:
+      return "Запланирован";
+  }
+}
+
+export function getAttendanceStatusShortLabel(status: LessonAttendanceStatus) {
+  switch (status) {
+    case "completed":
+      return "Проведён";
+    case "missed_by_student":
+      return "Ученик не пришёл";
+    case "missed_by_teacher":
+      return "Преподаватель не пришёл";
+    case "canceled":
+      return "Отменён";
+    default:
+      return "Запланирован";
   }
 }
 
@@ -75,24 +118,15 @@ export function formatScheduleDateLabel(value: string, referenceDate = new Date(
   if (dayDiff === 0) return "Сегодня";
   if (dayDiff === 1) return "Завтра";
 
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "numeric",
-    month: "long",
-    weekday: "long"
-  }).format(date);
+  return formatRuDayMonthWeekday(date) || "Дата уточняется";
 }
 
 export function formatScheduleTimeRange(startsAt: string, endsAt: string) {
-  const startDate = safeDate(startsAt);
-  const endDate = safeDate(endsAt);
-  if (!startDate || !endDate) return "Время уточняется";
+  const startLabel = formatRuTime(startsAt);
+  const endLabel = formatRuTime(endsAt);
+  if (!startLabel || !endLabel) return "Время уточняется";
 
-  const formatter = new Intl.DateTimeFormat("ru-RU", {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-
-  return `${formatter.format(startDate)} - ${formatter.format(endDate)}`;
+  return `${startLabel} - ${endLabel}`;
 }
 
 export function groupLessonsByDate<T extends { startsAt: string }>(lessons: T[], referenceDate = new Date()) {

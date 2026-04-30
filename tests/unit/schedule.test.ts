@@ -1,32 +1,73 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { hasExplicitPastDateSelection } from "@/lib/schedule/queries";
+import { canSubmitLessonForm } from "@/app/(workspace)/(shared-zone)/schedule/use-staff-schedule-state";
+import { hasExplicitPastDateSelection, resolveStudentOptionIds } from "@/lib/schedule/queries";
 import { buildStudentSchedulePreview, formatScheduleDateLabel, getScheduleStatusLabel, getStudentVisibleLessons } from "@/lib/schedule/utils";
 import { scheduleLessonMutationSchema } from "@/lib/schedule/validation";
 import { getStudentSchedulePreviewByStudentId } from "@/lib/schedule/queries";
 import type { StudentScheduleLessonDto } from "@/lib/schedule/types";
 
-const adminClientMock = {
-  from: () => ({
-    select: () => ({
-      eq: () => ({
-        eq: () => ({
-          gt: () => ({
-            order: () => ({
-              limit: async () => ({
-                data: null,
-                error: { message: 'relation "public.student_schedule_lessons" does not exist' }
+const defaultAdminClientMock = {
+  from: (table: string) => {
+    if (table === "lesson_attendance" || table === "lesson_outcomes") {
+      throw new Error("preview path should not load enrichment tables");
+    }
+
+    if (table === "student_schedule_lessons") {
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              gt: () => ({
+                order: () => ({
+                  limit: async () => ({
+                    data: null,
+                    error: { message: 'relation "public.student_schedule_lessons" does not exist' }
+                  })
+                })
               })
             })
           })
         })
-      })
-    })
-  })
+      };
+    }
+
+    if (table === "teachers") {
+      return {
+        select: () => ({
+          in: async () => ({
+            data: [{ id: "teacher-1", profile_id: "profile-1" }],
+            error: null
+          }),
+          order: () => ({
+            in: async () => ({
+              data: [{ id: "teacher-1", profile_id: "profile-1" }],
+              error: null
+            })
+          })
+        })
+      };
+    }
+
+    if (table === "profiles") {
+      return {
+        select: () => ({
+          in: async () => ({
+            data: [{ id: "profile-1", display_name: "Мария Петрова", first_name: "Мария", last_name: "Петрова", email: "teacher@example.com" }],
+            error: null
+          })
+        })
+      };
+    }
+
+    throw new Error(`Unexpected table: ${table}`);
+  }
 };
 
+let activeAdminClientMock: { from: (table: string) => unknown } = defaultAdminClientMock as { from: (table: string) => unknown };
+
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => adminClientMock
+  createAdminClient: () => activeAdminClientMock
 }));
 
 function makeLesson(index: number, overrides: Partial<StudentScheduleLessonDto> = {}): StudentScheduleLessonDto {
@@ -44,6 +85,9 @@ function makeLesson(index: number, overrides: Partial<StudentScheduleLessonDto> 
     status: "scheduled",
     createdAt: null,
     updatedAt: null,
+    attendanceStatus: null,
+    hasOutcome: false,
+    studentVisibleOutcome: null,
     ...overrides
   };
 }
@@ -59,6 +103,78 @@ describe("schedule helpers", () => {
     });
 
     expect(parsed.success).toBe(false);
+  });
+
+  it("accepts non-empty internal schedule option ids without enforcing uuid formatting", () => {
+    const parsed = scheduleLessonMutationSchema.safeParse({
+      studentId: "student-seeded-id",
+      teacherId: "teacher-seeded-id",
+      title: "Conversation practice",
+      startsAt: "2026-03-27T10:00:00.000Z",
+      endsAt: "2026-03-27T11:00:00.000Z"
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  it("returns field-specific messages when lesson identifiers are missing", () => {
+    const parsed = scheduleLessonMutationSchema.safeParse({
+      studentId: "",
+      teacherId: "",
+      title: "Conversation practice",
+      startsAt: "2026-03-27T10:00:00.000Z",
+      endsAt: "2026-03-27T11:00:00.000Z"
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.flatten().fieldErrors.studentId).toContain("Выберите ученика");
+    expect(parsed.error?.flatten().fieldErrors.teacherId).toContain("Выберите преподавателя");
+  });
+
+  it("allows edit form submit even when create catalog is deferred", () => {
+    expect(
+      canSubmitLessonForm({
+        formState: {
+          id: "lesson-1",
+          studentId: "student-1",
+          teacherId: "teacher-1",
+          title: "Conversation practice",
+          date: "2026-03-27",
+          startTime: "10:00",
+          endTime: "11:00",
+          meetingUrl: "",
+          comment: "",
+          status: "scheduled"
+        },
+        saving: false,
+        createCatalogLoading: false,
+        createCatalogReady: false,
+        mode: "edit"
+      })
+    ).toBe(true);
+  });
+
+  it("keeps create form submit blocked until deferred create catalog is ready", () => {
+    expect(
+      canSubmitLessonForm({
+        formState: {
+          id: null,
+          studentId: "student-1",
+          teacherId: "teacher-1",
+          title: "Conversation practice",
+          date: "2026-03-27",
+          startTime: "10:00",
+          endTime: "11:00",
+          meetingUrl: "",
+          comment: "",
+          status: "scheduled"
+        },
+        saving: false,
+        createCatalogLoading: false,
+        createCatalogReady: false,
+        mode: "create"
+      })
+    ).toBe(false);
   });
 
   it("filters student-visible lessons to future scheduled only", () => {
@@ -93,12 +209,104 @@ describe("schedule helpers", () => {
   });
 
   it("returns empty preview when schedule table is not available yet", async () => {
+    activeAdminClientMock = defaultAdminClientMock;
     const preview = await getStudentSchedulePreviewByStudentId("student-1");
 
     expect(preview).toEqual({
       nextLesson: null,
       upcomingLessons: []
     });
+  });
+
+  it("uses lightweight preview loading without attendance or outcome enrichment", async () => {
+    activeAdminClientMock = {
+      from: (table: string) => {
+        if (table === "lesson_attendance" || table === "lesson_outcomes") {
+          throw new Error("preview path should stay lightweight");
+        }
+
+        if (table === "student_schedule_lessons") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  gt: () => ({
+                    order: () => ({
+                      limit: async () => ({
+                        data: [
+                          {
+                            id: "lesson-1",
+                            student_id: "student-1",
+                            teacher_id: "teacher-1",
+                            title: "Speaking club",
+                            starts_at: "2099-03-28T10:00:00.000Z",
+                            ends_at: "2099-03-28T11:00:00.000Z",
+                            meeting_url: "https://example.com/meet",
+                            comment: null,
+                            status: "scheduled",
+                            created_at: null,
+                            updated_at: null
+                          }
+                        ],
+                        error: null
+                      })
+                    })
+                  })
+                })
+              })
+            })
+          };
+        }
+
+        if (table === "teachers") {
+          return {
+            select: () => ({
+              in: async () => ({
+                data: [
+                  {
+                    id: "teacher-1",
+                    profile_id: "profile-1",
+                    profiles: {
+                      id: "profile-1",
+                      display_name: "Мария Петрова",
+                      first_name: "Мария",
+                      last_name: "Петрова",
+                      email: "teacher@example.com"
+                    }
+                  }
+                ],
+                error: null
+              }),
+              order: () => ({
+                in: async () => ({
+                  data: [
+                    {
+                      id: "teacher-1",
+                      profile_id: "profile-1",
+                      profiles: {
+                        id: "profile-1",
+                        display_name: "Мария Петрова",
+                        first_name: "Мария",
+                        last_name: "Петрова",
+                        email: "teacher@example.com"
+                      }
+                    }
+                  ],
+                  error: null
+                })
+              })
+            })
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }
+    };
+    const preview = await getStudentSchedulePreviewByStudentId("student-1");
+
+    expect(preview.nextLesson?.teacherName).toBe("Мария Петрова");
+    expect(preview.nextLesson?.attendanceStatus).toBeNull();
+    expect(preview.nextLesson?.hasOutcome).toBe(false);
   });
 
   it("treats past lessons as hidden by default unless a past date was explicitly selected", () => {
@@ -116,5 +324,20 @@ describe("schedule helpers", () => {
 
     expect(defaultStatus == null || defaultStatus === "all").toBe(true);
     expect(explicitCanceledStatus).toBe("canceled");
+  });
+
+  it("prefers explicit lesson-list student ids over full teacher scope for schedule options", () => {
+    expect(
+      resolveStudentOptionIds(
+        {
+          role: "teacher",
+          userId: "teacher-1",
+          teacherId: "teacher-1",
+          studentId: null,
+          accessibleStudentIds: ["student-1", "student-2", "student-3"]
+        },
+        ["student-1", "student-2"]
+      )
+    ).toEqual(["student-1", "student-2"]);
   });
 });

@@ -2,6 +2,10 @@ import { z } from "zod";
 
 import { scheduleLessonStatuses } from "@/lib/schedule/types";
 
+const scheduleFilterEntityId = z.string().trim().min(1, "Identifier is required");
+const scheduleStudentId = z.string().trim().min(1, "Выберите ученика");
+const scheduleTeacherId = z.string().trim().min(1, "Выберите преподавателя");
+
 const trimmedOptionalString = (max: number) =>
   z.preprocess(
     (value) => {
@@ -17,8 +21,8 @@ const isoDateTime = z.string().datetime({ offset: true });
 
 export const scheduleFiltersSchema = z
   .object({
-    studentId: z.string().uuid().optional().nullable(),
-    teacherId: z.string().uuid().optional().nullable(),
+    studentId: scheduleFilterEntityId.optional().nullable(),
+    teacherId: scheduleFilterEntityId.optional().nullable(),
     status: z.enum(["all", ...scheduleLessonStatuses]).optional().nullable(),
     dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
     dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable()
@@ -37,8 +41,8 @@ export const scheduleFiltersSchema = z
 
 const scheduleLessonMutationShape = z
   .object({
-    studentId: z.string().uuid(),
-    teacherId: z.string().uuid(),
+    studentId: scheduleStudentId,
+    teacherId: scheduleTeacherId,
     title: z.string().trim().min(1).max(200),
     startsAt: isoDateTime,
     endsAt: isoDateTime,

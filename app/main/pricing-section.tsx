@@ -205,7 +205,7 @@ export function PricingSection() {
             <TabsTrigger
               key={goal.id}
               value={goal.id}
-              className="rounded-xl border border-[#E3DEEF] bg-white px-4 py-2 text-sm font-semibold text-[#5D597A] shadow-[0_4px_10px_rgba(38,30,74,0.05)] transition-all hover:border-[#CFC5E6] hover:bg-[#F8F6FC] data-[state=active]:border-[#433A6A] data-[state=active]:bg-[#433A6A] data-[state=active]:text-white data-[state=active]:shadow-[0_10px_20px_rgba(67,58,106,0.24)]"
+              className="rounded-xl border border-[#E3DEEF] bg-white px-4 py-2 text-sm font-semibold text-[#5D597A] shadow-[0_4px_10px_rgba(38,30,74,0.05)] transition-[background-color,border-color,color,box-shadow] hover:border-[#CFC5E6] hover:bg-[#F8F6FC] data-[state=active]:border-[#433A6A] data-[state=active]:bg-[#433A6A] data-[state=active]:text-white data-[state=active]:shadow-[0_10px_20px_rgba(67,58,106,0.24)]"
             >
               {goal.label}
             </TabsTrigger>

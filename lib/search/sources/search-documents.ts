@@ -1,6 +1,9 @@
 import { AdminHttpError } from "@/lib/admin/http";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { AccessMode } from "@/lib/supabase/access";
 import type { SearchDocumentCandidate, SearchSection } from "@/lib/search/types";
+
+export const SEARCH_DOCUMENT_ACCESS_MODE: AccessMode = "aggregate";
 
 function isSchemaMissing(message: string) {
   const normalized = message.toLowerCase();
@@ -34,6 +37,7 @@ export async function fetchSearchDocumentCandidates(params: {
   section: SearchSection;
 }): Promise<SearchDocumentCandidate[]> {
   try {
+    void SEARCH_DOCUMENT_ACCESS_MODE;
     const supabase = createAdminClient();
     const fetchLimit = Math.min(Math.max(params.limit * 6, 24), 100);
     const { data, error } = await supabase.rpc("search_documents_query", {

@@ -73,7 +73,7 @@ export function HeroLeadModal() {
           />
           <div
             className={cn(
-              "relative z-10 w-full max-w-3xl overflow-hidden rounded-[28px] border border-[#DCD6EB] bg-[linear-gradient(160deg,#F2ECFB_0%,#F7F4FC_55%,#F3EFF9_100%)] p-2 shadow-[0_24px_80px_rgba(51,41,85,0.28)] transition-all duration-300 ease-out",
+              "relative z-10 w-full max-w-3xl overflow-hidden rounded-[28px] border border-[#DCD6EB] bg-[linear-gradient(160deg,#F2ECFB_0%,#F7F4FC_55%,#F3EFF9_100%)] p-2 shadow-[0_24px_80px_rgba(51,41,85,0.28)] transition-[transform,opacity] duration-300 ease-out",
               isVisible ? "translate-y-0 scale-100 opacity-100" : "translate-y-4 scale-[0.98] opacity-0"
             )}
           >
@@ -84,7 +84,7 @@ export function HeroLeadModal() {
                   type="button"
                   aria-label="Закрыть окно"
                   onClick={closeModal}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#D6D5DD] bg-white text-[#706E88] transition-colors hover:bg-[#F5F5F8]"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#D6D5DD] bg-white text-[#706E88] transition-[color,background-color,border-color,box-shadow] hover:bg-[#F5F5F8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8D70FF] focus-visible:ring-offset-2"
                 >
                   <X className="h-4 w-4" />
                 </button>

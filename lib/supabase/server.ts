@@ -2,6 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/config";
 
+/**
+ * SSR user-scoped Supabase client.
+ * Use this for authenticated server reads/writes that should honor auth cookies and RLS.
+ * Do not use this factory for browser code or service-role/server-wide workflows.
+ */
 export async function createClient() {
   const cookieStore = await cookies();
 

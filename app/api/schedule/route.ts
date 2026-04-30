@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getSchedulePageData, createScheduleLesson } from "@/lib/schedule/queries";
+import { getSchedulePageData, getSchedulePageDataInternal, createScheduleLesson } from "@/lib/schedule/queries";
 import { requireScheduleApi } from "@/lib/schedule/server";
 import { withScheduleErrorHandling, ScheduleHttpError } from "@/lib/schedule/http";
 import { scheduleFiltersSchema, scheduleLessonMutationSchema } from "@/lib/schedule/validation";
@@ -20,7 +20,10 @@ export const GET = withScheduleErrorHandling(async (request: NextRequest) => {
     throw new ScheduleHttpError(400, "VALIDATION_ERROR", "Invalid schedule filters", parsed.error.flatten());
   }
 
-  const data = await getSchedulePageData(actor, parsed.data);
+  const includeFollowup = request.nextUrl.searchParams.get("includeFollowup") === "1";
+  const data = includeFollowup
+    ? await getSchedulePageData(actor, parsed.data)
+    : await getSchedulePageDataInternal(actor, parsed.data, { includeFollowup: false });
   return NextResponse.json(data);
 });
 

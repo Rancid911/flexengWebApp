@@ -1,39 +1,29 @@
-import type { UserRole } from "@/lib/auth/get-user-role";
-import { createClient } from "@/lib/supabase/server";
+import { getAppActor, resolveDefaultWorkspace } from "@/lib/auth/request-context";
+import type { AccessMode } from "@/lib/supabase/access";
 import type { SearchContext } from "@/lib/search/types";
 
-export async function getSearchContext(): Promise<SearchContext> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser();
+export const SEARCH_CONTEXT_ACCESS_MODE: AccessMode = "user_scoped";
 
-  if (error || !user) {
+export async function getSearchContext(): Promise<SearchContext> {
+  void SEARCH_CONTEXT_ACCESS_MODE;
+  const actor = await getAppActor();
+  if (!actor) {
     return {
       userId: null,
       role: null,
+      capabilities: [],
       studentId: null,
       teacherId: null,
       isAuthenticated: false
     };
   }
 
-  const [{ data: profile }, { data: student }] = await Promise.all([
-    supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
-    supabase.from("students").select("id").eq("profile_id", user.id).maybeSingle()
-  ]);
-
-  const role =
-    profile?.role === "student" || profile?.role === "teacher" || profile?.role === "manager" || profile?.role === "admin"
-      ? (profile.role as UserRole)
-      : null;
-
   return {
-    userId: user.id,
-    role,
-    studentId: student?.id ?? null,
-    teacherId: null,
+    userId: actor.userId,
+    role: resolveDefaultWorkspace(actor),
+    capabilities: actor.capabilities,
+    studentId: actor.studentId,
+    teacherId: actor.teacherId,
     isAuthenticated: true
   };
 }

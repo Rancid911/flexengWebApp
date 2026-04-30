@@ -24,6 +24,8 @@ function makeQueryResult(data: unknown) {
   const builder = {
     select: vi.fn(() => builder),
     eq: vi.fn(() => builder),
+    maybeSingle: vi.fn(() => builder),
+    in: vi.fn(() => builder),
     then: (resolve: (value: typeof result) => unknown) => Promise.resolve(result).then(resolve),
     catch: (reject: (reason: unknown) => unknown) => Promise.resolve(result).catch(reject),
     finally: (callback: () => void) => Promise.resolve(result).finally(callback)
@@ -34,6 +36,7 @@ function makeQueryResult(data: unknown) {
 const studentContext: SearchContext = {
   userId: "user-1",
   role: "student",
+  capabilities: ["student"],
   studentId: "student-1",
   teacherId: null,
   isAuthenticated: true
@@ -46,8 +49,148 @@ describe("searchSite", () => {
     createClientMock.mockReset();
     getSearchContextMock.mockResolvedValue(studentContext);
     createClientMock.mockReturnValue({
-      from: vi.fn(() => makeQueryResult([{ course_id: "course-1" }]))
+      from: vi.fn((table: string) => {
+        switch (table) {
+          case "students":
+            return makeQueryResult({ english_level: "A1" });
+          case "homework_assignments":
+            return makeQueryResult([]);
+          case "tests":
+            return makeQueryResult([
+              { id: "module-1", assessment_kind: "regular", cefr_level: "A1" }
+            ]);
+          default:
+            return makeQueryResult([]);
+        }
+      })
     });
+  });
+
+  it("returns only published public results for guest search", async () => {
+    const guestContext: SearchContext = {
+      userId: null,
+      role: null,
+      capabilities: [],
+      studentId: null,
+      teacherId: null,
+      isAuthenticated: false
+    };
+    getSearchContextMock.mockResolvedValue(guestContext);
+
+    fetchCandidatesMock.mockResolvedValue([
+      {
+        id: "1",
+        entityType: "post",
+        entityId: "public-post",
+        title: "Public post",
+        subtitle: null,
+        body: "body",
+        href: "/articles/public-post",
+        section: "blog",
+        icon: "file-text",
+        badge: null,
+        roleScope: ["all"],
+        visibility: "public",
+        ownerStudentId: null,
+        courseId: null,
+        isPublished: true,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 10
+      },
+      {
+        id: "2",
+        entityType: "post",
+        entityId: "draft-post",
+        title: "Draft post",
+        subtitle: null,
+        body: "body",
+        href: "/articles/draft-post",
+        section: "blog",
+        icon: "file-text",
+        badge: null,
+        roleScope: ["all"],
+        visibility: "public",
+        ownerStudentId: null,
+        courseId: null,
+        isPublished: false,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 9
+      },
+      {
+        id: "3",
+        entityType: "module",
+        entityId: "private-practice",
+        title: "Private practice",
+        subtitle: null,
+        body: "body",
+        href: "/practice/topics/private",
+        section: "practice",
+        icon: "graduation-cap",
+        badge: "урок",
+        roleScope: ["student"],
+        visibility: "role",
+        ownerStudentId: null,
+        courseId: null,
+        isPublished: true,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 8
+      },
+      {
+        id: "4",
+        entityType: "test",
+        entityId: "assigned-test",
+        title: "Assigned test",
+        subtitle: null,
+        body: "body",
+        href: "/practice/activity/test_assigned-test",
+        section: "practice",
+        icon: "brain",
+        badge: "Тренажёр",
+        roleScope: ["student"],
+        visibility: "enrollment",
+        ownerStudentId: null,
+        courseId: null,
+        isPublished: true,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 7
+      },
+      {
+        id: "5",
+        entityType: "homework",
+        entityId: "student-homework",
+        title: "Owned homework",
+        subtitle: null,
+        body: "body",
+        href: "/homework/student-homework",
+        section: "homework",
+        icon: "book-open",
+        badge: null,
+        roleScope: ["student"],
+        visibility: "student_owned",
+        ownerStudentId: "student-1",
+        courseId: null,
+        isPublished: true,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 6
+      }
+    ] satisfies SearchDocumentCandidate[]);
+
+    const result = await searchSite({ query: "public", limit: 10 });
+
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        entityId: "public-post",
+        section: "blog",
+        href: "/articles/public-post"
+      })
+    ]);
+    expect(result.groups).toEqual([{ key: "blog", label: "Блог", count: 1 }]);
+    expect(createClientMock).not.toHaveBeenCalled();
   });
 
   it("returns empty result for short query", async () => {
@@ -153,5 +296,97 @@ describe("searchSite", () => {
       { key: "practice", label: "Практика", count: 1 },
       { key: "blog", label: "Блог", count: 1 }
     ]);
+  });
+
+  it("filters practice test search results by student level while still allowing assigned placement", async () => {
+    createClientMock.mockReturnValue({
+      from: vi.fn((table: string) => {
+        switch (table) {
+          case "students":
+            return makeQueryResult({ english_level: "A1" });
+          case "homework_assignments":
+            return makeQueryResult([
+              {
+                homework_items: [{ source_type: "test", source_id: "placement-test-1" }]
+              }
+            ]);
+          case "tests":
+            return makeQueryResult([
+              { id: "test-a1", assessment_kind: "regular", cefr_level: "A1" },
+              { id: "test-b2", assessment_kind: "regular", cefr_level: "B2" },
+              { id: "placement-test-1", assessment_kind: "placement", cefr_level: null }
+            ]);
+          default:
+            return makeQueryResult([]);
+        }
+      })
+    });
+
+    fetchCandidatesMock.mockResolvedValue([
+      {
+        id: "1",
+        entityType: "test",
+        entityId: "test-a1",
+        title: "A1 drill",
+        subtitle: null,
+        body: "body",
+        href: "/practice/activity/test_test-a1",
+        section: "practice",
+        icon: "brain",
+        badge: "Тренажёр",
+        roleScope: ["student"],
+        visibility: "enrollment",
+        ownerStudentId: null,
+        courseId: "course-1",
+        isPublished: true,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 10
+      },
+      {
+        id: "2",
+        entityType: "test",
+        entityId: "test-b2",
+        title: "B2 drill",
+        subtitle: null,
+        body: "body",
+        href: "/practice/activity/test_test-b2",
+        section: "practice",
+        icon: "brain",
+        badge: "Тренажёр",
+        roleScope: ["student"],
+        visibility: "enrollment",
+        ownerStudentId: null,
+        courseId: "course-1",
+        isPublished: true,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 9
+      },
+      {
+        id: "3",
+        entityType: "test",
+        entityId: "placement-test-1",
+        title: "Placement",
+        subtitle: null,
+        body: "body",
+        href: "/practice/activity/test_placement-test-1",
+        section: "practice",
+        icon: "clipboard-list",
+        badge: "Тест",
+        roleScope: ["student"],
+        visibility: "enrollment",
+        ownerStudentId: null,
+        courseId: "course-1",
+        isPublished: true,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 8
+      }
+    ] satisfies SearchDocumentCandidate[]);
+
+    const result = await searchSite({ query: "test", limit: 10 });
+
+    expect(result.items.map((item) => item.entityId)).toEqual(["test-a1", "placement-test-1"]);
   });
 });

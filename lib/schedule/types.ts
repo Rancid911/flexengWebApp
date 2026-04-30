@@ -1,8 +1,10 @@
 import type { UserRole } from "@/lib/auth/get-user-role";
 
 export const scheduleLessonStatuses = ["scheduled", "canceled", "completed"] as const;
+export const lessonAttendanceStatuses = ["scheduled", "completed", "missed_by_student", "missed_by_teacher", "canceled"] as const;
 
 export type ScheduleLessonStatus = (typeof scheduleLessonStatuses)[number];
+export type LessonAttendanceStatus = (typeof lessonAttendanceStatuses)[number];
 
 export type ScheduleStudentOptionDto = {
   id: string;
@@ -28,6 +30,12 @@ export type BaseScheduleLessonDto = {
   status: ScheduleLessonStatus;
   createdAt: string | null;
   updatedAt: string | null;
+  attendanceStatus: LessonAttendanceStatus | null;
+  hasOutcome: boolean;
+  studentVisibleOutcome: {
+    summary: string;
+    nextSteps: string | null;
+  } | null;
 };
 
 export type StudentScheduleLessonDto = BaseScheduleLessonDto;
@@ -64,6 +72,7 @@ export type StaffSchedulePageData = {
   lessons: StaffScheduleLessonDto[];
   students: ScheduleStudentOptionDto[];
   teachers: ScheduleTeacherOptionDto[];
+  filterCatalogDeferred?: boolean;
   filters: {
     studentId: string;
     teacherId: string;
@@ -86,4 +95,37 @@ export type ScheduleApiListResponse = {
   lessons: Array<StudentScheduleLessonDto | StaffScheduleLessonDto>;
   students?: ScheduleStudentOptionDto[];
   teachers?: ScheduleTeacherOptionDto[];
+  filterCatalogDeferred?: boolean;
+};
+
+export type ScheduleFilterCatalogResponse = {
+  students: ScheduleStudentOptionDto[];
+  teachers: ScheduleTeacherOptionDto[];
+};
+
+export type ScheduleFilterCatalogEntity = "students" | "teachers" | "all";
+
+export type LessonOutcomeDto = {
+  id: string;
+  scheduleLessonId: string;
+  studentId: string;
+  teacherId: string;
+  summary: string;
+  coveredTopics: string | null;
+  mistakesSummary: string | null;
+  nextSteps: string | null;
+  visibleToStudent: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type LessonAttendanceDto = {
+  id: string;
+  scheduleLessonId: string;
+  studentId: string;
+  teacherId: string;
+  status: LessonAttendanceStatus;
+  markedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
 };

@@ -44,13 +44,24 @@ describe("DashboardGlobalSearch", () => {
   it("opens dropdown after debounce and navigates to active result on Enter", async () => {
     render(<DashboardGlobalSearch />);
 
-    fireEvent.change(screen.getByLabelText("Глобальный поиск по сайту"), { target: { value: "speaking" } });
+    const input = screen.getByLabelText("Глобальный поиск по сайту");
+    fireEvent.change(input, { target: { value: "speaking" } });
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     await screen.findByRole("heading", { name: "Практика" });
+    expect(input).toHaveAttribute("role", "combobox");
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(input).toHaveAttribute("aria-controls");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
 
-    fireEvent.keyDown(screen.getByLabelText("Глобальный поиск по сайту"), { key: "ArrowDown" });
-    fireEvent.keyDown(screen.getByLabelText("Глобальный поиск по сайту"), { key: "Enter" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+
+    await waitFor(() => {
+      expect(input).toHaveAttribute("aria-activedescendant");
+      expect(screen.getByRole("option", { selected: true })).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(input, { key: "Enter" });
 
     expect(pushMock).toHaveBeenCalledWith("/practice/topics/speaking");
   });

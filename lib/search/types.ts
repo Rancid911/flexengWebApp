@@ -1,10 +1,12 @@
 import type { UserRole } from "@/lib/auth/get-user-role";
+import type { AppCapability } from "@/lib/auth/request-context";
 
 export type SearchSection = "all" | "practice" | "homework" | "words" | "blog" | "admin";
 
 export type SearchContext = {
   userId: string | null;
   role: UserRole | null;
+  capabilities: AppCapability[];
   studentId: string | null;
   teacherId: string | null;
   isAuthenticated: boolean;

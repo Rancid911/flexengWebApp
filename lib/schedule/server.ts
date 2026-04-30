@@ -1,10 +1,14 @@
-import { cache } from "react";
 import { redirect } from "next/navigation";
 
-import { getUserRoleById } from "@/lib/auth/get-user-role";
+import {
+  assertStaffAdminCapability as assertStaffAdminAccess,
+  getAppActor,
+  getLayoutActor,
+  requireAppActor,
+  resolveDefaultWorkspace,
+  type AppActor
+} from "@/lib/auth/request-context";
 import type { UserRole } from "@/lib/auth/get-user-role";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import { ScheduleHttpError } from "@/lib/schedule/http";
 
 export type ScheduleActor = {
@@ -15,84 +19,48 @@ export type ScheduleActor = {
   accessibleStudentIds: string[] | null;
 };
 
-function dedupeStudentIds(rows: Array<{ student_id: string | null }>) {
-  const ids = new Set<string>();
-  for (const row of rows) {
-    if (row.student_id) ids.add(row.student_id);
-  }
-  return Array.from(ids);
+export type ScheduleActorMode = "contextOnly" | "teacherScope";
+
+export function isStudentScheduleActor(actor: ScheduleActor) {
+  return actor.role === "student";
 }
 
-const resolveScheduleActorForUser = cache(async (userId: string): Promise<ScheduleActor> => {
-  const userClient = await createClient();
-  const adminClient = createAdminClient();
+export function isTeacherScheduleActor(actor: ScheduleActor) {
+  return actor.role === "teacher";
+}
 
-  let role: UserRole | null = null;
-  try {
-    role = await getUserRoleById(userClient, userId);
-  } catch {
-    throw new ScheduleHttpError(500, "PROFILE_FETCH_FAILED", "Failed to resolve user role");
+export function isStaffAdminScheduleActor(actor: ScheduleActor) {
+  return actor.role === "manager" || actor.role === "admin";
+}
+
+function toScheduleActor(context: AppActor | null, mode: ScheduleActorMode = "teacherScope"): ScheduleActor {
+  if (!context) {
+    throw new ScheduleHttpError(403, "FORBIDDEN", "Authentication required");
   }
 
-  if (!role) {
+  const workspaceRole = resolveDefaultWorkspace(context);
+  if (!workspaceRole) {
     throw new ScheduleHttpError(403, "FORBIDDEN", "Schedule access requires a valid role");
   }
 
-  const [studentResponse, teacherResponse] = await Promise.all([
-    adminClient.from("students").select("id").eq("profile_id", userId).maybeSingle(),
-    adminClient.from("teachers").select("id").eq("profile_id", userId).maybeSingle()
-  ]);
-
-  if (studentResponse.error) {
-    throw new ScheduleHttpError(500, "PROFILE_FETCH_FAILED", "Failed to resolve student profile", studentResponse.error.message);
-  }
-
-  if (teacherResponse.error) {
-    throw new ScheduleHttpError(500, "PROFILE_FETCH_FAILED", "Failed to resolve teacher profile", teacherResponse.error.message);
-  }
-
-  let accessibleStudentIds: string[] | null = null;
-  if (role === "teacher") {
-    const teacherId = teacherResponse.data?.id ?? null;
-    if (!teacherId) {
-      throw new ScheduleHttpError(403, "FORBIDDEN", "Teacher profile is not linked");
-    }
-
-    const enrollmentsResponse = await adminClient
-      .from("student_course_enrollments")
-      .select("student_id")
-      .eq("assigned_teacher_id", teacherId)
-      .eq("status", "active");
-
-    if (enrollmentsResponse.error) {
-      throw new ScheduleHttpError(500, "SCHEDULE_SCOPE_FAILED", "Failed to resolve teacher schedule scope", enrollmentsResponse.error.message);
-    }
-
-    accessibleStudentIds = dedupeStudentIds((enrollmentsResponse.data ?? []) as Array<{ student_id: string | null }>);
+  if (workspaceRole === "teacher" && !context.teacherId) {
+    throw new ScheduleHttpError(403, "FORBIDDEN", "Teacher profile is not linked");
   }
 
   return {
-    userId,
-    role,
-    studentId: typeof studentResponse.data?.id === "string" ? studentResponse.data.id : null,
-    teacherId: typeof teacherResponse.data?.id === "string" ? teacherResponse.data.id : null,
-    accessibleStudentIds
+    userId: context.userId,
+    role: workspaceRole,
+    studentId: context.studentId,
+    teacherId: workspaceRole === "teacher" ? context.teacherId : null,
+    accessibleStudentIds: workspaceRole === "teacher" && mode === "teacherScope" ? context.accessibleStudentIds : null
   };
-});
+}
 
-export async function requireSchedulePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser();
-
-  if (error || !user) {
-    redirect("/login");
-  }
+export async function requireSchedulePage(mode: ScheduleActorMode = "teacherScope") {
+  const context = mode === "contextOnly" ? await getLayoutActor() : await requireAppActor();
 
   try {
-    return await resolveScheduleActorForUser(user.id);
+    return toScheduleActor(context, mode);
   } catch (error) {
     if (error instanceof ScheduleHttpError && error.status === 403) {
       redirect("/");
@@ -101,22 +69,43 @@ export async function requireSchedulePage() {
   }
 }
 
-export async function requireScheduleApi() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser();
-
-  if (error || !user) {
+export async function requireScheduleApi(mode: ScheduleActorMode = "teacherScope") {
+  const context = mode === "contextOnly" ? await getLayoutActor() : await getAppActor();
+  if (!context) {
     throw new ScheduleHttpError(403, "FORBIDDEN", "Authentication required");
   }
 
-  return resolveScheduleActorForUser(user.id);
+  return toScheduleActor(context, mode);
+}
+
+export async function requireScheduleActor(mode: ScheduleActorMode = "teacherScope") {
+  return requireScheduleApi(mode);
+}
+
+export async function resolveScheduleActor(context: AppActor | null, mode: ScheduleActorMode = "teacherScope") {
+  return toScheduleActor(context, mode);
+}
+
+export function assertTeacherCapability(actor: AppActor | ScheduleActor) {
+  const hasTeacherCapability = "isTeacher" in actor ? actor.isTeacher : isTeacherScheduleActor(actor);
+  if (!hasTeacherCapability) {
+    throw new ScheduleHttpError(403, "FORBIDDEN", "Teacher workspace is not available");
+  }
+}
+
+export function assertStaffAdminCapability(actor: AppActor | ScheduleActor) {
+  if ("isStaffAdmin" in actor) {
+    assertStaffAdminAccess(actor);
+    return;
+  }
+
+  if (!isStaffAdminScheduleActor(actor)) {
+    throw new ScheduleHttpError(403, "FORBIDDEN", "Staff access required");
+  }
 }
 
 export function assertScheduleWriteAccess(actor: ScheduleActor) {
-  if (actor.role === "student") {
+  if (isStudentScheduleActor(actor)) {
     throw new ScheduleHttpError(403, "FORBIDDEN", "Students cannot manage schedule lessons");
   }
 }
@@ -128,11 +117,14 @@ export function assertTeacherScope(
     teacherId?: string | null;
   }
 ) {
-  if (actor.role !== "teacher") return;
+  if (!isTeacherScheduleActor(actor)) return;
 
   assertScheduleWriteAccess(actor);
   if (!actor.teacherId) {
     throw new ScheduleHttpError(403, "FORBIDDEN", "Teacher profile is not linked");
+  }
+  if (actor.accessibleStudentIds == null) {
+    throw new ScheduleHttpError(403, "FORBIDDEN", "Teacher scope is not loaded");
   }
 
   if (scheduleInput.teacherId && scheduleInput.teacherId !== actor.teacherId) {

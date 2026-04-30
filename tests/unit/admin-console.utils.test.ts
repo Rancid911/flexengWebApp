@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiRequestError, fetchJson, slugify } from "@/app/(dashboard)/admin/ui/admin-console.utils";
+import { ApiRequestError, fetchJson, slugify } from "@/app/(workspace)/(staff-zone)/admin/ui/admin-console.utils";
 
 afterEach(() => {
   vi.unstubAllGlobals();

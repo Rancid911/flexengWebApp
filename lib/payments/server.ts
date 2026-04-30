@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { AdminHttpError } from "@/lib/admin/http";
+import { assertPaymentPlanBillingCompatibility, syncPaymentTransactionBilling } from "@/lib/billing/server";
 import type { PaymentStatusContext } from "@/lib/payments/types";
 import {
   createYooKassaPayment,
@@ -13,6 +14,11 @@ import {
 import { getRequestOrigin } from "@/lib/server-origin";
 import { getCurrentStudentProfile } from "@/lib/students/current-student";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { AccessMode } from "@/lib/supabase/access";
+
+export const CURRENT_STUDENT_CHECKOUT_ACCESS_MODE: AccessMode = "privileged";
+export const CURRENT_STUDENT_TRANSACTION_SYNC_ACCESS_MODE: AccessMode = "privileged";
+export const PAYMENT_WEBHOOK_ACCESS_MODE: AccessMode = "privileged";
 
 function normalizeWebhookEventId(eventType: string, providerPaymentId: string) {
   return `${eventType}:${providerPaymentId}`;
@@ -23,12 +29,14 @@ function getWebhookToken() {
 }
 
 export async function createCheckoutForCurrentStudent(planId: string) {
+  void CURRENT_STUDENT_CHECKOUT_ACCESS_MODE;
   const profile = await getCurrentStudentProfile();
   if (!profile?.studentId || !profile.userId) {
     throw new AdminHttpError(401, "UNAUTHORIZED", "Authentication required");
   }
 
   const admin = createAdminClient();
+  await assertPaymentPlanBillingCompatibility(profile.studentId, planId);
   const { data: plan, error: planError } = await admin
     .from("payment_plans")
     .select("id, title, description, amount, currency, yookassa_product_label, is_active")
@@ -113,6 +121,7 @@ export async function createCheckoutForCurrentStudent(planId: string) {
 }
 
 export async function syncCurrentStudentTransaction(transactionId: string): Promise<PaymentStatusContext> {
+  void CURRENT_STUDENT_TRANSACTION_SYNC_ACCESS_MODE;
   const profile = await getCurrentStudentProfile();
   if (!profile?.studentId) {
     throw new AdminHttpError(401, "UNAUTHORIZED", "Authentication required");
@@ -147,6 +156,9 @@ export async function syncCurrentStudentTransaction(transactionId: string): Prom
       .eq("id", transactionId);
 
     status = update.status;
+    if (update.status === "succeeded") {
+      await syncPaymentTransactionBilling(transactionId, admin);
+    }
   }
 
   const isConfirmationExpired = isYooKassaConfirmationExpired(status, createdAt);
@@ -163,6 +175,7 @@ export async function syncCurrentStudentTransaction(transactionId: string): Prom
 }
 
 export async function processYooKassaWebhook(payload: unknown, requestToken: string | null) {
+  void PAYMENT_WEBHOOK_ACCESS_MODE;
   const configuredToken = getWebhookToken();
   if (configuredToken && configuredToken !== (requestToken ?? "")) {
     throw new AdminHttpError(401, "INVALID_WEBHOOK_TOKEN", "Invalid webhook token");
@@ -218,6 +231,22 @@ export async function processYooKassaWebhook(payload: unknown, requestToken: str
     })
     .eq("provider", "yookassa")
     .eq("provider_payment_id", providerPaymentId);
+
+  const syncedTransactions = await admin
+    .from("payment_transactions")
+    .select("id")
+    .eq("provider", "yookassa")
+    .eq("provider_payment_id", providerPaymentId);
+
+  if (syncedTransactions.error) {
+    throw new AdminHttpError(500, "PAYMENT_WEBHOOK_PROCESS_FAILED", "Failed to resolve synced transactions", syncedTransactions.error.message);
+  }
+
+  for (const transaction of syncedTransactions.data ?? []) {
+    if (typeof transaction.id === "string") {
+      await syncPaymentTransactionBilling(transaction.id, admin);
+    }
+  }
 
   await admin
     .from("payment_webhook_events")

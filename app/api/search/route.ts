@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { toErrorResponse } from "@/lib/admin/http";
+import { withApiErrorHandling } from "@/lib/server/http";
 import { searchSite } from "@/lib/search/search-service";
 import type { SearchSection } from "@/lib/search/types";
 
 const allowedSections = new Set<SearchSection>(["all", "practice", "homework", "words", "blog", "admin"]);
 
-export async function GET(request: NextRequest) {
-  try {
+export const GET = withApiErrorHandling(async (request: NextRequest) => {
     const url = new URL(request.url);
     const query = (url.searchParams.get("q") ?? "").trim();
     const sectionParam = (url.searchParams.get("section") ?? "all").trim() as SearchSection;
@@ -16,7 +15,4 @@ export async function GET(request: NextRequest) {
 
     const payload = await searchSite({ query, limit, section });
     return NextResponse.json(payload);
-  } catch (error) {
-    return toErrorResponse(error);
-  }
-}
+});

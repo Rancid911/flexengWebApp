@@ -18,15 +18,16 @@ export class ScheduleHttpError extends Error {
 }
 
 export function toScheduleErrorResponse(error: unknown) {
-  if (error instanceof ScheduleHttpError) {
+  if (error instanceof ScheduleHttpError || (typeof error === "object" && error !== null && "status" in error && "code" in error && "message" in error)) {
+    const typedError = error as { status: number; code: string; message: string; details?: unknown; exposeDetails?: boolean };
     const payload: ApiErrorShape = {
-      code: error.code,
-      message: error.message
+      code: typedError.code,
+      message: typedError.message
     };
-    if (error.exposeDetails && error.details !== undefined) {
-      payload.details = error.details;
+    if ((typedError.exposeDetails ?? typedError.status < 500) && typedError.details !== undefined) {
+      payload.details = typedError.details;
     }
-    return NextResponse.json(payload, { status: error.status });
+    return NextResponse.json(payload, { status: typedError.status });
   }
 
   return NextResponse.json(

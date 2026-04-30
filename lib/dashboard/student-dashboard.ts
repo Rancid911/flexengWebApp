@@ -1,267 +1,540 @@
-import { createClient } from "@/lib/supabase/server";
+import { createStudentPaymentReminderPopup, getPaymentReminderSettings, resolveStudentPaymentReminderForDashboard } from "@/lib/billing/reminders";
+import type { StudentPaymentReminderPopup } from "@/lib/billing/types";
+import {
+  STUDENT_DASHBOARD_CORE_ACCESS_MODE,
+  STUDENT_DASHBOARD_CORE_DATA_LOADING,
+  STUDENT_DASHBOARD_PAYMENT_REMINDER_ACCESS_MODE,
+  STUDENT_DASHBOARD_PAYMENT_REMINDER_DATA_LOADING
+} from "@/lib/dashboard/student-dashboard.descriptors";
+import {
+  buildNextBestAction,
+  buildRecentPracticeModuleSummaries,
+  buildRecommendationCards,
+  buildStudentDashboardFallback,
+  buildStudentDashboardSummaryBlocks,
+  buildStudentDashboardWordCounts,
+  formatDrillCount,
+  getPlacementStatusTone,
+  getHomeworkTone,
+  isPlacementAttempt,
+  isSchemaMissing,
+  mapPlacementStatus,
+  mapDueDate,
+  mapHomeworkStatus,
+  readRelationRecord,
+  safePercent,
+  splitPlacementHomeworkAssignments
+} from "@/lib/dashboard/student-dashboard.mappers";
+import { createStudentDashboardRepository, type DashboardSupabaseClient } from "@/lib/dashboard/student-dashboard.repository";
+import type {
+  DashboardHomeworkAssignmentRow,
+  DashboardRecommendationModuleRow,
+  DashboardRecentPracticeActivity,
+  DashboardRecentPracticeModuleSummary,
+  DashboardStudentWordCountRow,
+  StudentDashboardCoreData,
+  StudentDashboardData,
+  StudentDashboardSecondaryData,
+  StudentDashboardWordCounts
+} from "@/lib/dashboard/student-dashboard.types";
 import { getStudentSchedulePreviewByStudentId } from "@/lib/schedule/queries";
-import type { StudentScheduleLessonDto } from "@/lib/schedule/types";
+import { measureServerTiming } from "@/lib/server/timing";
 import { getCurrentStudentProfile } from "@/lib/students/current-student";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
-type DashboardBadgeTone = "primary" | "warning" | "muted";
+type StudentDashboardRepository = ReturnType<typeof createStudentDashboardRepository>;
 
-export type StudentDashboardData = {
-  lessonOfTheDay: {
-    title: string;
-    description: string;
-    duration: string;
-    progress: number;
-    sectionsCount: number;
-  };
-  progress: {
-    value: number;
-    label: string;
-  };
-  heroStats: Array<{
-    label: string;
-    value: string;
-  }>;
-  homeworkCards: Array<{
-    id: string;
-    title: string;
-    subtitle: string;
-    status: string;
-    statusTone: DashboardBadgeTone;
-  }>;
-  recommendationCards: Array<{
-    id: string;
-    title: string;
-    subtitle: string;
-  }>;
-  summaryStats: Array<{
-    label: string;
-    value: string;
-    chip: string;
-    icon: "sparkles" | "book" | "brain";
-  }>;
-  nextScheduledLesson: StudentScheduleLessonDto | null;
-  upcomingScheduleLessons: StudentScheduleLessonDto[];
+export {
+  STUDENT_DASHBOARD_CORE_ACCESS_MODE,
+  STUDENT_DASHBOARD_CORE_DATA_LOADING,
+  STUDENT_DASHBOARD_PAYMENT_REMINDER_ACCESS_MODE,
+  STUDENT_DASHBOARD_PAYMENT_REMINDER_DATA_LOADING,
+  buildStudentDashboardSummaryBlocks,
+  buildStudentDashboardWordCounts
 };
 
-function safePercent(value: number) {
-  return Math.max(0, Math.min(Math.round(value), 100));
+export type {
+  StudentDashboardCoreData,
+  StudentDashboardData,
+  StudentDashboardSchedulePreviewLessonDto,
+  StudentDashboardSecondaryData,
+  StudentDashboardSummaryBlocks
+} from "@/lib/dashboard/student-dashboard.types";
+
+function normalizeHomeworkRows(response: { data: unknown; error: { message: string } | null }) {
+  if (response.error && !isSchemaMissing(response.error.message)) return [];
+  return (response.data ?? []) as DashboardHomeworkAssignmentRow[];
 }
 
-function getHomeworkTone(status: string): DashboardBadgeTone {
-  if (status === "completed") return "primary";
-  if (status === "overdue") return "warning";
-  return "muted";
-}
-
-function mapHomeworkStatus(status: string) {
-  switch (status) {
-    case "completed":
-      return "Завершено";
-    case "in_progress":
-      return "В процессе";
-    case "overdue":
-      return "Просрочено";
-    default:
-      return "Не начато";
-  }
-}
-
-function mapDueDate(value: string | null) {
-  if (!value) return "Без дедлайна";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Без дедлайна";
-  return `Срок: ${new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "long" }).format(date)}`;
-}
-
-function isSchemaMissing(message: string) {
-  const normalized = message.toLowerCase();
-  return normalized.includes("does not exist") || normalized.includes("could not find") || normalized.includes("schema cache");
-}
-
-function readRelationRecord<T extends Record<string, unknown>>(value: T | T[] | null | undefined) {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
+async function loadStudentDashboardWordCounts(
+  studentId: string,
+  repository?: StudentDashboardRepository
+): Promise<StudentDashboardWordCounts> {
+  const dashboardRepository = repository ?? createStudentDashboardRepository(await createClient());
+  const response = await dashboardRepository.loadStudentWordRows(studentId);
+  if (response.error && !isSchemaMissing(response.error.message)) {
+    return { learningCount: 0, dueReviewCount: 0, masteredCount: 0 };
   }
 
-  return value ?? null;
+  return buildStudentDashboardWordCounts((response.data ?? []) as DashboardStudentWordCountRow[]);
 }
 
-function buildRecommendationCards(
-  rows: Array<{
-    mistake_count: number | null;
-    module_id: string | null;
-    test_id: string | null;
-  }>
+export async function getCompletedTeacherLessonsCountLast7Days(
+  studentId: string,
+  supabase: DashboardSupabaseClient,
+  referenceDate = new Date()
 ) {
-  const seen = new Set<string>();
+  const repository = createStudentDashboardRepository(supabase);
+  const response = await repository.loadCompletedTeacherLessonsCountLast7Days(studentId, referenceDate);
+  if (response.error) return 0;
+  return response.count ?? 0;
+}
 
-  return rows.flatMap((item, index) => {
-    const sourceId = item.module_id ?? item.test_id;
-    const sourceType = item.module_id ? "module" : item.test_id ? "test" : "fallback";
-    const dedupeKey = `${sourceType}:${sourceId ?? index}`;
+export async function getSubmittedTestsCountLast7Days(
+  studentId: string,
+  supabase: DashboardSupabaseClient,
+  referenceDate = new Date()
+) {
+  const repository = createStudentDashboardRepository(supabase);
+  const response = await repository.loadSubmittedTestsCountLast7Days(studentId, referenceDate);
+  if (response.error) return 0;
+  return response.count ?? 0;
+}
 
-    if (seen.has(dedupeKey)) {
-      return [];
-    }
+async function loadStudentPlacementSummary(
+  studentId: string,
+  repository?: StudentDashboardRepository
+): Promise<StudentDashboardCoreData["placementTest"]> {
+  const dashboardRepository = repository ?? createStudentDashboardRepository(await createClient());
+  const placementResponse = await dashboardRepository.resolveCanonicalPlacementTest();
+  const placementTest = placementResponse.error ? null : (placementResponse.data as { id?: string | null; title?: string | null } | null);
+  if (!placementTest?.id) return null;
 
-    seen.add(dedupeKey);
+  const assignmentResponse = await dashboardRepository.loadPlacementAssignment(studentId, String(placementTest.id));
+  if (assignmentResponse.error && !isSchemaMissing(assignmentResponse.error.message)) return null;
+  const assignment = assignmentResponse.data as DashboardHomeworkAssignmentRow | null;
+  if (!assignment) return null;
+
+  const status = assignment.status ?? "not_started";
+  const href = `/practice/activity/test_${placementTest.id}`;
+
+  return {
+    assigned: true,
+    completed: status === "completed",
+    title: placementTest.title ?? assignment.title ?? "Placement Test",
+    subtitle: mapDueDate(assignment.due_at ?? null),
+    href,
+    status: mapPlacementStatus(status),
+    statusTone: getPlacementStatusTone(status)
+  };
+}
+
+async function loadRecentPracticeActivities(
+  studentId: string,
+  repository?: StudentDashboardRepository
+): Promise<DashboardRecentPracticeActivity[]> {
+  const dashboardRepository = repository ?? createStudentDashboardRepository(await createClient());
+  const [lessonResponse, testResponse] = await Promise.all([
+    dashboardRepository.loadRecentLessonActivities(studentId),
+    dashboardRepository.loadRecentTestActivities(studentId)
+  ]);
+  const lessonRows = lessonResponse.error ? [] : ((lessonResponse.data ?? []) as Array<Record<string, unknown>>);
+  const testRows = testResponse.error ? [] : ((testResponse.data ?? []) as Array<Record<string, unknown>>);
+
+  const lessonActivities = lessonRows.flatMap((row) => {
+    const lesson = readRelationRecord(
+      row.lessons as { title?: string | null; module_id?: string | null } | Array<{ title?: string | null; module_id?: string | null }> | null | undefined
+    );
+    if (!lesson?.module_id || !row.updated_at) return [];
 
     return [
       {
-        id: `recommendation-${dedupeKey}-${index}`,
-        title: `Повторить тему ${index + 1}`,
-        subtitle: `Найдено ошибок: ${Number(item.mistake_count ?? 1)}`
+        moduleId: String(lesson.module_id),
+        activityTitle: String(lesson.title ?? "Урок"),
+        happenedAt: String(row.updated_at)
       }
     ];
   });
+
+  const testActivities = testRows.flatMap((row) => {
+    const test = readRelationRecord(
+      row.tests as
+        | { title?: string | null; module_id?: string | null; assessment_kind?: string | null }
+        | Array<{ title?: string | null; module_id?: string | null; assessment_kind?: string | null }>
+        | null
+        | undefined
+    );
+    if (!test?.module_id || !row.created_at || test.assessment_kind === "placement") return [];
+
+    return [
+      {
+        moduleId: String(test.module_id),
+        activityTitle: String(test.title ?? "Тренировка"),
+        happenedAt: String(row.created_at)
+      }
+    ];
+  });
+
+  return [...lessonActivities, ...testActivities].sort((left, right) => right.happenedAt.localeCompare(left.happenedAt));
 }
 
-export async function getStudentDashboardData(): Promise<StudentDashboardData> {
-  const profile = await getCurrentStudentProfile();
-  const fallback: StudentDashboardData = {
-    lessonOfTheDay: {
-      title: "Практика",
-      description: "Когда появится активный прогресс по темам, здесь будет показано последнее место, где вы остановились.",
-      duration: "5 минут",
-      progress: 0,
-      sectionsCount: 0
-    },
-    progress: {
-      value: 0,
-      label: "Пока нет завершённых активностей"
-    },
-    heroStats: [
-      { label: "Точность", value: "0%" },
-      { label: "Попыток", value: "0" },
-      { label: "Слов", value: "0" }
-    ],
-    homeworkCards: [],
-    recommendationCards: [],
-    summaryStats: [
-      { label: "Сегодня", value: "0 мин", chip: "старт", icon: "sparkles" },
-      { label: "Сделано тестов", value: "0", chip: "за месяц", icon: "book" },
-      { label: "Слов в повторении", value: "0", chip: "карточки", icon: "brain" }
-    ],
-    nextScheduledLesson: null,
-    upcomingScheduleLessons: []
+async function loadRecentPracticeModuleSummaries(
+  studentId: string,
+  repository?: StudentDashboardRepository
+): Promise<DashboardRecentPracticeModuleSummary[]> {
+  const dashboardRepository = repository ?? createStudentDashboardRepository(await createClient());
+  const activities = await loadRecentPracticeActivities(studentId, dashboardRepository);
+  const moduleIds = [...new Set(activities.map((item) => item.moduleId))].slice(0, 6);
+  if (moduleIds.length === 0) return [];
+
+  const modulesResponse = await dashboardRepository.loadRecommendationModules(moduleIds);
+  const modules = modulesResponse.error ? [] : ((modulesResponse.data ?? []) as DashboardRecommendationModuleRow[]);
+  return buildRecentPracticeModuleSummaries(activities, modules);
+}
+
+async function loadRecentPracticeRecommendationCards(
+  studentId: string,
+  repository?: StudentDashboardRepository
+): Promise<StudentDashboardCoreData["recommendationCards"]> {
+  const moduleSummaries = await loadRecentPracticeModuleSummaries(studentId, repository);
+  return buildRecommendationCards(moduleSummaries);
+}
+
+async function loadRecentPracticeHero(
+  studentId: string,
+  repository?: StudentDashboardRepository
+): Promise<{
+  module: DashboardRecentPracticeModuleSummary;
+  totalDrills: number;
+  completedDrills: number;
+  progressPercent: number;
+} | null> {
+  const dashboardRepository = repository ?? createStudentDashboardRepository(await createClient());
+  const moduleSummary = (await loadRecentPracticeModuleSummaries(studentId, dashboardRepository))[0] ?? null;
+  if (!moduleSummary) return null;
+
+  const drillsResponse = await dashboardRepository.loadPublishedTrainerDrills(moduleSummary.moduleId);
+  if (drillsResponse.error) {
+    return {
+      module: moduleSummary,
+      totalDrills: 0,
+      completedDrills: 0,
+      progressPercent: 0
+    };
+  }
+
+  const drillIds = ((drillsResponse.data ?? []) as Array<{ id?: string | null }>).flatMap((row) => (row.id ? [String(row.id)] : []));
+  if (drillIds.length === 0) {
+    return {
+      module: moduleSummary,
+      totalDrills: 0,
+      completedDrills: 0,
+      progressPercent: 0
+    };
+  }
+
+  const attemptsResponse = await dashboardRepository.loadCompletedDrillAttempts(studentId, drillIds);
+  const completedDrillIds = new Set(
+    (attemptsResponse.error ? [] : ((attemptsResponse.data ?? []) as Array<{ test_id?: string | null }>)).flatMap((row) =>
+      row.test_id ? [String(row.test_id)] : []
+    )
+  );
+
+  return {
+    module: moduleSummary,
+    totalDrills: drillIds.length,
+    completedDrills: completedDrillIds.size,
+    progressPercent: safePercent((completedDrillIds.size / drillIds.length) * 100)
   };
+}
 
-  if (!profile?.studentId) return fallback;
+function buildSummaryStats(input: {
+  completedTeacherLessons7d: number;
+  submittedTests7d: number;
+  dueReviewCount: number;
+}): StudentDashboardCoreData["summaryStats"] {
+  return [
+    { label: "Онлайн-уроки", value: String(input.completedTeacherLessons7d), chip: "за 7 дней", icon: "book", href: "/schedule" },
+    { label: "Сделано тестов", value: String(input.submittedTests7d), chip: "за 7 дней", icon: "clipboardCheck", href: "/practice" },
+    { label: "Слов в повторении", value: String(input.dueReviewCount), chip: "карточки", icon: "brain", href: "/words/review" }
+  ];
+}
 
-  const supabase = await createClient();
-
-  const [progressResponse, attemptsResponse, enrollmentsResponse, homeworkResponse, mistakesResponse, wordsResponse, schedulePreview] = await Promise.all([
-    supabase
-      .from("student_lesson_progress")
-      .select("status, progress_percent, updated_at, lesson_id, lessons(title, duration_minutes, module_id)")
-      .eq("student_id", profile.studentId)
-      .order("updated_at", { ascending: false })
-      .limit(6),
-    supabase
-      .from("student_test_attempts")
-      .select("status, score, created_at, submitted_at")
-      .eq("student_id", profile.studentId)
-      .order("created_at", { ascending: false })
-      .limit(20),
-    supabase
-      .from("student_course_enrollments")
-      .select("status, courses(title)")
-      .eq("student_id", profile.studentId)
-      .eq("status", "active")
-      .limit(4),
-    supabase
-      .from("homework_assignments")
-      .select("id, title, status, due_at")
-      .eq("student_id", profile.studentId)
-      .in("status", ["not_started", "in_progress", "overdue"])
-      .order("due_at", { ascending: true })
-      .limit(3),
-    supabase
-      .from("student_mistakes")
-      .select("mistake_count, module_id, test_id")
-      .eq("student_id", profile.studentId)
-      .order("last_mistake_at", { ascending: false })
-      .limit(3),
-    supabase
-      .from("student_words")
-      .select("id, status")
-      .eq("student_id", profile.studentId),
-    getStudentSchedulePreviewByStudentId(profile.studentId, 3).catch(() => ({
-      nextLesson: null,
-      upcomingLessons: []
-    }))
-  ]);
-
-  const lessonRows = progressResponse.error ? [] : progressResponse.data ?? [];
-  const latestProgress = lessonRows.find((row) => row.status === "in_progress") ?? lessonRows[0] ?? null;
-  const progressValues = lessonRows.map((row) => Number(row.progress_percent ?? 0));
+function buildCoreDashboardPayload(input: {
+  progressRows: Array<Record<string, unknown>>;
+  attemptRows: Array<Record<string, unknown>>;
+  activeCourses: Array<Record<string, unknown>>;
+  homeworkRows: DashboardHomeworkAssignmentRow[];
+  recommendationCards: StudentDashboardCoreData["recommendationCards"];
+  wordCounts: { learningCount: number; dueReviewCount: number };
+  completedTeacherLessons7d: number;
+  submittedTests7d: number;
+  schedulePreview: Pick<StudentDashboardCoreData, "nextScheduledLesson" | "upcomingScheduleLessons">;
+  placementTest: StudentDashboardCoreData["placementTest"];
+  recentPracticeHero: Awaited<ReturnType<typeof loadRecentPracticeHero>>;
+}): StudentDashboardCoreData {
+  const latestProgress = input.progressRows.find((row) => row.status === "in_progress") ?? input.progressRows[0] ?? null;
+  const progressValues = input.progressRows.map((row) => Number(row.progress_percent ?? 0));
   const averageProgress = progressValues.length > 0 ? safePercent(progressValues.reduce((sum, value) => sum + value, 0) / progressValues.length) : 0;
 
-  const attempts = attemptsResponse.error ? [] : attemptsResponse.data ?? [];
-  const submittedAttempts = attempts.filter((row) => row.status !== "in_progress");
+  const submittedAttempts = input.attemptRows.filter(
+    (row) =>
+      row.status !== "in_progress" &&
+      !isPlacementAttempt(
+        row.tests as { assessment_kind?: unknown } | Array<{ assessment_kind?: unknown }> | null | undefined
+      )
+  );
   const averageScore =
     submittedAttempts.length > 0
-      ? safePercent(
-          submittedAttempts.reduce((sum, row) => sum + Number(row.score ?? 0), 0) / submittedAttempts.length
-        )
+      ? safePercent(submittedAttempts.reduce((sum, row) => sum + Number(row.score ?? 0), 0) / submittedAttempts.length)
       : 0;
 
-  const activeCourses = enrollmentsResponse.error ? [] : enrollmentsResponse.data ?? [];
-  const homeworkRows =
-    homeworkResponse.error && !isSchemaMissing(homeworkResponse.error.message) ? [] : homeworkResponse.data ?? [];
-  const mistakeRows =
-    mistakesResponse.error && !isSchemaMissing(mistakesResponse.error.message) ? [] : mistakesResponse.data ?? [];
-  const wordRows = wordsResponse.error && !isSchemaMissing(wordsResponse.error.message) ? [] : wordsResponse.data ?? [];
-  const latestLesson = readRelationRecord(latestProgress?.lessons);
-  const activeCourse = readRelationRecord(activeCourses[0]?.courses);
+  const { regularAssignments: homeworkRows } = splitPlacementHomeworkAssignments(
+    input.homeworkRows,
+    input.placementTest?.href ? input.placementTest.href.replace("/practice/activity/test_", "") : null
+  );
+  const latestLesson = readRelationRecord(
+    latestProgress?.lessons as
+      | { title?: string | null; duration_minutes?: number | null }
+      | Array<{ title?: string | null; duration_minutes?: number | null }>
+      | null
+      | undefined
+  );
+  const activeCourse = readRelationRecord(
+    input.activeCourses[0]?.courses as { title?: string | null } | Array<{ title?: string | null }> | null | undefined
+  );
+  const nextBestAction = buildNextBestAction({
+    homeworkRows,
+    placementTest: input.placementTest,
+    recommendationCards: input.recommendationCards,
+    nextScheduledLesson: input.schedulePreview.nextScheduledLesson
+  });
 
   const lessonTitle =
-    typeof latestLesson?.title === "string"
+    input.recentPracticeHero?.module.moduleTitle
+      ? input.recentPracticeHero.module.moduleTitle
+      : typeof latestLesson?.title === "string"
       ? latestLesson.title
       : typeof activeCourse?.title === "string"
         ? activeCourse.title
         : "Практика";
-  const lessonDuration = Number(
-    typeof latestLesson?.duration_minutes === "number" ? latestLesson.duration_minutes : 0
-  );
+  const lessonDuration = Number(typeof latestLesson?.duration_minutes === "number" ? latestLesson.duration_minutes : 0);
+  const heroProgressValue = input.recentPracticeHero?.progressPercent ?? averageProgress;
+  const heroSectionsCount = input.recentPracticeHero?.totalDrills ?? input.activeCourses.length;
 
   return {
     lessonOfTheDay: {
       title: lessonTitle,
       description:
-        latestProgress != null
+        input.recentPracticeHero != null
+          ? `Последняя активность: ${input.recentPracticeHero.module.lastActivityTitle}. Вернитесь к этой подтеме и продолжите практику.`
+          : latestProgress != null
           ? "Вы уже начали эту тему. Можно продолжить с того места, на котором остановились."
           : "Подберите тему в практике и начните заниматься между уроками с преподавателем.",
-      duration: `${Math.max(lessonDuration, 5)} минут`,
-      progress: Number(latestProgress?.progress_percent ?? 0),
-      sectionsCount: activeCourses.length
+      duration: `${Math.max(input.recentPracticeHero?.totalDrills ? input.recentPracticeHero.totalDrills * 5 : lessonDuration, 5)} минут`,
+      progress: heroProgressValue,
+      sectionsCount: heroSectionsCount,
+      sectionsLabel: input.recentPracticeHero ? `${formatDrillCount(heroSectionsCount)} в теме` : undefined
     },
     progress: {
-      value: averageProgress,
+      value: heroProgressValue,
       label:
-        latestProgress != null
+        input.recentPracticeHero != null
+          ? input.recentPracticeHero.totalDrills > 0
+            ? `Пройдено ${input.recentPracticeHero.completedDrills} из ${input.recentPracticeHero.totalDrills} дриллов`
+            : "В этой подтеме пока нет опубликованных дриллов"
+          : latestProgress != null
           ? "Прогресс собран по последним активностям и завершённым урокам"
           : "Как только появятся попытки и пройденные активности, здесь появится прогресс"
     },
     heroStats: [
       { label: "Точность", value: `${averageScore}%` },
       { label: "Попыток", value: String(submittedAttempts.length) },
-      { label: "Слов", value: String(wordRows.length) }
+      { label: "В изучении", value: String(input.wordCounts.learningCount) }
     ],
-    homeworkCards: homeworkRows.map((item) => ({
+    homeworkCards: homeworkRows.slice(0, 2).map((item) => ({
       id: String(item.id),
       title: item.title ?? "Домашнее задание",
       subtitle: mapDueDate(item.due_at ?? null),
       status: mapHomeworkStatus(item.status ?? "not_started"),
       statusTone: getHomeworkTone(item.status ?? "not_started")
     })),
-    recommendationCards: buildRecommendationCards(mistakeRows),
-    summaryStats: [
-      { label: "Сегодня", value: `${Math.round(progressValues.reduce((sum, value) => sum + value, 0) / 20) || 0} мин`, chip: "активность", icon: "sparkles" },
-      { label: "Сделано тестов", value: String(submittedAttempts.length), chip: "за всё время", icon: "book" },
-      { label: "Слов в повторении", value: String(wordRows.filter((row) => row.status !== "mastered").length), chip: "карточки", icon: "brain" }
-    ],
-    nextScheduledLesson: schedulePreview.nextLesson,
-    upcomingScheduleLessons: schedulePreview.upcomingLessons
+    activeHomeworkCount: homeworkRows.length,
+    placementTest: input.placementTest,
+    recommendationCards: input.recommendationCards,
+    nextBestAction,
+    summaryStats: buildSummaryStats({
+      completedTeacherLessons7d: input.completedTeacherLessons7d,
+      submittedTests7d: input.submittedTests7d,
+      dueReviewCount: input.wordCounts.dueReviewCount
+    }),
+    nextScheduledLesson: input.schedulePreview.nextScheduledLesson,
+    upcomingScheduleLessons: input.schedulePreview.upcomingScheduleLessons
   };
+}
+
+async function loadSchedulePreview(studentId: string) {
+  return measureServerTiming("student-dashboard-preview", () =>
+    getStudentSchedulePreviewByStudentId(studentId, 3).catch(() => ({
+      nextLesson: null,
+      upcomingLessons: []
+    }))
+  );
+}
+
+async function loadInitialDashboardCore(studentId: string, supabase: DashboardSupabaseClient): Promise<StudentDashboardCoreData> {
+  const repository = createStudentDashboardRepository(supabase);
+  const [progressResponse, attemptsResponse, enrollmentsResponse, homeworkResponse, wordCounts, placementTest, recentPracticeHero] = await Promise.all([
+    repository.loadLessonProgress(studentId),
+    repository.loadTestAttempts(studentId),
+    repository.loadActiveCourseEnrollments(studentId),
+    repository.loadActiveHomework(studentId),
+    loadStudentDashboardWordCounts(studentId, repository),
+    loadStudentPlacementSummary(studentId, repository),
+    loadRecentPracticeHero(studentId, repository)
+  ]);
+
+  return buildCoreDashboardPayload({
+    progressRows: progressResponse.error ? [] : (progressResponse.data ?? []),
+    attemptRows: attemptsResponse.error ? [] : (attemptsResponse.data ?? []).filter((row) => !isPlacementAttempt(row.tests)),
+    activeCourses: enrollmentsResponse.error ? [] : (enrollmentsResponse.data ?? []),
+    homeworkRows: normalizeHomeworkRows(homeworkResponse),
+    recommendationCards: [],
+    wordCounts,
+    completedTeacherLessons7d: 0,
+    submittedTests7d: 0,
+    schedulePreview: { nextScheduledLesson: null, upcomingScheduleLessons: [] },
+    placementTest,
+    recentPracticeHero
+  });
+}
+
+export async function getStudentDashboardInitialData(): Promise<StudentDashboardCoreData> {
+  return measureServerTiming("student-dashboard-core", async () => {
+    void STUDENT_DASHBOARD_CORE_ACCESS_MODE;
+    const profile = await getCurrentStudentProfile();
+    const fallback = buildStudentDashboardFallback();
+
+    if (!profile?.studentId) return fallback;
+    const supabase = await createClient();
+    return loadInitialDashboardCore(profile.studentId, supabase);
+  });
+}
+
+export async function getStudentDashboardSecondaryData(): Promise<StudentDashboardSecondaryData> {
+  return measureServerTiming("student-dashboard-secondary", async () => {
+    void STUDENT_DASHBOARD_CORE_ACCESS_MODE;
+    const profile = await getCurrentStudentProfile();
+
+    if (!profile?.studentId) {
+      return {
+        recommendationCards: [],
+        summaryStats: buildStudentDashboardFallback().summaryStats,
+        nextScheduledLesson: null,
+        upcomingScheduleLessons: []
+      };
+    }
+
+    const studentId = profile.studentId;
+    const supabase = await createClient();
+    const repository = createStudentDashboardRepository(supabase);
+    const [recommendationCards, wordCounts, completedTeacherLessons7d, submittedTests7d, schedulePreview] = await Promise.all([
+      loadRecentPracticeRecommendationCards(studentId, repository),
+      loadStudentDashboardWordCounts(studentId, repository),
+      getCompletedTeacherLessonsCountLast7Days(studentId, supabase),
+      getSubmittedTestsCountLast7Days(studentId, supabase),
+      loadSchedulePreview(studentId)
+    ]);
+
+    return {
+      recommendationCards,
+      summaryStats: buildSummaryStats({ completedTeacherLessons7d, submittedTests7d, dueReviewCount: wordCounts.dueReviewCount }),
+      nextScheduledLesson: schedulePreview.nextLesson,
+      upcomingScheduleLessons: schedulePreview.upcomingLessons
+    };
+  });
+}
+
+export async function getStudentDashboardCoreData(): Promise<StudentDashboardCoreData> {
+  return measureServerTiming("student-dashboard-core", async () => {
+    void STUDENT_DASHBOARD_CORE_ACCESS_MODE;
+    const profile = await getCurrentStudentProfile();
+    const fallback = buildStudentDashboardFallback();
+
+    if (!profile?.studentId) return fallback;
+    const studentId = profile.studentId;
+
+    const supabase = await createClient();
+    const repository = createStudentDashboardRepository(supabase);
+    const [progressResponse, attemptsResponse, enrollmentsResponse, homeworkResponse, recommendationCards, wordCounts, completedTeacherLessons7d, submittedTests7d, schedulePreview, placementTest, recentPracticeHero] = await Promise.all([
+      repository.loadLessonProgress(studentId),
+      repository.loadTestAttempts(studentId),
+      repository.loadActiveCourseEnrollments(studentId),
+      repository.loadActiveHomework(studentId),
+      loadRecentPracticeRecommendationCards(studentId, repository),
+      loadStudentDashboardWordCounts(studentId, repository),
+      getCompletedTeacherLessonsCountLast7Days(studentId, supabase),
+      getSubmittedTestsCountLast7Days(studentId, supabase),
+      loadSchedulePreview(studentId),
+      loadStudentPlacementSummary(studentId, repository),
+      loadRecentPracticeHero(studentId, repository)
+    ]);
+
+    return buildCoreDashboardPayload({
+      progressRows: progressResponse.error ? [] : (progressResponse.data ?? []),
+      attemptRows: attemptsResponse.error ? [] : (attemptsResponse.data ?? []),
+      activeCourses: enrollmentsResponse.error ? [] : (enrollmentsResponse.data ?? []),
+      homeworkRows: normalizeHomeworkRows(homeworkResponse),
+      recommendationCards,
+      wordCounts,
+      completedTeacherLessons7d,
+      submittedTests7d,
+      schedulePreview: {
+        nextScheduledLesson: schedulePreview.nextLesson,
+        upcomingScheduleLessons: schedulePreview.upcomingLessons
+      },
+      placementTest,
+      recentPracticeHero
+    });
+  });
+}
+
+export async function getStudentDashboardPaymentReminder(): Promise<StudentPaymentReminderPopup | null> {
+  return measureServerTiming("student-dashboard-payment-reminder", async () => {
+    void STUDENT_DASHBOARD_PAYMENT_REMINDER_ACCESS_MODE;
+    const profile = await getCurrentStudentProfile();
+    if (!profile?.studentId) return null;
+    const studentId = profile.studentId;
+
+    try {
+      const adminClient = createAdminClient();
+      const reminderSettings = await getPaymentReminderSettings(adminClient);
+      if (!reminderSettings.enabled) return null;
+
+      const resolution = await resolveStudentPaymentReminderForDashboard(adminClient, studentId, reminderSettings.thresholdLessons);
+
+      if (!resolution.shouldShowPopup) {
+        return null;
+      }
+
+      const popup = createStudentPaymentReminderPopup(resolution);
+      if (!popup) return null;
+
+      return popup;
+    } catch {
+      return null;
+    }
+  });
+}
+
+export async function getStudentDashboardData(): Promise<StudentDashboardData> {
+  return measureServerTiming("student-dashboard-data", async () => {
+    const [core, paymentReminderPopup] = await Promise.all([getStudentDashboardCoreData(), getStudentDashboardPaymentReminder()]);
+
+    return {
+      ...core,
+      paymentReminderPopup
+    };
+  });
 }

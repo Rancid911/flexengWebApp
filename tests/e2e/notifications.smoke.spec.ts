@@ -44,10 +44,18 @@ test.describe("notifications @smoke @requiresAuth", () => {
     const card = page.locator("article").filter({ hasText: title }).first();
     await expect(card).toBeVisible();
 
+    const readResponsePromise = page.waitForResponse((response) => response.url().includes("/api/notifications/") && response.url().endsWith("/read"));
     await card.click();
+    const readResponse = await readResponsePromise;
+    expect(readResponse.status()).toBe(200);
     await expect(card).toBeVisible();
 
+    const dismissResponsePromise = page.waitForResponse((response) =>
+      response.url().includes("/api/notifications/") && response.url().endsWith("/dismiss")
+    );
     await card.locator('[data-testid^="notification-dismiss-"]').first().click();
+    const dismissResponse = await dismissResponsePromise;
+    expect(dismissResponse.status()).toBe(200);
     await expect(card).toHaveCount(0);
 
     await page.reload();

@@ -3,126 +3,39 @@
 import Link from "next/link";
 import { Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { SearchResultList } from "@/components/search/search-result-list";
 import { Input } from "@/components/ui/input";
-import type { SearchGroupDto, SearchResultDto } from "@/lib/search/types";
+import { useOnClickOutside } from "@/hooks/use-on-click-outside";
 import { cn } from "@/lib/utils";
+import { useDashboardGlobalSearch } from "./use-dashboard-global-search";
 
-function useDebounce<T>(value: T, delay: number) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedValue(value), delay);
-    return () => window.clearTimeout(timeout);
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
-export function DashboardGlobalSearch() {
+export function DashboardGlobalSearch({ autoFocusOnMount = false }: { autoFocusOnMount?: boolean }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [items, setItems] = useState<SearchResultDto[]>([]);
-  const [groups, setGroups] = useState<SearchGroupDto[]>([]);
-  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const activeRequestIdRef = useRef(0);
-  const deferredQuery = useDeferredValue(query.trim());
-  const debouncedQuery = useDebounce(deferredQuery, 300);
-
-  const dropdownItems = useMemo(() => {
-    const grouped = new Map<string, SearchResultDto[]>();
-    for (const item of items) {
-      const bucket = grouped.get(item.section) ?? [];
-      if (bucket.length >= 2) continue;
-      bucket.push(item);
-      grouped.set(item.section, bucket);
-    }
-
-    return groups.flatMap((group) => grouped.get(group.key) ?? []).slice(0, 8);
-  }, [groups, items]);
-
-  const dropdownGroups = useMemo(
-    () =>
-      groups
-        .map((group) => ({
-          ...group,
-          count: dropdownItems.filter((item) => item.section === group.key).length
-        }))
-        .filter((group) => group.count > 0),
-    [dropdownItems, groups]
-  );
-
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const { dropdownItems, dropdownGroups, error, hasQuery, status } = useDashboardGlobalSearch(query);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const listboxId = useId();
 
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!rootRef.current) return;
-      if (rootRef.current.contains(event.target as Node)) return;
-      setOpen(false);
-    };
+  useOnClickOutside(rootRef, open, () => {
+    setOpen(false);
+  });
 
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, []);
-
-  useEffect(() => {
-    if (debouncedQuery.length < 2) {
-      return;
-    }
-
-    const requestId = ++activeRequestIdRef.current;
-    const controller = new AbortController();
-
-    fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}&limit=8`, {
-      signal: controller.signal,
-      cache: "no-store"
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error("SEARCH_REQUEST_FAILED");
-        }
-        return (await response.json()) as { items?: SearchResultDto[]; groups?: SearchGroupDto[] };
-      })
-      .then((payload) => {
-        if (controller.signal.aborted || requestId !== activeRequestIdRef.current) return;
-        startTransition(() => {
-          setItems(Array.isArray(payload.items) ? payload.items : []);
-          setGroups(Array.isArray(payload.groups) ? payload.groups : []);
-          setActiveIndex(-1);
-          setOpen(true);
-        });
-      })
-      .catch((fetchError) => {
-        if (controller.signal.aborted || requestId !== activeRequestIdRef.current) return;
-        console.error("GLOBAL_SEARCH_ERROR", fetchError);
-        startTransition(() => {
-          setError("Не удалось выполнить поиск");
-          setItems([]);
-          setGroups([]);
-          setActiveIndex(-1);
-          setOpen(true);
-        });
-      })
-      .finally(() => {
-        if (!controller.signal.aborted && requestId === activeRequestIdRef.current) {
-          setLoading(false);
-        }
-      });
-
-    return () => controller.abort();
-  }, [debouncedQuery]);
-
-  const hasQuery = query.trim().length >= 2;
   const showDropdown = open && hasQuery;
   const footerHref = useMemo(() => `/search?q=${encodeURIComponent(query.trim())}`, [query]);
   const visibleItems = hasQuery ? dropdownItems : [];
   const visibleGroups = hasQuery ? dropdownGroups : [];
   const activeItem = activeIndex >= 0 ? visibleItems[activeIndex] ?? null : null;
+  const activeItemId = activeItem ? `${listboxId}-${activeItem.entityType}-${activeItem.entityId}` : undefined;
+
+  useEffect(() => {
+    if (!autoFocusOnMount) return;
+    inputRef.current?.focus();
+  }, [autoFocusOnMount]);
 
   function handleSubmit() {
     const normalized = query.trim();
@@ -142,19 +55,13 @@ export function DashboardGlobalSearch() {
     <div ref={rootRef} className="relative w-full max-w-xl">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
       <Input
+        ref={inputRef}
+        role="combobox"
         value={query}
         onChange={(event) => {
           const nextQuery = event.target.value;
           setQuery(nextQuery);
-          if (nextQuery.trim().length < 2) {
-            setLoading(false);
-            setError("");
-            setActiveIndex(-1);
-          } else {
-            setLoading(true);
-            setError("");
-            setActiveIndex(-1);
-          }
+          setActiveIndex(-1);
           if (!open) setOpen(true);
         }}
         onFocus={() => {
@@ -193,21 +100,23 @@ export function DashboardGlobalSearch() {
             setOpen(false);
           }
         }}
-        className="h-10 border-none bg-[#eef1f3] pl-10 pr-10 text-sm placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-200"
+        className="h-10 border-none bg-[#eef1f3] pl-10 pr-10 text-sm placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-indigo-300"
         placeholder="Поиск по сайту"
         aria-label="Глобальный поиск по сайту"
+        aria-autocomplete="list"
+        aria-expanded={showDropdown}
+        aria-controls={listboxId}
+        aria-activedescendant={showDropdown ? activeItemId : undefined}
       />
       {query ? (
         <button
           type="button"
           onClick={() => {
             setQuery("");
-            setItems([]);
-            setGroups([]);
             setActiveIndex(-1);
             setOpen(false);
           }}
-          className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-white hover:text-slate-600"
+          className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-[color,background-color,box-shadow] hover:bg-white hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
           aria-label="Очистить поиск"
         >
           <X className="h-4 w-4" />
@@ -221,7 +130,7 @@ export function DashboardGlobalSearch() {
           showDropdown ? "block" : "hidden"
         )}
       >
-        {loading ? (
+        {status === "loading" ? (
           <div className="space-y-2 p-3">
             {Array.from({ length: 4 }).map((_, index) => (
               <div key={`search-skeleton-${index}`} className="h-[58px] animate-pulse rounded-2xl border border-[#eef2f7] bg-slate-50" />
@@ -247,6 +156,9 @@ export function DashboardGlobalSearch() {
               query={query.trim()}
               compact
               activeItemKey={activeItem ? `${activeItem.entityType}:${activeItem.entityId}` : null}
+              listboxId={listboxId}
+              withListboxSemantics
+              getItemId={(itemKey) => `${listboxId}-${itemKey.replace(":", "-")}`}
               onItemHover={(itemKey) => {
                 const nextIndex = visibleItems.findIndex((item) => `${item.entityType}:${item.entityId}` === itemKey);
                 if (nextIndex >= 0) setActiveIndex(nextIndex);
@@ -258,7 +170,7 @@ export function DashboardGlobalSearch() {
               <Link
                 href={footerHref}
                 onClick={() => setOpen(false)}
-                className="text-[13px] font-semibold text-indigo-600 transition hover:text-indigo-700"
+                className="rounded-md px-1 py-0.5 text-[13px] font-semibold text-indigo-600 transition-[color,background-color,box-shadow] hover:text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
               >
                 Открыть полную выдачу
               </Link>

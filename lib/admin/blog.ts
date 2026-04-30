@@ -16,7 +16,7 @@ export function slugify(value: string) {
     .slice(0, 120);
 }
 
-function toCategoryDto(row: BlogRow): BlogCategoryDto {
+export function toCategoryDto(row: BlogRow): BlogCategoryDto {
   return {
     id: String(row.id ?? ""),
     slug: String(row.slug ?? ""),
@@ -26,7 +26,7 @@ function toCategoryDto(row: BlogRow): BlogCategoryDto {
   };
 }
 
-function toTagDto(row: BlogRow): BlogTagDto {
+export function toTagDto(row: BlogRow): BlogTagDto {
   return {
     id: String(row.id ?? ""),
     slug: String(row.slug ?? ""),

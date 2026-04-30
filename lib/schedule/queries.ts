@@ -1,7 +1,24 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { measureServerTiming } from "@/lib/server/timing";
 import { ScheduleHttpError } from "@/lib/schedule/http";
+import {
+  buildOptionsFromLessons,
+  mapScheduleLessonRows,
+  mapStudentPreviewRows,
+  type LessonAttendanceRow,
+  type LessonOutcomeRow,
+  type ScheduleLessonEnrichmentOptions,
+  type ScheduleLessonRow
+} from "@/lib/schedule/mappers";
+import { createScheduleRepository } from "@/lib/schedule/schedule.repository";
+import {
+  SCHEDULE_FILTER_CATALOG_DATA_LOADING,
+  SCHEDULE_PAGE_DATA_LOADING,
+  SCHEDULE_QUERY_ACCESS_MODE,
+  STUDENT_SCHEDULE_PREVIEW_DATA_LOADING
+} from "@/lib/schedule/descriptors";
 import type {
   SchedulePageData,
+  ScheduleFilterCatalogEntity,
   ScheduleStudentOptionDto,
   ScheduleTeacherOptionDto,
   StaffScheduleFilters,
@@ -12,53 +29,29 @@ import type {
   ScheduleLessonMutationPayload,
   ScheduleLessonStatus
 } from "@/lib/schedule/types";
-import { buildStudentSchedulePreview } from "@/lib/schedule/utils";
+import { buildStudentSchedulePreview, hasLessonEnded } from "@/lib/schedule/utils";
 import type { ScheduleActor } from "@/lib/schedule/server";
 import { assertScheduleWriteAccess, assertTeacherScope } from "@/lib/schedule/server";
 
-type ScheduleLessonRow = {
-  id: string;
-  student_id: string;
-  teacher_id: string;
-  title: string;
-  starts_at: string;
-  ends_at: string;
-  meeting_url: string | null;
-  comment: string | null;
-  status: ScheduleLessonStatus;
-  created_at: string | null;
-  updated_at: string | null;
+export {
+  SCHEDULE_FILTER_CATALOG_DATA_LOADING,
+  SCHEDULE_PAGE_DATA_LOADING,
+  SCHEDULE_QUERY_ACCESS_MODE,
+  STUDENT_SCHEDULE_PREVIEW_DATA_LOADING
 };
+export type { ScheduleLessonRow };
 
-type ProfileLabelRow = {
-  id: string;
-  display_name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-};
+const TEACHER_SCHEDULE_DEFAULT_WINDOW_DAYS = 21;
+const STAFF_SCHEDULE_DEFAULT_WINDOW_DAYS = 14;
+const SCHEDULE_FILTER_SEARCH_LIMIT = 50;
 
-type StudentLabelRow = {
-  id: string;
-  profile_id: string;
-};
-
-type TeacherLabelRow = {
-  id: string;
-  profile_id: string;
-};
-
-function isSchemaMissing(message: string) {
-  const normalized = message.toLowerCase();
-  return normalized.includes("does not exist") || normalized.includes("could not find") || normalized.includes("schema cache");
-}
-
-function buildDisplayName(
-  profile: Pick<ProfileLabelRow, "display_name" | "first_name" | "last_name" | "email"> | undefined,
-  fallback: string
-) {
-  if (!profile) return fallback;
-  return profile.display_name || [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email || fallback;
+function assertCanMarkLessonCompleted(lesson: Pick<ScheduleLessonRow, "ends_at">) {
+  if (hasLessonEnded(lesson.ends_at)) return;
+  throw new ScheduleHttpError(
+    409,
+    "LESSON_NOT_FINISHED",
+    "Урок можно отметить проведённым только после его окончания. Измените время урока, если он прошёл раньше."
+  );
 }
 
 function compactFilters(filters: StaffScheduleFilters = {}) {
@@ -91,262 +84,218 @@ export function hasExplicitPastDateSelection(filters: StaffScheduleFilters, refe
   return (typeof filters.dateFrom === "string" && filters.dateFrom < todayKey) || (typeof filters.dateTo === "string" && filters.dateTo < todayKey);
 }
 
-async function loadStudentOptions(
-  adminClient: ReturnType<typeof createAdminClient>,
-  actor: ScheduleActor,
-  studentIdsOverride?: string[]
-): Promise<ScheduleStudentOptionDto[]> {
-  let studentIds: string[] | null = studentIdsOverride ?? null;
+function hasExplicitFutureDateSelection(filters: StaffScheduleFilters) {
+  return Boolean(filters.dateFrom || filters.dateTo);
+}
+
+export function resolveStudentOptionIds(actor: ScheduleActor, studentIdsOverride?: string[]) {
+  if (studentIdsOverride) {
+    return studentIdsOverride;
+  }
+
   if (actor.role === "student") {
-    studentIds = actor.studentId ? [actor.studentId] : [];
-  } else if (actor.role === "teacher") {
-    studentIds = actor.accessibleStudentIds ?? [];
+    return actor.studentId ? [actor.studentId] : [];
   }
 
-  let query = adminClient.from("students").select("id, profile_id").order("created_at", { ascending: true });
-  if (studentIds) {
-    if (studentIds.length === 0) return [];
-    query = query.in("id", studentIds);
-  }
-
-  const studentsResponse = await query;
-  if (studentsResponse.error) {
-    throw new ScheduleHttpError(500, "SCHEDULE_LOOKUP_FAILED", "Failed to load students", studentsResponse.error.message);
-  }
-
-  const studentRows = (studentsResponse.data ?? []) as StudentLabelRow[];
-  if (studentRows.length === 0) return [];
-
-  const profileIds = Array.from(new Set(studentRows.map((row) => row.profile_id)));
-  const profilesResponse = await adminClient.from("profiles").select("id, display_name, first_name, last_name, email").in("id", profileIds);
-  if (profilesResponse.error) {
-    throw new ScheduleHttpError(500, "SCHEDULE_LOOKUP_FAILED", "Failed to load student profiles", profilesResponse.error.message);
-  }
-
-  const profilesById = new Map<string, ProfileLabelRow>();
-  for (const profile of (profilesResponse.data ?? []) as ProfileLabelRow[]) {
-    profilesById.set(profile.id, profile);
-  }
-
-  return studentRows.map((row) => ({
-    id: row.id,
-    label: buildDisplayName(profilesById.get(row.profile_id), "Ученик")
-  }));
-}
-
-async function loadTeacherOptions(
-  adminClient: ReturnType<typeof createAdminClient>,
-  actor: ScheduleActor,
-  teacherIdsOverride?: string[]
-): Promise<ScheduleTeacherOptionDto[]> {
-  let teacherIds: string[] | null = teacherIdsOverride ?? null;
   if (actor.role === "teacher") {
-    teacherIds = actor.teacherId ? [actor.teacherId] : [];
+    return actor.accessibleStudentIds ?? [];
   }
 
-  let query = adminClient.from("teachers").select("id, profile_id").order("created_at", { ascending: true });
-  if (teacherIds) {
-    if (teacherIds.length === 0) return [];
-    query = query.in("id", teacherIds);
-  }
-
-  const teachersResponse = await query;
-  if (teachersResponse.error) {
-    throw new ScheduleHttpError(500, "SCHEDULE_LOOKUP_FAILED", "Failed to load teachers", teachersResponse.error.message);
-  }
-
-  const teacherRows = (teachersResponse.data ?? []) as TeacherLabelRow[];
-  if (teacherRows.length === 0) return [];
-
-  const profileIds = Array.from(new Set(teacherRows.map((row) => row.profile_id)));
-  const profilesResponse = await adminClient.from("profiles").select("id, display_name, first_name, last_name, email").in("id", profileIds);
-  if (profilesResponse.error) {
-    throw new ScheduleHttpError(500, "SCHEDULE_LOOKUP_FAILED", "Failed to load teacher profiles", profilesResponse.error.message);
-  }
-
-  const profilesById = new Map<string, ProfileLabelRow>();
-  for (const profile of (profilesResponse.data ?? []) as ProfileLabelRow[]) {
-    profilesById.set(profile.id, profile);
-  }
-
-  return teacherRows.map((row) => ({
-    id: row.id,
-    label: buildDisplayName(profilesById.get(row.profile_id), "Преподаватель")
-  }));
+  return null;
 }
 
-async function mapScheduleLessons(adminClient: ReturnType<typeof createAdminClient>, rows: ScheduleLessonRow[]) {
-  const studentIds = Array.from(new Set(rows.map((row) => row.student_id)));
-  const teacherIds = Array.from(new Set(rows.map((row) => row.teacher_id)));
-  const [studentOptions, teacherOptions] = await Promise.all([
-    loadStudentOptions(adminClient, { userId: "", role: "admin", studentId: null, teacherId: null, accessibleStudentIds: null }, studentIds),
-    loadTeacherOptions(adminClient, { userId: "", role: "admin", studentId: null, teacherId: null, accessibleStudentIds: null }, teacherIds)
-  ]);
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
 
-  const studentsById = new Map(studentOptions.map((item) => [item.id, item.label]));
-  const teachersById = new Map(teacherOptions.map((item) => [item.id, item.label]));
+function getStaffScheduleWindow(actor: ScheduleActor, filters: StaffScheduleFilters, now = new Date()) {
+  const explicitPastSelection = hasExplicitPastDateSelection(filters, now);
+  const baseStart = filters.dateFrom ? new Date(`${filters.dateFrom}T00:00:00.000Z`) : new Date(now);
+  const normalizedStart = explicitPastSelection ? baseStart : new Date(Math.max(baseStart.getTime(), now.getTime()));
+  const defaultWindowDays = actor.role === "teacher" ? TEACHER_SCHEDULE_DEFAULT_WINDOW_DAYS : STAFF_SCHEDULE_DEFAULT_WINDOW_DAYS;
+  const endDate = filters.dateTo ? new Date(`${filters.dateTo}T23:59:59.999Z`) : addDays(normalizedStart, defaultWindowDays);
 
-  return rows.map((row) => ({
-    id: row.id,
-    studentId: row.student_id,
-    studentName: studentsById.get(row.student_id) ?? "Ученик",
-    teacherId: row.teacher_id,
-    teacherName: teachersById.get(row.teacher_id) ?? "Преподаватель",
-    title: row.title,
-    startsAt: row.starts_at,
-    endsAt: row.ends_at,
-    meetingUrl: row.meeting_url,
-    comment: row.comment,
-    status: row.status,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  }));
+  return {
+    startsAt: normalizedStart.toISOString(),
+    endsAt: endDate.toISOString()
+  };
+}
+
+async function mapScheduleLessons(rows: ScheduleLessonRow[], options?: ScheduleLessonEnrichmentOptions) {
+  return measureServerTiming("schedule-enrichment", async () => {
+    if (rows.length === 0) return [];
+    const repository = createScheduleRepository();
+    const studentIds = Array.from(new Set(rows.map((row) => row.student_id)));
+    const teacherIds = Array.from(new Set(rows.map((row) => row.teacher_id)));
+    const lessonIds = rows.map((row) => row.id);
+    const [studentLabelsById, teacherLabelsById, attendanceByLessonId, outcomeByLessonId] = await Promise.all([
+      measureServerTiming("schedule-label-resolution", () =>
+        options?.studentLabelsById
+          ? Promise.resolve(options.studentLabelsById)
+          : options?.studentOptions
+            ? Promise.resolve(new Map(options.studentOptions.map((item) => [item.id, item.label])))
+            : repository.loadStudentLabelsByIds(studentIds)
+      ),
+      measureServerTiming("schedule-teacher-label-resolution", () =>
+        options?.teacherLabelsById
+          ? Promise.resolve(options.teacherLabelsById)
+          : options?.teacherOptions
+            ? Promise.resolve(new Map(options.teacherOptions.map((item) => [item.id, item.label])))
+            : repository.loadTeacherLabelsByIds(teacherIds)
+      ),
+      measureServerTiming("schedule-attendance-load", () =>
+        options?.attendanceByLessonId ? Promise.resolve(options.attendanceByLessonId) : repository.loadAttendanceByLessonIds(lessonIds)
+      ),
+      measureServerTiming("schedule-outcomes-load", () =>
+        options?.outcomeByLessonId ? Promise.resolve(options.outcomeByLessonId) : repository.loadOutcomesByLessonIds(lessonIds)
+      )
+    ]);
+
+    return mapScheduleLessonRows(rows, {
+      studentLabelsById,
+      teacherLabelsById,
+      attendanceByLessonId,
+      outcomeByLessonId
+    });
+  });
+}
+
+export async function mapStaffScheduleLessons(
+  rows: ScheduleLessonRow[],
+  options?: {
+    studentOptions?: ScheduleStudentOptionDto[];
+    teacherOptions?: ScheduleTeacherOptionDto[];
+  }
+) {
+  return mapScheduleLessons(rows, options);
 }
 
 async function listScheduleLessonRows(actor: ScheduleActor, filters: StaffScheduleFilters = {}) {
-  const adminClient = createAdminClient();
-  let query = adminClient
-    .from("student_schedule_lessons")
-    .select("id, student_id, teacher_id, title, starts_at, ends_at, meeting_url, comment, status, created_at, updated_at")
-    .order("starts_at", { ascending: true });
-
-  if (actor.role === "student") {
-    if (!actor.studentId) return [];
-    query = query.eq("student_id", actor.studentId).eq("status", "scheduled").gt("starts_at", new Date().toISOString());
-  } else {
-    if (actor.role === "teacher") {
-      const accessibleIds = actor.accessibleStudentIds ?? [];
-      if (accessibleIds.length === 0) return [];
-      query = query.in("student_id", accessibleIds).eq("teacher_id", actor.teacherId ?? "");
-    }
-    if (filters.studentId) query = query.eq("student_id", filters.studentId);
-    if (filters.teacherId) query = query.eq("teacher_id", filters.teacherId);
-    if (filters.status && filters.status !== "all") {
-      query = query.eq("status", filters.status);
-    } else {
-      query = query.neq("status", "canceled");
-    }
-    if (filters.dateFrom) {
-      query = query.gte("starts_at", `${filters.dateFrom}T00:00:00.000Z`);
-    } else if (!hasExplicitPastDateSelection(filters)) {
-      query = query.gte("starts_at", new Date().toISOString());
-    }
-    if (filters.dateTo) query = query.lte("starts_at", `${filters.dateTo}T23:59:59.999Z`);
-    if (filters.dateFrom && !hasExplicitPastDateSelection(filters)) {
-      query = query.gte("starts_at", new Date().toISOString());
-    }
-  }
-
-  const response = await query;
-  if (response.error) {
-    if (isSchemaMissing(response.error.message)) {
-      return [];
-    }
-    throw new ScheduleHttpError(500, "SCHEDULE_FETCH_FAILED", "Failed to load schedule lessons", response.error.message);
-  }
-
-  return (response.data ?? []) as ScheduleLessonRow[];
+  const window = getStaffScheduleWindow(actor, filters);
+  const explicitPastSelection = hasExplicitPastDateSelection(filters);
+  const explicitDateSelection = hasExplicitFutureDateSelection(filters);
+  const agendaMode = !explicitPastSelection && !explicitDateSelection;
+  return createScheduleRepository().listScheduleLessonRows({
+    actor,
+    filters,
+    startsAt: window.startsAt,
+    endsAt: window.endsAt,
+    agendaMode
+  });
 }
 
 export async function getSchedulePageData(actor: ScheduleActor, filters: StaffScheduleFilters = {}): Promise<SchedulePageData> {
-  const adminClient = createAdminClient();
-  const rows = await listScheduleLessonRows(actor, filters);
-  const mapped = await mapScheduleLessons(adminClient, rows);
+  return getSchedulePageDataInternal(actor, filters, { includeFollowup: true });
+}
 
-  if (actor.role === "student") {
-    const preview = buildStudentSchedulePreview(mapped as StudentScheduleLessonDto[]);
+type GetSchedulePageDataOptions = {
+  includeFollowup?: boolean;
+};
+
+export async function getSchedulePageDataInternal(
+  actor: ScheduleActor,
+  filters: StaffScheduleFilters = {},
+  options: GetSchedulePageDataOptions = {}
+): Promise<SchedulePageData> {
+  return measureServerTiming("schedule-page-data", async () => {
+    const repository = createScheduleRepository();
+    const includeFollowup = options.includeFollowup ?? true;
+
+    if (actor.role === "student") {
+      const rows = await measureServerTiming("schedule-list", () => listScheduleLessonRows(actor, filters));
+      const mapped = await mapScheduleLessons(rows);
+      const preview = buildStudentSchedulePreview(mapped as StudentScheduleLessonDto[]);
+      return {
+        role: "student",
+        nextLesson: preview.nextLesson,
+        lessons: mapped as StudentScheduleLessonDto[]
+      } satisfies StudentSchedulePageData;
+    }
+
+    const rows = await measureServerTiming("schedule-list", () => listScheduleLessonRows(actor, filters));
+    const lessonIds = rows.map((row) => row.id);
+    const [attendanceByLessonId, outcomeByLessonId] = await Promise.all([
+      measureServerTiming("schedule-shared-attendance", () =>
+        includeFollowup ? repository.loadAttendanceByLessonIds(lessonIds) : Promise.resolve(new Map<string, LessonAttendanceRow>())
+      ),
+      measureServerTiming("schedule-shared-outcomes", () =>
+        includeFollowup ? repository.loadOutcomesByLessonIds(lessonIds) : Promise.resolve(new Map<string, LessonOutcomeRow>())
+      )
+    ]);
+    const mapped = await mapScheduleLessons(rows, {
+      attendanceByLessonId,
+      outcomeByLessonId
+    });
+    const { students, teachers } = await measureServerTiming("schedule-filter-catalog-deferred", async () =>
+      buildOptionsFromLessons(mapped as StaffScheduleLessonDto[], filters, actor)
+    );
     return {
-      role: "student",
-      nextLesson: preview.nextLesson,
-      lessons: mapped as StudentScheduleLessonDto[]
-    } satisfies StudentSchedulePageData;
-  }
+      role: actor.role,
+      lessons: mapped as StaffScheduleLessonDto[],
+      students,
+      teachers,
+      filterCatalogDeferred: true,
+      filters: getTeacherScopedFilters(actor, filters),
+      teacherLocked: actor.role === "teacher"
+    } satisfies StaffSchedulePageData;
+  });
+}
 
-  const [students, teachers] = await Promise.all([loadStudentOptions(adminClient, actor), loadTeacherOptions(adminClient, actor)]);
-  return {
-    role: actor.role,
-    lessons: mapped as StaffScheduleLessonDto[],
-    students,
-    teachers,
-    filters: getTeacherScopedFilters(actor, filters),
-    teacherLocked: actor.role === "teacher"
-  } satisfies StaffSchedulePageData;
+export async function getScheduleFilterCatalog(
+  actor: ScheduleActor,
+  options: {
+    entity?: ScheduleFilterCatalogEntity;
+    search?: string | null;
+    limit?: number;
+  } = {}
+) {
+  return measureServerTiming("schedule-filter-catalog", async () => {
+    const repository = createScheduleRepository();
+    const entity = options.entity ?? "all";
+    const search = options.search ?? null;
+    const limit = options.limit ?? SCHEDULE_FILTER_SEARCH_LIMIT;
+    const [students, teachers] = await Promise.all([
+      entity === "teachers" ? Promise.resolve([]) : measureServerTiming("schedule-full-filter-students", () => repository.searchStudentOptions(actor, search, limit)),
+      entity === "students" ? Promise.resolve([]) : measureServerTiming("schedule-full-filter-teachers", () => repository.searchTeacherOptions(actor, search, limit))
+    ]);
+
+    return { students, teachers };
+  });
 }
 
 export async function getStudentSchedulePreviewByStudentId(studentId: string, limit = 3) {
-  const adminClient = createAdminClient();
-  const response = await adminClient
-    .from("student_schedule_lessons")
-    .select("id, student_id, teacher_id, title, starts_at, ends_at, meeting_url, comment, status, created_at, updated_at")
-    .eq("student_id", studentId)
-    .eq("status", "scheduled")
-    .gt("starts_at", new Date().toISOString())
-    .order("starts_at", { ascending: true })
-    .limit(Math.max(1, limit));
-
-  if (response.error) {
-    if (isSchemaMissing(response.error.message)) {
+  return measureServerTiming("schedule-preview-load", async () => {
+    const repository = createScheduleRepository();
+    const rows = await repository.loadStudentSchedulePreviewRows(studentId, limit);
+    if (rows.length === 0) {
       return {
         nextLesson: null,
         upcomingLessons: []
       };
     }
-    throw new ScheduleHttpError(500, "SCHEDULE_FETCH_FAILED", "Failed to load student schedule preview", response.error.message);
-  }
 
-  const mapped = await mapScheduleLessons(adminClient, (response.data ?? []) as ScheduleLessonRow[]);
-  return buildStudentSchedulePreview(mapped as StudentScheduleLessonDto[], new Date(), limit);
+    const teacherOptions = await measureServerTiming("schedule-preview-teachers", () =>
+      repository.loadTeacherOptions(
+        { userId: "", role: "admin", studentId: null, teacherId: null, accessibleStudentIds: null },
+        Array.from(new Set(rows.map((row) => row.teacher_id)))
+      )
+    );
+    const teachersById = new Map(teacherOptions.map((item) => [item.id, item.label]));
+    const previewLessons = mapStudentPreviewRows(rows, teachersById);
+
+    return buildStudentSchedulePreview(previewLessons, new Date(), limit);
+  });
 }
 
 export async function createScheduleLesson(actor: ScheduleActor, payload: ScheduleLessonMutationPayload) {
   assertScheduleWriteAccess(actor);
   assertTeacherScope(actor, payload);
 
-  const adminClient = createAdminClient();
-  const insertPayload = {
-    student_id: payload.studentId,
-    teacher_id: actor.role === "teacher" ? actor.teacherId : payload.teacherId,
-    title: payload.title,
-    starts_at: payload.startsAt,
-    ends_at: payload.endsAt,
-    meeting_url: payload.meetingUrl ?? null,
-    comment: payload.comment ?? null,
-    status: payload.status ?? "scheduled",
-    created_by_profile_id: actor.userId,
-    updated_by_profile_id: actor.userId
-  };
-
-  const response = await adminClient
-    .from("student_schedule_lessons")
-    .insert(insertPayload)
-    .select("id, student_id, teacher_id, title, starts_at, ends_at, meeting_url, comment, status, created_at, updated_at")
-    .single();
-
-  if (response.error) {
-    throw new ScheduleHttpError(500, "SCHEDULE_CREATE_FAILED", "Failed to create schedule lesson", response.error.message);
-  }
-
-  const mapped = await mapScheduleLessons(adminClient, [response.data as ScheduleLessonRow]);
+  const row = await createScheduleRepository().createScheduleLessonRow(payload, actor);
+  const mapped = await mapScheduleLessons([row]);
   return mapped[0] as StaffScheduleLessonDto;
-}
-
-async function getScheduleLessonRowById(id: string) {
-  const adminClient = createAdminClient();
-  const response = await adminClient
-    .from("student_schedule_lessons")
-    .select("id, student_id, teacher_id, title, starts_at, ends_at, meeting_url, comment, status, created_at, updated_at")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (response.error) {
-    throw new ScheduleHttpError(500, "SCHEDULE_FETCH_FAILED", "Failed to load schedule lesson", response.error.message);
-  }
-
-  if (!response.data) {
-    throw new ScheduleHttpError(404, "SCHEDULE_NOT_FOUND", "Schedule lesson not found");
-  }
-
-  return response.data as ScheduleLessonRow;
 }
 
 function assertLessonAccess(actor: ScheduleActor, row: ScheduleLessonRow) {
@@ -365,13 +314,10 @@ function assertLessonAccess(actor: ScheduleActor, row: ScheduleLessonRow) {
   }
 }
 
-export async function updateScheduleLesson(
-  actor: ScheduleActor,
-  id: string,
-  payload: Partial<ScheduleLessonMutationPayload>
-) {
+export async function updateScheduleLesson(actor: ScheduleActor, id: string, payload: Partial<ScheduleLessonMutationPayload>) {
   assertScheduleWriteAccess(actor);
-  const existing = await getScheduleLessonRowById(id);
+  const repository = createScheduleRepository();
+  const existing = await repository.getScheduleLessonRowById(id);
   assertLessonAccess(actor, existing);
 
   const nextStudentId = payload.studentId ?? existing.student_id;
@@ -380,6 +326,10 @@ export async function updateScheduleLesson(
     studentId: nextStudentId,
     teacherId: nextTeacherId
   });
+
+  if (payload.status === "completed") {
+    assertCanMarkLessonCompleted(existing);
+  }
 
   const patch: Record<string, unknown> = {
     updated_by_profile_id: actor.userId
@@ -393,19 +343,8 @@ export async function updateScheduleLesson(
   if (payload.comment !== undefined) patch.comment = payload.comment;
   if (payload.status !== undefined) patch.status = payload.status;
 
-  const adminClient = createAdminClient();
-  const response = await adminClient
-    .from("student_schedule_lessons")
-    .update(patch)
-    .eq("id", id)
-    .select("id, student_id, teacher_id, title, starts_at, ends_at, meeting_url, comment, status, created_at, updated_at")
-    .single();
-
-  if (response.error) {
-    throw new ScheduleHttpError(500, "SCHEDULE_UPDATE_FAILED", "Failed to update schedule lesson", response.error.message);
-  }
-
-  const mapped = await mapScheduleLessons(adminClient, [response.data as ScheduleLessonRow]);
+  const row = await repository.updateScheduleLessonRow(id, patch);
+  const mapped = await mapScheduleLessons([row]);
   return mapped[0] as StaffScheduleLessonDto;
 }
 

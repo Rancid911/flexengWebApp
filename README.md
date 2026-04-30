@@ -65,6 +65,11 @@ git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboar
 - `components/ui/*` — базовые UI-компоненты в стиле shadcn
 - `app/globals.css` — токены темы из `.pen`
 
+## Product docs
+
+- `docs/online-school-product-audit-2026-03.md` — аудит текущего функционала онлайн-школы и roadmap дальнейшего развития
+- `docs/online-school-delivery-plan-2026-q2.md` — инженерный delivery-plan по спринтам: schema, API, UI, роли и тестирование
+
 ## Next 16 migration status
 
 - Статус: завершено

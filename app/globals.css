@@ -43,6 +43,12 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  main[id],
+  section[id],
+  article[id] {
+    scroll-margin-top: 5rem;
+  }
 }
 
 @keyframes hero-blob-drift-a {
@@ -106,6 +112,61 @@
 }
 
 @layer utilities {
+  .content-measure {
+    max-width: 66ch;
+  }
+
+  .content-heading-balance {
+    text-wrap: balance;
+  }
+
+  .blog-meta-row {
+    @apply flex flex-wrap items-center gap-3 text-xs text-[#6B7280];
+  }
+
+  .blog-card-surface {
+    @apply rounded-2xl border border-[#E5E7EB] bg-[linear-gradient(180deg,#ffffff_0%,#fbfcff_100%)] shadow-sm;
+  }
+
+  .blog-card-link {
+    @apply transition-[transform,border-color,background,box-shadow,color] duration-150 ease-out hover:-translate-y-0.5 hover:border-[#d7dff0] hover:bg-[linear-gradient(180deg,#ffffff_0%,#f7faff_100%)] hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8D70FF] focus-visible:ring-offset-2;
+  }
+
+  .article-prose {
+    max-width: none;
+    white-space: pre-wrap;
+    color: #374151;
+  }
+
+  .article-prose :where(h2, h3, h4) {
+    @apply scroll-mt-24 text-[#111111];
+    text-wrap: balance;
+  }
+
+  .article-prose :where(h2) {
+    @apply mt-10 text-2xl font-semibold tracking-tight;
+  }
+
+  .article-prose :where(h3) {
+    @apply mt-8 text-xl font-semibold tracking-tight;
+  }
+
+  .article-prose :where(p, li) {
+    @apply text-[1rem] leading-7 text-[#374151];
+  }
+
+  .article-prose :where(ul, ol) {
+    @apply my-6;
+  }
+
+  .article-prose :where(a) {
+    @apply font-medium text-[#4A4476] underline decoration-[#cfc5e6] underline-offset-4 transition-[color,decoration-color] hover:text-[#322F55] hover:decoration-[#8D70FF];
+  }
+
+  .article-prose :where(strong) {
+    @apply font-semibold text-[#111111];
+  }
+
   .hero-blob {
     @apply pointer-events-none absolute rounded-full;
     will-change: transform, opacity;

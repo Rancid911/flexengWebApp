@@ -37,7 +37,10 @@ export function SearchResultList({
   query = "",
   compact = false,
   activeItemKey,
-  onItemHover
+  onItemHover,
+  getItemId,
+  listboxId,
+  withListboxSemantics = false
 }: {
   items: SearchResultDto[];
   groups: SearchGroupDto[];
@@ -48,6 +51,9 @@ export function SearchResultList({
   compact?: boolean;
   activeItemKey?: string | null;
   onItemHover?: (itemKey: string) => void;
+  getItemId?: (itemKey: string) => string;
+  listboxId?: string;
+  withListboxSemantics?: boolean;
 }) {
   if (items.length === 0) {
     return (
@@ -59,7 +65,11 @@ export function SearchResultList({
   }
 
   return (
-    <div className={compact ? "space-y-3" : "space-y-6"}>
+    <div
+      className={compact ? "space-y-3" : "space-y-6"}
+      id={withListboxSemantics ? listboxId : undefined}
+      role={withListboxSemantics ? "listbox" : undefined}
+    >
       {groups.map((group) => {
         const sectionItems = items.filter((item) => item.section === group.key);
         if (sectionItems.length === 0) return null;
@@ -76,9 +86,13 @@ export function SearchResultList({
               {sectionItems.map((item) => (
                 <Link
                   key={`${item.entityType}:${item.entityId}`}
+                  id={withListboxSemantics ? getItemId?.(`${item.entityType}:${item.entityId}`) : undefined}
                   href={item.href}
                   onClick={onNavigate}
                   onMouseEnter={() => onItemHover?.(`${item.entityType}:${item.entityId}`)}
+                  role={withListboxSemantics ? "option" : undefined}
+                  aria-selected={withListboxSemantics ? activeItemKey === `${item.entityType}:${item.entityId}` : undefined}
+                  tabIndex={withListboxSemantics ? -1 : undefined}
                   className={cn(
                     "group flex items-start gap-3 border transition",
                     compact ? "rounded-2xl bg-white px-3.5 py-3" : "rounded-[1.6rem] bg-[linear-gradient(180deg,#ffffff_0%,#fbfcff_100%)] px-5 py-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)]",

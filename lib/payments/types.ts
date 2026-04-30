@@ -1,3 +1,5 @@
+import type { StudentBillingSummary } from "@/lib/billing/types";
+
 export type PaymentPlan = {
   id: string;
   title: string;
@@ -7,6 +9,9 @@ export type PaymentPlan = {
   badge: string | null;
   yookassaProductLabel: string;
   sortOrder: number;
+  billingCreditType: "lesson" | "money" | null;
+  creditLessonUnits: number | null;
+  creditMoneyAmount: number | null;
 };
 
 export type StudentPaymentTransaction = {
@@ -34,4 +39,9 @@ export type PaymentStatusContext = {
   description: string;
   confirmationExpiresAt: string | null;
   isConfirmationExpired: boolean;
+};
+
+export type StudentPaymentsPageData = {
+  payments: StudentPaymentTransaction[];
+  billingSummary: StudentBillingSummary | null;
 };

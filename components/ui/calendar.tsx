@@ -116,6 +116,12 @@ function CalendarDayButton({
 }: React.ComponentProps<typeof DayButton>) {
   const ref = React.useRef<HTMLButtonElement>(null);
 
+  const dayKey = [
+    day.date.getFullYear(),
+    String(day.date.getMonth() + 1).padStart(2, "0"),
+    String(day.date.getDate()).padStart(2, "0")
+  ].join("-");
+
   React.useEffect(() => {
     if (modifiers.focused) ref.current?.focus();
   }, [modifiers.focused]);
@@ -125,7 +131,7 @@ function CalendarDayButton({
       ref={ref}
       variant="ghost"
       size="icon"
-      data-day={day.date.toLocaleDateString()}
+      data-day={dayKey}
       data-selected={modifiers.selected}
         className={cn(
         "size-9 rounded-md border border-transparent bg-white p-0 font-normal text-slate-900 transition hover:border-[#4A4476] hover:bg-[#4A4476] hover:text-white data-[selected=true]:border-[#4A4476] data-[selected=true]:bg-[#4A4476] data-[selected=true]:text-white data-[selected=true]:hover:border-[#4A4476] data-[selected=true]:hover:bg-[#4A4476] data-[selected=true]:hover:text-white",

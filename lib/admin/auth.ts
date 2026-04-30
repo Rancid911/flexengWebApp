@@ -1,41 +1,47 @@
 import { redirect } from "next/navigation";
 
-import { getUserRoleById } from "@/lib/auth/get-user-role";
-import { createClient } from "@/lib/supabase/server";
+import {
+  getProfileIdentityContext,
+  requireProfileIdentityContext
+} from "@/lib/auth/request-context";
+import type { UserRole } from "@/lib/auth/get-user-role";
 import { AdminHttpError } from "@/lib/admin/http";
 import type { AdminActor } from "@/lib/admin/types";
 
-async function getRoleOrThrow(userId: string) {
-  const supabase = await createClient();
-  try {
-    return await getUserRoleById(supabase, userId);
-  } catch {
-    throw new AdminHttpError(500, "PROFILE_FETCH_FAILED", "Failed to fetch user role");
+export function assertStaffAdminCapability(actor: { userId: string } & Partial<{ isStaffAdmin: boolean }>) {
+  if (!actor.isStaffAdmin) {
+    throw new AdminHttpError(403, "FORBIDDEN", "Admin access required");
   }
 }
 
-export async function requireAdminPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser();
-
-  if (error || !user) redirect("/");
-  const role = await getRoleOrThrow(user.id);
-  if (role !== "admin") redirect("/");
-  return { userId: user.id };
+function resolveStaffAdminRole(profileRole: UserRole | null | undefined): AdminActor["role"] | null {
+  if (profileRole === "admin") return "admin";
+  if (profileRole === "manager") return "manager";
+  return null;
 }
 
-export async function requireAdminApi(): Promise<AdminActor> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser();
-  if (error || !user) throw new AdminHttpError(403, "FORBIDDEN", "Admin access required");
+export async function requireStaffAdminPage(): Promise<AdminActor> {
+  const actor = await requireProfileIdentityContext();
+  const role = resolveStaffAdminRole(actor.profileRole);
+  if (!role) {
+    redirect("/");
+  }
 
-  const role = await getRoleOrThrow(user.id);
-  if (role !== "admin") throw new AdminHttpError(403, "FORBIDDEN", "Admin access required");
-  return { userId: user.id };
+  return {
+    userId: actor.userId,
+    role
+  };
+}
+
+export async function requireStaffAdminApi(): Promise<AdminActor> {
+  const actor = await getProfileIdentityContext();
+  const role = resolveStaffAdminRole(actor?.profileRole);
+  if (!actor || !role) {
+    throw new AdminHttpError(403, "FORBIDDEN", "Admin access required");
+  }
+
+  return {
+    userId: actor.userId,
+    role
+  };
 }

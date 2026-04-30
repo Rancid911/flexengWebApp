@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import Image from "next/image";
+
 import type { CarouselApi } from "@/components/ui/carousel";
 import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
-import Image from "next/image";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useMediaQuery, usePrefersReducedMotion } from "@/hooks/use-media-query";
 
 type ReviewItem = {
   name: string;
@@ -36,31 +38,18 @@ function getAvatarUrl(review: ReviewItem, index: number) {
 export function ReviewsSlider({ items }: { items: ReviewItem[] }) {
   const [api, setApi] = useState<CarouselApi>();
   const [activeIndex, setActiveIndex] = useState(0);
-  const [visibleCount, setVisibleCount] = useState(1);
-
-  useEffect(() => {
-    function updateVisibleCount() {
-      if (window.innerWidth >= 1024) {
-        setVisibleCount(3);
-        return;
-      }
-      if (window.innerWidth >= 768) {
-        setVisibleCount(2);
-        return;
-      }
-      setVisibleCount(1);
-    }
-
-    updateVisibleCount();
-    window.addEventListener("resize", updateVisibleCount);
-    return () => {
-      window.removeEventListener("resize", updateVisibleCount);
-    };
-  }, []);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocusedWithin, setIsFocusedWithin] = useState(false);
+  const [autoplayEnabled, setAutoplayEnabled] = useState(true);
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const isTablet = useMediaQuery("(min-width: 768px)");
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const visibleCount = isDesktop ? 3 : isTablet ? 2 : 1;
 
   const maxStartIndex = Math.max(0, items.length - visibleCount);
   const pageCount = maxStartIndex + 1;
   const isMobile = visibleCount === 1;
+  const canAutoplay = Boolean(api) && pageCount > 1 && autoplayEnabled && !prefersReducedMotion && !isHovered && !isFocusedWithin;
 
   useEffect(() => {
     if (!api) return;
@@ -79,7 +68,7 @@ export function ReviewsSlider({ items }: { items: ReviewItem[] }) {
   }, [api, pageCount]);
 
   useEffect(() => {
-    if (!api) return;
+    if (!api || !canAutoplay) return;
 
     const timer = window.setInterval(() => {
       api.scrollNext();
@@ -88,7 +77,7 @@ export function ReviewsSlider({ items }: { items: ReviewItem[] }) {
     return () => {
       window.clearInterval(timer);
     };
-  }, [api]);
+  }, [api, canAutoplay]);
 
   const basisClass = useMemo(() => {
     if (visibleCount === 3) return "basis-1/3";
@@ -99,7 +88,16 @@ export function ReviewsSlider({ items }: { items: ReviewItem[] }) {
   if (items.length === 0) return null;
 
   return (
-    <div className={isMobile ? "mx-auto max-w-[20rem]" : ""}>
+    <div
+      className={isMobile ? "mx-auto max-w-[20rem]" : ""}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onFocusCapture={() => setIsFocusedWithin(true)}
+      onBlurCapture={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget)) return;
+        setIsFocusedWithin(false);
+      }}
+    >
       <div
         className={`overflow-hidden rounded-3xl border border-[#E3DDF2] bg-[linear-gradient(160deg,#F8F3FF_0%,#FFFFFF_60%)] shadow-[0_14px_40px_rgba(101,78,214,0.12)] ${
           isMobile ? "h-[48vh] min-h-[360px] max-h-[430px] p-0" : "p-2 md:h-[360px] md:px-4 md:py-3 lg:h-[380px]"
@@ -156,9 +154,14 @@ export function ReviewsSlider({ items }: { items: ReviewItem[] }) {
             <button
               key={`review-page-${index + 1}`}
               type="button"
-              onClick={() => api?.scrollTo(index)}
+              onClick={() => {
+                setAutoplayEnabled(false);
+                api?.scrollTo(index);
+              }}
               aria-label={`Показать отзывы ${index + 1}`}
-              className={`h-2.5 w-2.5 rounded-full transition-all ${activeIndex === index ? "w-7 bg-[#8D70FF]" : "bg-[#CFC4E8]"}`}
+              className={`h-2.5 w-2.5 rounded-full transition-[width,background-color,transform,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8D70FF] focus-visible:ring-offset-2 ${
+                activeIndex === index ? "w-7 bg-[#8D70FF]" : "bg-[#CFC4E8] hover:bg-[#b8acd8]"
+              }`}
             />
           ))}
         </div>
@@ -167,9 +170,21 @@ export function ReviewsSlider({ items }: { items: ReviewItem[] }) {
           <Button
             type="button"
             variant="outline"
+            className="h-11 rounded-xl border-[#D9D0EE] bg-white px-3 text-xs font-bold text-[#654ED6] hover:bg-[#F7F3FF]"
+            onClick={() => setAutoplayEnabled((current) => !current)}
+            aria-pressed={autoplayEnabled}
+          >
+            {autoplayEnabled ? "Пауза" : "Автопрокрутка"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
             size="icon"
             className="h-11 w-11 rounded-xl border-[#D9D0EE] bg-[#F7F3FF] text-[#654ED6] hover:bg-[#EEE8FF]"
-            onClick={() => api?.scrollPrev()}
+            onClick={() => {
+              setAutoplayEnabled(false);
+              api?.scrollPrev();
+            }}
             aria-label="Предыдущий отзыв"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -179,7 +194,10 @@ export function ReviewsSlider({ items }: { items: ReviewItem[] }) {
             variant="outline"
             size="icon"
             className="h-11 w-11 rounded-xl border-[#D9D0EE] bg-[#F7F3FF] text-[#654ED6] hover:bg-[#EEE8FF]"
-            onClick={() => api?.scrollNext()}
+            onClick={() => {
+              setAutoplayEnabled(false);
+              api?.scrollNext();
+            }}
             aria-label="Следующий отзыв"
           >
             <ChevronRight className="h-4 w-4" />

@@ -1,4 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { AccessMode } from "@/lib/supabase/access";
+
+export const ADMIN_AUDIT_ACCESS_MODE: AccessMode = "privileged";
 
 type AuditAction = "create" | "update" | "delete";
 
@@ -13,6 +16,7 @@ type AuditEntry = {
 
 export async function writeAudit(entry: AuditEntry) {
   try {
+    void ADMIN_AUDIT_ACCESS_MODE;
     const supabase = createAdminClient();
     const { error } = await supabase.from("audit_log").insert({
       actor_user_id: entry.actorUserId,

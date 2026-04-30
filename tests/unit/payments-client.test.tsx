@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   PaymentsClient,
@@ -8,8 +8,13 @@ import {
   getPlanMetaLabel,
   getStatusChipClass,
   getStatusLabel
-} from "@/app/(dashboard)/settings/payments-client";
+} from "@/app/(workspace)/(student-zone)/settings/payments-client";
+import type { StudentBillingSummary } from "@/lib/billing/types";
 import type { PaymentPlan, PaymentStatusContext, StudentPaymentTransaction } from "@/lib/payments/types";
+
+const fetchMock = vi.fn();
+
+vi.stubGlobal("fetch", fetchMock);
 
 function makePayment(index: number, overrides: Partial<StudentPaymentTransaction> = {}): StudentPaymentTransaction {
   return {
@@ -40,7 +45,10 @@ const plans: PaymentPlan[] = [
     currency: "RUB",
     badge: null,
     yookassaProductLabel: "Разовая консультация",
-    sortOrder: 1
+    sortOrder: 1,
+    billingCreditType: null,
+    creditLessonUnits: null,
+    creditMoneyAmount: null
   },
   {
     id: "plan-2",
@@ -50,7 +58,10 @@ const plans: PaymentPlan[] = [
     currency: "RUB",
     badge: "Популярный",
     yookassaProductLabel: "Пакет из 4 занятий",
-    sortOrder: 2
+    sortOrder: 2,
+    billingCreditType: "lesson",
+    creditLessonUnits: 4,
+    creditMoneyAmount: null
   },
   {
     id: "plan-3",
@@ -60,7 +71,10 @@ const plans: PaymentPlan[] = [
     currency: "RUB",
     badge: "Лучший выбор",
     yookassaProductLabel: "Пакет из 8 занятий",
-    sortOrder: 3
+    sortOrder: 3,
+    billingCreditType: "lesson",
+    creditLessonUnits: 8,
+    creditMoneyAmount: null
   },
   {
     id: "plan-4",
@@ -70,9 +84,40 @@ const plans: PaymentPlan[] = [
     currency: "RUB",
     badge: null,
     yookassaProductLabel: "Месячный интенсив",
-    sortOrder: 4
+    sortOrder: 4,
+    billingCreditType: "money",
+    creditLessonUnits: null,
+    creditMoneyAmount: 44900
   }
 ];
+
+const billingSummary: StudentBillingSummary = {
+  studentId: "student-1",
+  account: {
+    id: "billing-1",
+    studentId: "student-1",
+    billingMode: "package_lessons",
+    lessonPriceAmount: null,
+    currency: "RUB",
+    createdAt: null,
+    updatedAt: null
+  },
+  currentMode: "package_lessons",
+  currency: "RUB",
+  lessonPriceAmount: null,
+  effectiveLessonPriceAmount: 2987.5,
+  effectiveLessonPriceCurrency: "RUB",
+  availableLessonCount: 6,
+  moneyRemainderAmount: 0,
+  debtLessonCount: 0,
+  remainingLessonUnits: 6,
+  remainingMoneyAmount: 0,
+  debtLessonUnits: 0,
+  debtMoneyAmount: 0,
+  isNegative: false,
+  hasAccount: true,
+  recentEntries: []
+};
 
 function renderPaymentsClient(options?: {
   payments?: StudentPaymentTransaction[];
@@ -81,6 +126,7 @@ function renderPaymentsClient(options?: {
   return render(
     <PaymentsClient
       initialPayments={options?.payments ?? []}
+      initialBillingSummary={billingSummary}
       initialPlans={plans}
       paymentStatusContext={options?.paymentStatusContext ?? null}
     />
@@ -88,6 +134,14 @@ function renderPaymentsClient(options?: {
 }
 
 describe("PaymentsClient", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows only first five payments by default and expands/collapses history", () => {
     renderPaymentsClient({ payments: Array.from({ length: 7 }, (_, index) => makePayment(index + 1)) });
 
@@ -132,6 +186,8 @@ describe("PaymentsClient", () => {
     expect(screen.getByText("Пакет 4 занятия")).toBeInTheDocument();
     expect(screen.getByText("Пакет 8 занятий")).toBeInTheDocument();
     expect(screen.queryByText("Интенсив на месяц")).not.toBeInTheDocument();
+    expect(screen.getByText("Оплата и списания")).toBeInTheDocument();
+    expect(screen.getByText("6 уроков")).toBeInTheDocument();
   });
 
   it("hides continuation action for expired pending payment", () => {
@@ -160,6 +216,45 @@ describe("PaymentsClient", () => {
     expect(screen.getByText("Сессия оплаты истекла")).toBeInTheDocument();
     expect(screen.getByText("Сессия истекла")).toBeInTheDocument();
   });
+
+  it("refreshes payment history when page opens with terminal payment status", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        payments: [makePayment(1, { planTitle: "Обновлённый тариф", status: "succeeded" })],
+        billingSummary: {
+          ...billingSummary,
+          availableLessonCount: 8,
+          remainingLessonUnits: 8
+        }
+      })
+    });
+
+    renderPaymentsClient({
+      payments: [
+        makePayment(1, {
+          status: "pending",
+          planTitle: "Старый тариф",
+          confirmationUrl: "https://example.com/pay/1"
+        })
+      ],
+      paymentStatusContext: {
+        transactionId: "payment-1",
+        status: "succeeded",
+        label: "Оплачено",
+        tone: "success",
+        description: "Платёж успешно завершён.",
+        confirmationExpiresAt: null,
+        isConfirmationExpired: false
+      }
+    });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/payments", expect.objectContaining({ cache: "no-store" }));
+      expect(screen.getByText("Обновлённый тариф")).toBeInTheDocument();
+      expect(screen.getAllByText("8 уроков").length).toBeGreaterThan(0);
+    });
+  });
 });
 
 describe("payments-client helpers", () => {
@@ -176,6 +271,6 @@ describe("payments-client helpers", () => {
     expect(getStatusChipClass("pending")).toContain("amber");
     expect(getStatusChipClass("pending", true)).toContain("slate");
     expect(getPlanMetaLabel(plans[0])).toBe("Персональная сессия");
-    expect(getPlanMetaLabel(plans[2])).toBe("8 занятий");
+    expect(getPlanMetaLabel(plans[2])).toBe("8 уроков");
   });
 });
