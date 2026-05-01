@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 
 import "./globals.css";
 
@@ -27,6 +28,7 @@ export default function RootLayout({
           Перейти к основному содержимому
         </a>
         {children}
+        <Analytics />
       </body>
     </html>
   );
