@@ -5,7 +5,7 @@ import { useDashboardShellOverlays } from "@/app/(workspace)/use-dashboard-shell
 
 describe("useDashboardShellOverlays", () => {
   it("moves focus to mobile more close button on open and restores it to the trigger on keyboard close", async () => {
-    const { result } = renderHook(() => useDashboardShellOverlays("/dashboard"));
+    const { result } = renderHook(() => useDashboardShellOverlays());
     const trigger = document.createElement("button");
     const closeButton = document.createElement("button");
     document.body.append(trigger, closeButton);
@@ -32,7 +32,7 @@ describe("useDashboardShellOverlays", () => {
   });
 
   it("does not restore focus to the trigger on pointer close", async () => {
-    const { result } = renderHook(() => useDashboardShellOverlays("/dashboard"));
+    const { result } = renderHook(() => useDashboardShellOverlays());
     const trigger = document.createElement("button");
     const closeButton = document.createElement("button");
     document.body.append(trigger, closeButton);

@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
+    "check:architecture": "node scripts/check-architecture.mjs",
     "test:unit": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:check": "node scripts/check-e2e-env.mjs",

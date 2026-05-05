@@ -34,6 +34,7 @@ type LeadFormProps = {
   compactEmail?: boolean;
   framed?: boolean;
   stackedFields?: boolean;
+  compact?: boolean;
   showAgreementText?: boolean;
 };
 
@@ -69,6 +70,7 @@ export function LeadForm({
   compactEmail = false,
   framed = true,
   stackedFields = false,
+  compact = false,
   showAgreementText = true
 }: LeadFormProps) {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -123,6 +125,7 @@ export function LeadForm({
           page_url: window.location.href,
           metadata: {
             audience: form.audience,
+            consent_personal_data: form.consentPersonalData,
             consent_marketing: form.consentMarketing
           }
         })
@@ -146,16 +149,16 @@ export function LeadForm({
   const formBody = (
     <>
       {!framed ? (
-        <div className="mb-4 space-y-2">
-          <h3 className={isDark ? "text-2xl font-bold text-white" : "text-2xl font-bold text-[#322F55]"}>Оставить заявку</h3>
-          <p className={isDark ? "text-sm text-[#D0CAE9]" : "text-sm text-[#706E88]"}>
+        <div className={cn("space-y-2", compact ? "mb-2 md:mb-4" : "mb-4")}>
+          <h3 className={cn(isDark ? "font-bold text-white" : "font-bold text-[#322F55]", compact ? "text-xl md:text-2xl" : "text-2xl")}>Оставить заявку</h3>
+          <p className={cn(isDark ? "text-[#D0CAE9]" : "text-[#706E88]", compact ? "text-xs leading-5 md:text-sm md:leading-normal" : "text-sm")}>
             Оставьте контакты. Мы свяжемся с вами и подберём программу.
           </p>
         </div>
       ) : null}
-      <form className={cn("space-y-4", stackedFields && "space-y-2")} onSubmit={onSubmit} noValidate>
+      <form className={cn("space-y-4", stackedFields && "space-y-2", compact && "space-y-2")} onSubmit={onSubmit} noValidate>
           <div className={cn("grid gap-4", stackedFields ? "gap-2 sm:grid-cols-1" : "sm:grid-cols-2")}>
-            <FieldLabel label="Имя" htmlFor="lead-name" error={errors.name} isDark={isDark} compact={stackedFields}>
+            <FieldLabel label="Имя" htmlFor="lead-name" error={errors.name} isDark={isDark} compact={stackedFields || compact}>
               <Input
                 id="lead-name"
                 ref={nameInputRef}
@@ -168,13 +171,16 @@ export function LeadForm({
                 aria-invalid={errors.name ? "true" : "false"}
                 aria-describedby={errors.name ? "lead-name-error" : undefined}
                 className={
-                  isDark
-                    ? "border-[#6E669C] bg-[#453F6E] text-white placeholder:text-[#B8B1D8]"
-                    : "border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
+                  cn(
+                    compact && "h-10",
+                    isDark
+                      ? "border-[#6E669C] bg-[#453F6E] text-white placeholder:text-[#B8B1D8]"
+                      : "border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
+                  )
                 }
               />
             </FieldLabel>
-            <FieldLabel label="Телефон" htmlFor="lead-phone" error={errors.phone} isDark={isDark} compact={stackedFields}>
+            <FieldLabel label="Телефон" htmlFor="lead-phone" error={errors.phone} isDark={isDark} compact={stackedFields || compact}>
               <Input
                 id="lead-phone"
                 ref={phoneInputRef}
@@ -195,16 +201,19 @@ export function LeadForm({
                   }
                 }}
                 className={
-                  isDark
-                    ? "border-[#6E669C] bg-[#453F6E] text-white placeholder:text-[#B8B1D8]"
-                    : "border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
+                  cn(
+                    compact && "h-10",
+                    isDark
+                      ? "border-[#6E669C] bg-[#453F6E] text-white placeholder:text-[#B8B1D8]"
+                      : "border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
+                  )
                 }
               />
             </FieldLabel>
           </div>
 
           <div className={cn("grid gap-4", stackedFields && "gap-2", compactEmail ? "sm:grid-cols-[minmax(0,360px)]" : "sm:grid-cols-1")}>
-            <FieldLabel label="Email" htmlFor="lead-email" error={errors.email} isDark={isDark} compact={stackedFields}>
+            <FieldLabel label="Email" htmlFor="lead-email" error={errors.email} isDark={isDark} compact={stackedFields || compact}>
               <Input
                 id="lead-email"
                 ref={emailInputRef}
@@ -219,23 +228,27 @@ export function LeadForm({
                 aria-invalid={errors.email ? "true" : "false"}
                 aria-describedby={errors.email ? "lead-email-error" : undefined}
                 className={
-                  isDark
-                    ? "border-[#6E669C] bg-[#453F6E] text-white placeholder:text-[#B8B1D8]"
-                    : "border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
+                  cn(
+                    compact && "h-10",
+                    isDark
+                      ? "border-[#6E669C] bg-[#453F6E] text-white placeholder:text-[#B8B1D8]"
+                      : "border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
+                  )
                 }
               />
             </FieldLabel>
           </div>
 
           <fieldset className={cn("space-y-2", stackedFields && "space-y-1")}>
-            <legend className={isDark ? "text-sm font-semibold text-[#E8E3FF]" : "text-sm font-semibold text-[#322F55]"}>Для кого</legend>
-            <div className="flex flex-wrap gap-2">
+            <legend className={cn(isDark ? "font-semibold text-[#E8E3FF]" : "font-semibold text-[#322F55]", compact ? "text-xs md:text-sm" : "text-sm")}>Для кого</legend>
+            <div className={cn("grid gap-2", compact ? "grid-cols-2 md:flex md:flex-wrap" : "flex flex-wrap")}>
               <AudienceOption
                 label="Для ребёнка"
                 value="child"
                 checked={form.audience === "child"}
                 onChange={(value) => updateField("audience", value)}
                 isDark={isDark}
+                compact={compact}
                 inputRef={audienceInputRef}
               />
               <AudienceOption
@@ -244,18 +257,20 @@ export function LeadForm({
                 checked={form.audience === "adult"}
                 onChange={(value) => updateField("audience", value)}
                 isDark={isDark}
+                compact={compact}
               />
             </div>
             {errors.audience ? <span className="block text-xs font-medium text-rose-600">{errors.audience}</span> : null}
           </fieldset>
 
-          <div className="space-y-3">
+          <div className={cn("space-y-3", compact && "space-y-2")}>
             <ConsentCheckbox
               checked={form.consentPersonalData}
               onChange={(checked) => updateField("consentPersonalData", checked)}
               isDark={isDark}
               required
               error={errors.consentPersonalData}
+              compact={compact}
               inputRef={consentInputRef}
             >
               Даю согласие на обработку персональных данных в соответствии с политикой конфиденциальности.
@@ -264,6 +279,7 @@ export function LeadForm({
               checked={form.consentMarketing}
               onChange={(checked) => updateField("consentMarketing", checked)}
               isDark={isDark}
+              compact={compact}
             >
               Соглашаюсь на получение информационных и рекламных сообщений.
             </ConsentCheckbox>
@@ -273,7 +289,10 @@ export function LeadForm({
             <Button
               type="submit"
               disabled={isSubmitting}
-              className={isDark ? "h-11 rounded-xl bg-[#F76D63] px-6 text-white hover:bg-[#E05B51]" : "h-11 rounded-xl bg-[#8D70FF] px-6 text-white hover:bg-[#654ED6]"}
+              className={cn(
+                compact ? "h-10 w-full rounded-lg px-4 md:h-11 md:w-auto md:rounded-xl md:px-6" : "h-11 rounded-xl px-6",
+                isDark ? "bg-[#F76D63] text-white hover:bg-[#E05B51]" : "bg-[#8D70FF] text-white hover:bg-[#654ED6]"
+              )}
             >
               {isSubmitting ? "Отправляем..." : "Отправить заявку"}
             </Button>
@@ -322,6 +341,7 @@ function AudienceOption({
   checked,
   onChange,
   isDark,
+  compact,
   inputRef
 }: {
   label: string;
@@ -329,6 +349,7 @@ function AudienceOption({
   checked: boolean;
   onChange: (value: "child" | "adult") => void;
   isDark: boolean;
+  compact?: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
@@ -336,7 +357,8 @@ function AudienceOption({
       <input ref={inputRef} type="radio" className="sr-only" name="lead-audience" checked={checked} onChange={() => onChange(value)} />
       <span
         className={cn(
-          "inline-flex h-10 items-center rounded-lg border px-4 text-sm font-medium transition-colors",
+          "inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm font-medium transition-colors",
+          compact && "w-full px-2 text-xs md:w-auto md:px-4 md:text-sm",
           checked
             ? isDark
               ? "border-[#8D70FF] bg-[#5A4E95] text-white"
@@ -383,6 +405,7 @@ function ConsentCheckbox({
   isDark,
   required = false,
   error,
+  compact = false,
   inputRef
 }: {
   checked: boolean;
@@ -391,6 +414,7 @@ function ConsentCheckbox({
   isDark: boolean;
   required?: boolean;
   error?: string;
+  compact?: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
@@ -408,7 +432,7 @@ function ConsentCheckbox({
           }
           required={required}
         />
-        <span className={isDark ? "text-sm text-[#D0CAE9]" : "text-sm text-[#5E5A7A]"}>{children}</span>
+        <span className={cn(isDark ? "text-[#D0CAE9]" : "text-[#5E5A7A]", compact ? "text-xs leading-4 md:text-sm md:leading-normal" : "text-sm")}>{children}</span>
       </span>
       {error ? <span className="mt-1 block text-xs font-medium text-rose-600">{error}</span> : null}
     </label>

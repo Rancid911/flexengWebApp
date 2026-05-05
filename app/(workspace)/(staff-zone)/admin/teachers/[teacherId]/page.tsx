@@ -34,100 +34,19 @@ import {
   type TeacherTimezone,
   type TeacherWeekday
 } from "@/lib/admin/teacher-dossier-options";
+import {
+  getAdminTeacherDisplayName,
+  getAdminTeacherInitials,
+  loadAdminTeacherProfilePageData,
+  toNullableAdminTeacherNumber
+} from "@/lib/admin/teacher-profile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { TeacherBasicInfoCard, type TeacherBasicInfoDto } from "./teacher-basic-info-card";
 import { TeacherMethodologyStyleCard, type TeacherMethodologyStyleDto } from "./teacher-methodology-style-card";
 import { TeacherOperationalInfoCard, type TeacherOperationalInfoDto } from "./teacher-operational-info-card";
 import { TeacherProfessionalInfoCard, type TeacherProfessionalInfoDto } from "./teacher-professional-info-card";
 import { TeacherWorkFormatCard, type TeacherWorkFormatDto } from "./teacher-work-format-card";
-
-type TeacherProfileRow = {
-  id: string;
-  profile_id: string;
-  profiles:
-    | {
-        id: string;
-        display_name: string | null;
-        first_name: string | null;
-        last_name: string | null;
-        email: string | null;
-        phone: string | null;
-        avatar_url: string | null;
-        created_at: string | null;
-      }
-    | Array<{
-        id: string;
-        display_name: string | null;
-        first_name: string | null;
-        last_name: string | null;
-        email: string | null;
-        phone: string | null;
-        avatar_url: string | null;
-        created_at: string | null;
-      }>
-    | null;
-};
-
-type TeacherDossierRow = {
-  teacher_id: string;
-  patronymic: string | null;
-  internal_role: string | null;
-  timezone: string | null;
-  english_proficiency: string | null;
-  specializations: string[] | null;
-  teaching_experience_years: number | null;
-  education_level: string | null;
-  certificates: string[] | null;
-  target_audiences: string[] | null;
-  certificate_other: string | null;
-  teacher_bio: string | null;
-  available_weekdays: string[] | null;
-  time_slots: string | null;
-  max_lessons_per_day: number | null;
-  max_lessons_per_week: number | null;
-  lesson_types: string[] | null;
-  lesson_durations: string[] | null;
-  teaching_approach: string | null;
-  teaching_materials: string[] | null;
-  teaching_features: string | null;
-  operational_status: string | null;
-  start_date: string | null;
-  cooperation_type: string | null;
-  lesson_rate_amount: number | string | null;
-  currency: string | null;
-};
-
-function readProfile(row: TeacherProfileRow) {
-  return Array.isArray(row.profiles) ? row.profiles[0] ?? null : row.profiles;
-}
-
-function getDisplayName(profile: ReturnType<typeof readProfile>, fallback: string) {
-  if (!profile) return fallback;
-  const displayName = profile.display_name?.trim();
-  if (displayName) return displayName;
-  const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim();
-  return fullName || profile.email || fallback;
-}
-
-function getInitials(displayName: string) {
-  const initials = displayName
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-
-  return initials || "T";
-}
-
-function toNullableNumber(value: number | string | null | undefined) {
-  if (value === null || value === undefined || value === "") return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
 function formatHeroPhone(phone: string | null | undefined) {
   if (!phone) return null;
@@ -254,32 +173,14 @@ function TeacherDossierHero({
 export default async function AdminTeacherProfilePage({ params }: { params: Promise<{ teacherId: string }> }) {
   await requireStaffAdminPage();
   const { teacherId } = await params;
-  const supabase = createAdminClient();
-  const response = await supabase
-    .from("teachers")
-    .select("id, profile_id, profiles!inner(id, display_name, first_name, last_name, email, phone, avatar_url, created_at)")
-    .eq("id", teacherId)
-    .maybeSingle();
-
-  if (response.error) {
-    throw new Error(`Failed to fetch teacher profile: ${response.error.message}`);
-  }
-  if (!response.data) {
+  const pageData = await loadAdminTeacherProfilePageData(teacherId);
+  if (!pageData) {
     notFound();
   }
 
-  const teacher = response.data as TeacherProfileRow;
-  const profile = readProfile(teacher);
-  const dossierResponse = await supabase
-    .from("teacher_dossiers")
-    .select(
-      "teacher_id, patronymic, internal_role, timezone, english_proficiency, specializations, teaching_experience_years, education_level, certificates, target_audiences, certificate_other, teacher_bio, available_weekdays, time_slots, max_lessons_per_day, max_lessons_per_week, lesson_types, lesson_durations, teaching_approach, teaching_materials, teaching_features, operational_status, start_date, cooperation_type, lesson_rate_amount, currency"
-    )
-    .eq("teacher_id", teacher.id)
-    .maybeSingle();
-  const dossier = dossierResponse.error ? null : (dossierResponse.data as TeacherDossierRow | null);
-  const displayName = getDisplayName(profile, "Преподаватель");
-  const initials = getInitials(displayName);
+  const { teacher, profile, dossier } = pageData;
+  const displayName = getAdminTeacherDisplayName(profile, "Преподаватель");
+  const initials = getAdminTeacherInitials(displayName);
   const internalRole = (dossier?.internal_role || DEFAULT_TEACHER_INTERNAL_ROLE) as TeacherInternalRole;
   const timezone = (dossier?.timezone || DEFAULT_TEACHER_TIMEZONE) as TeacherTimezone;
   const basicInfo: TeacherBasicInfoDto = {
@@ -298,7 +199,7 @@ export default async function AdminTeacherProfilePage({ params }: { params: Prom
     teacherId: teacher.id,
     englishProficiency: (dossier?.english_proficiency ?? "") as TeacherEnglishProficiency | "",
     specializations: (dossier?.specializations ?? []) as TeacherSpecialization[],
-    teachingExperienceYears: toNullableNumber(dossier?.teaching_experience_years),
+    teachingExperienceYears: toNullableAdminTeacherNumber(dossier?.teaching_experience_years),
     educationLevel: (dossier?.education_level ?? "") as TeacherEducationLevel | "",
     certificates: ((dossier?.certificates?.length ? dossier.certificates : DEFAULT_TEACHER_CERTIFICATES) as TeacherCertificate[]),
     targetAudiences: (dossier?.target_audiences ?? []) as TeacherTargetAudience[],
@@ -309,8 +210,8 @@ export default async function AdminTeacherProfilePage({ params }: { params: Prom
     teacherId: teacher.id,
     availableWeekdays: (dossier?.available_weekdays ?? []) as TeacherWeekday[],
     timeSlots: dossier?.time_slots ?? "",
-    maxLessonsPerDay: toNullableNumber(dossier?.max_lessons_per_day),
-    maxLessonsPerWeek: toNullableNumber(dossier?.max_lessons_per_week),
+    maxLessonsPerDay: toNullableAdminTeacherNumber(dossier?.max_lessons_per_day),
+    maxLessonsPerWeek: toNullableAdminTeacherNumber(dossier?.max_lessons_per_week),
     lessonTypes: (dossier?.lesson_types ?? []) as TeacherLessonType[],
     lessonDurations: (dossier?.lesson_durations ?? []) as TeacherLessonDuration[]
   };
@@ -325,7 +226,7 @@ export default async function AdminTeacherProfilePage({ params }: { params: Prom
     status: (dossier?.operational_status || DEFAULT_TEACHER_OPERATIONAL_STATUS) as TeacherOperationalStatus,
     startDate: dossier?.start_date ?? null,
     cooperationType: (dossier?.cooperation_type || DEFAULT_TEACHER_COOPERATION_TYPE) as TeacherCooperationType,
-    lessonRateAmount: toNullableNumber(dossier?.lesson_rate_amount),
+    lessonRateAmount: toNullableAdminTeacherNumber(dossier?.lesson_rate_amount),
     currency: (dossier?.currency || DEFAULT_TEACHER_CURRENCY) as TeacherCurrency
   };
 

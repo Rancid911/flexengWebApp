@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildCrmBoard, deleteCrmLead, getCrmUnreadNewRequestsCount, markCrmLeadViewed } from "@/lib/crm/queries";
+import { buildCrmBoard, deleteCrmLead, getCrmUnreadNewRequestsCount, markCrmLeadViewed, toCrmLeadCardDto } from "@/lib/crm/queries";
 import { CRM_STAGES } from "@/lib/crm/stages";
 import { crmLeadStatusUpdateSchema, publicLeadCreateSchema } from "@/lib/crm/validation";
 
@@ -23,7 +23,7 @@ describe("CRM helpers", () => {
       source: "website",
       form_type: "main_lead_form",
       page_url: "https://example.com/",
-      metadata: { audience: "adult" }
+      metadata: { audience: "adult", consent_personal_data: true, consent_marketing: false }
     });
 
     expect(parsed.success).toBe(true);
@@ -45,6 +45,28 @@ describe("CRM helpers", () => {
     expect(crmLeadStatusUpdateSchema.safeParse({ status: "unknown" }).success).toBe(false);
   });
 
+  it("maps lead metadata into audience and consent fields", () => {
+    expect(
+      toCrmLeadCardDto({
+        id: "lead-1",
+        name: "Анна",
+        phone: "+79991112233",
+        email: "anna@example.com",
+        source: "website",
+        form_type: "main_lead_form",
+        metadata: { audience: "child", consent_personal_data: true, consent_marketing: false },
+        status: "new_request",
+        created_at: "2026-04-24T10:00:00.000Z",
+        updated_at: "2026-04-24T10:00:00.000Z"
+      })
+    ).toMatchObject({
+      source: "website",
+      audience: "child",
+      consentPersonalData: true,
+      consentMarketing: false
+    });
+  });
+
   it("builds a board with all stages and places leads into matching columns", () => {
     const board = buildCrmBoard([
       {
@@ -56,6 +78,10 @@ describe("CRM helpers", () => {
         form_type: "main_lead_form",
         page_url: null,
         comment: null,
+        metadata: { audience: "adult", consent_personal_data: true, consent_marketing: false },
+        audience: "adult",
+        consentPersonalData: true,
+        consentMarketing: false,
         status: "new_request",
         viewed_at: null,
         viewed_by: null,

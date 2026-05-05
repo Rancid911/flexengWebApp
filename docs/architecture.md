@@ -19,6 +19,7 @@ This document defines the current layering rules for the dashboard-next project.
 ## Current Architecture State
 
 - The preferred runtime path is `route/api -> auth/validation -> service/query -> repository -> mapper/DTO`.
+- CI now runs `npm run check:architecture` after lint to guard core boundaries from regressing.
 - Practice and teacher workspace legacy files have been removed; new work should use the focused modules under `lib/practice/*` and `lib/teacher-workspace/*`.
 - CRM, admin users, admin tests, admin word-card sets, teacher dossier, billing ledger and homework assignments have service/repository boundaries for the main workflows.
 - Student dashboard aggregation is split into a read-only facade/orchestrator plus focused `types`, `descriptors`, `mappers` and `repository` modules.
@@ -34,7 +35,10 @@ This document defines the current layering rules for the dashboard-next project.
 - UI components should not directly call Supabase except for explicit auth/client SDK flows where Supabase requires browser interaction.
 - Domain modules should expose use-case oriented functions, not table-shaped helpers for UI to orchestrate.
 - Shared UI must stay domain-neutral. If a component contains CRM, student, teacher, payment, or learning rules, it belongs to that feature/domain.
-- Privileged Supabase admin access must stay behind server-side authorization and domain services.
+- Privileged Supabase admin access must stay behind server-side authorization and domain service/query/repository boundaries.
+- `createAdminClient` is allowed only in repositories, auth/request-context infrastructure, audit/invalidation infrastructure, and focused server query/service modules documented by domain ownership. It should not appear directly in `app/api/*` route handlers or server pages.
+- `*.repository.ts` files must not import Next route primitives, React/UI, audit writers, or app route modules.
+- Public `queries.ts` facades are acceptable stable domain entrypoints. `queries.legacy.*` files are not acceptable for new runtime logic and should remain absent.
 
 ## File Naming Conventions For New Code
 
@@ -65,6 +69,7 @@ Do not put direct multi-table business workflows inside a route handler. If the 
 ## Data Access Rules
 
 - Supabase table names, select strings, and insert/update payloads should live in domain repositories or small query modules.
+- API routes and server pages should not contain raw `.from()` or `.rpc()` calls. Move those reads/writes into focused query/service/repository modules first.
 - Business logic should work with domain DTOs or normalized row types, not arbitrary `Record<string, unknown>` outside mapper boundaries.
 - Cross-domain reads are allowed for dashboard/search/read-model use cases, but the module should be labeled as an aggregator and should not own mutations for those domains.
 - Prefer explicit domain services over importing repositories from another domain in UI or API code.

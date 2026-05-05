@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2, ShieldCheck, Sparkles } from "lucide-react";
+import { CheckCircle2, ChevronDown, ShieldCheck, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -331,8 +331,14 @@ export default function MainPage() {
           </div>
           <div className="grid gap-3">
             {faqs.map((item) => (
-              <details key={item.question} className="rounded-2xl border border-[#E3DEEF] bg-white/75 p-4">
-                <summary className="cursor-pointer list-none pr-6 text-base font-semibold text-[#322F55]">{item.question}</summary>
+              <details key={item.question} className="group rounded-2xl border border-[#E3DEEF] bg-white/75 p-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold text-[#322F55] [&::-webkit-details-marker]:hidden">
+                  <span>{item.question}</span>
+                  <ChevronDown
+                    className="h-5 w-5 shrink-0 text-[#706E88] transition-transform duration-200 group-open:rotate-180"
+                    aria-hidden="true"
+                  />
+                </summary>
                 <p className="pt-3 text-sm text-[#706E88]">{item.answer}</p>
               </details>
             ))}

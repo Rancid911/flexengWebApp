@@ -113,7 +113,8 @@ async function loadStudentPlacementSummary(
 
   const assignmentResponse = await dashboardRepository.loadPlacementAssignment(studentId, String(placementTest.id));
   if (assignmentResponse.error && !isSchemaMissing(assignmentResponse.error.message)) return null;
-  const assignment = assignmentResponse.data as DashboardHomeworkAssignmentRow | null;
+  const assignmentData = assignmentResponse.data as DashboardHomeworkAssignmentRow | DashboardHomeworkAssignmentRow[] | null;
+  const assignment = Array.isArray(assignmentData) ? (assignmentData[0] ?? null) : assignmentData;
   if (!assignment) return null;
 
   const status = assignment.status ?? "not_started";

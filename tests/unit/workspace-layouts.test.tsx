@@ -38,6 +38,12 @@ vi.mock("@/app/(workspace)/workspace-shell.server", () => ({
   )
 }));
 
+vi.mock("@/lib/crm/queries", () => ({
+  loadCrmSettings: async () => ({
+    background_image_url: null
+  })
+}));
+
 describe("route layouts", () => {
   it("renders marketing shell for public layout", () => {
     render(<PublicLayout><div>content</div></PublicLayout>);

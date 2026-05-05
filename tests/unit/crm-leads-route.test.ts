@@ -40,13 +40,28 @@ describe("/api/leads", () => {
           email: "anna@example.com",
           source: "website",
           form_type: "main_lead_form",
-          page_url: "https://example.com/"
+          page_url: "https://example.com/",
+          metadata: {
+            audience: "adult",
+            consent_personal_data: true,
+            consent_marketing: false
+          }
         })
       })
     );
 
     expect(response.status).toBe(201);
-    expect(leadInsertMock).toHaveBeenCalledWith(expect.objectContaining({ status: "new_request" }));
+    expect(leadInsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "new_request",
+        source: "website",
+        metadata: {
+          audience: "adult",
+          consent_personal_data: true,
+          consent_marketing: false
+        }
+      })
+    );
     expect(historyInsertMock).toHaveBeenCalledWith(expect.objectContaining({ lead_id: "lead-1", from_status: null, to_status: "new_request" }));
   });
 

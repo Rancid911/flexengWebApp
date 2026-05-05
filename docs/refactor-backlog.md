@@ -30,8 +30,12 @@ None. New cleanup work should be added here only when a concrete pain point is i
 
 - Legacy query facades are absent from runtime source.
 - Active backlog is `None`.
+- CI and local hardening include `npm run check:architecture`.
+- `createAdminClient`, raw `.from()` and raw `.rpc()` are blocked in API route handlers by the architecture check.
+- `createAdminClient` is blocked in server pages by the architecture check.
+- Repository files are checked for route/UI/audit imports.
 - Future refactor work must be tied to a concrete issue, feature, performance bottleneck, or review finding.
-- Required final checks: `npm run lint` and `npm run build`.
+- Required final checks: `npm run check:architecture`, `npm run lint`, `npx tsc --noEmit`, `npm run build` and relevant targeted tests.
 - Targeted smoke/tests should cover the main stabilized surfaces when touched: CRM, admin, schedule, settings and payments.
 
 ## Non-Runtime Cleanup

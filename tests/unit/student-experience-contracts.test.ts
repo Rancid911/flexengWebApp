@@ -22,6 +22,7 @@ describe("student experience contracts", () => {
       heroStats: [{ label: "Точность", value: "80%" }],
       homeworkCards: [{ id: "hw-1", title: "Homework", subtitle: "soon", status: "Не начато", statusTone: "muted" }],
       activeHomeworkCount: 3,
+      placementTest: null,
       recommendationCards: [{ id: "rec-1", title: "Repeat", subtitle: "mistakes", href: "/practice/topics/grammar/module-1" }],
       nextBestAction: {
         label: "Важно",
@@ -41,9 +42,9 @@ describe("student experience contracts", () => {
 
   it("builds homework overview summary from list ownership only", () => {
     const summary = buildHomeworkOverviewSummary([
-      { id: "1", title: "A", description: null, status: "not_started", dueAt: "2026-04-10T10:00:00.000Z", itemCount: 1 },
-      { id: "2", title: "B", description: null, status: "overdue", dueAt: "2026-04-08T10:00:00.000Z", itemCount: 2 },
-      { id: "3", title: "C", description: null, status: "completed", dueAt: "2026-04-07T10:00:00.000Z", itemCount: 3 }
+      { id: "1", title: "A", description: null, status: "not_started", dueAt: "2026-04-10T10:00:00.000Z", itemCount: 1, requiredCount: 1, completedRequiredCount: 0 },
+      { id: "2", title: "B", description: null, status: "overdue", dueAt: "2026-04-08T10:00:00.000Z", itemCount: 2, requiredCount: 2, completedRequiredCount: 0 },
+      { id: "3", title: "C", description: null, status: "completed", dueAt: "2026-04-07T10:00:00.000Z", itemCount: 3, requiredCount: 3, completedRequiredCount: 3 }
     ]);
 
     expect(summary.activeCount).toBe(1);
@@ -54,12 +55,12 @@ describe("student experience contracts", () => {
   it("builds practice overview summary from recommendation and topic feeds", () => {
     const summary = buildPracticeOverviewSummary(
       [
-        { id: "lesson_1", title: "Continue", reason: "40%" },
-        { id: "module_2", title: "Repeat", reason: "mistakes" }
+        { id: "lesson_1" },
+        { id: "module_2" }
       ],
       [
-        { id: "topic-1", slug: "speaking", title: "Speaking", description: null, moduleCount: 3, progressPercent: 50 },
-        { id: "topic-2", slug: "grammar", title: "Grammar", description: null, moduleCount: 2, progressPercent: 0 }
+        { slug: "speaking", progressPercent: 50 },
+        { slug: "grammar", progressPercent: 0 }
       ]
     );
 

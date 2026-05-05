@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -99,9 +100,18 @@ export function MainHeader({ navItems }: { navItems: SiteNavItem[] }) {
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="rounded-lg text-2xl font-bold tracking-tight text-[#322F55] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8D70FF] focus-visible:ring-offset-2 sm:text-[30px]"
+          className="inline-flex items-center gap-2 rounded-lg text-2xl font-bold tracking-tight text-[#322F55] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8D70FF] focus-visible:ring-offset-2 sm:text-[30px]"
         >
-          Флексенг
+          <Image
+            src="/images/flexeng-logo-nav.png"
+            alt=""
+            width={25}
+            height={40}
+            priority
+            className="h-9 w-auto shrink-0 sm:h-10"
+            aria-hidden="true"
+          />
+          <span>Флексенг</span>
         </Link>
 
         <nav ref={desktopNavRef} className="hidden items-center gap-5 md:flex" aria-label="Основная навигация сайта">

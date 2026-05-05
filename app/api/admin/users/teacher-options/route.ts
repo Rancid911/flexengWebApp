@@ -2,12 +2,10 @@ import { NextResponse } from "next/server";
 
 import { requireStaffAdminApi } from "@/lib/admin/auth";
 import { withAdminErrorHandling } from "@/lib/admin/http";
-import { loadTeacherOptions } from "@/lib/admin/users";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { listAdminTeacherOptions } from "@/lib/admin/user-directory";
 
 export const GET = withAdminErrorHandling(async () => {
   await requireStaffAdminApi();
-  const supabase = createAdminClient();
-  const items = await loadTeacherOptions(supabase);
+  const items = await listAdminTeacherOptions();
   return NextResponse.json(items);
 });

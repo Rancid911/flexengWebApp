@@ -727,7 +727,7 @@ describe("PracticeTestRunner", () => {
 
     window.dispatchEvent(event);
 
-    expect((event as Event & { returnValue: string }).returnValue).toBe(
+    expect((event as unknown as { returnValue: string }).returnValue).toBe(
       "Если выйти сейчас, placement test будет прерван, а результаты не засчитаются."
     );
   });

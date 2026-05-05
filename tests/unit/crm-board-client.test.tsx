@@ -14,6 +14,10 @@ const lead = {
   form_type: "main_lead_form",
   page_url: "https://example.com/",
   comment: "Хочу консультацию",
+  metadata: { audience: "adult", consent_personal_data: true, consent_marketing: false },
+  audience: "adult" as const,
+  consentPersonalData: true,
+  consentMarketing: false,
   status: "new_request" as const,
   viewed_at: null,
   viewed_by: null,
@@ -109,7 +113,7 @@ describe("CrmBoardClient", () => {
     expect(screen.getAllByText("Нет заявок")[0]).toHaveClass("bg-slate-950/15");
   });
 
-  it("keeps the colored source badge on CRM lead cards", () => {
+  it("shows audience badges on CRM lead cards without consent details", () => {
     render(<CrmBoardClient initialBoard={board} />);
 
     const sourceBadge = screen.getByTestId("crm-lead-source-badge");
@@ -118,9 +122,50 @@ describe("CrmBoardClient", () => {
     expect(leadCard).toHaveClass("bg-white/90");
     expect(leadCard).not.toHaveClass("bg-white/5");
     expect(leadCard).not.toHaveClass("backdrop-blur-md");
-    expect(sourceBadge).toHaveTextContent("website");
+    expect(sourceBadge).toHaveTextContent("Взрослый");
+    expect(sourceBadge).not.toHaveTextContent("website");
     expect(sourceBadge).toHaveClass("bg-[#eef2ff]");
     expect(sourceBadge).toHaveClass("text-[#4f46e5]");
+    expect(screen.queryByText(/Согласия:/)).not.toBeInTheDocument();
+  });
+
+  it("uses different badge colors for child, adult, and legacy leads", () => {
+    const childLead = {
+      ...lead,
+      id: "lead-child",
+      name: "Ирина",
+      metadata: { audience: "child", consent_personal_data: true, consent_marketing: true },
+      audience: "child" as const,
+      consentPersonalData: true,
+      consentMarketing: true
+    };
+    const legacyLead = {
+      ...lead,
+      id: "lead-legacy",
+      name: "Ольга",
+      metadata: {},
+      audience: null,
+      consentPersonalData: null,
+      consentMarketing: null
+    };
+    const mixedBoard: CrmBoardDto = {
+      stages: CRM_STAGES.map((stage) => ({
+        slug: stage.slug,
+        title: stage.title,
+        leads: stage.slug === "new_request" ? [lead, childLead, legacyLead] : []
+      }))
+    };
+
+    render(<CrmBoardClient initialBoard={mixedBoard} />);
+
+    const badges = screen.getAllByTestId("crm-lead-source-badge");
+    expect(badges[0]).toHaveTextContent("Взрослый");
+    expect(badges[0]).toHaveClass("bg-[#eef2ff]");
+    expect(badges[1]).toHaveTextContent("Ребёнок");
+    expect(badges[1]).toHaveClass("bg-[#e0f7fa]");
+    expect(badges[1]).toHaveClass("text-[#007c89]");
+    expect(badges[2]).toHaveTextContent("site");
+    expect(badges[2]).toHaveClass("bg-[#eef2ff]");
   });
 
   it("renders top CRM stats as glass cards with white text", () => {
@@ -216,6 +261,14 @@ describe("CrmBoardClient", () => {
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+    expect(screen.getByText("Источник")).toBeInTheDocument();
+    expect(screen.getByText("website")).toBeInTheDocument();
+    expect(screen.getByText("Для кого")).toBeInTheDocument();
+    expect(screen.getAllByText("Взрослый")).toHaveLength(2);
+    expect(screen.getByText("Согласие на обработку ПД")).toBeInTheDocument();
+    expect(screen.getByText("Да")).toBeInTheDocument();
+    expect(screen.getByText("Согласие на рассылку")).toBeInTheDocument();
+    expect(screen.getByText("Нет")).toBeInTheDocument();
     expect(screen.getByText("Комментарий пользователя")).toBeInTheDocument();
     expect(screen.getByText("Позвонить завтра")).toBeInTheDocument();
     expect(screen.getByText(/Создание/)).toBeInTheDocument();

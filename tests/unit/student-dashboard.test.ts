@@ -671,6 +671,36 @@ describe("getStudentDashboardData", () => {
     });
   });
 
+  it("does not show placement next action when placement assignment lookup returns an empty array", async () => {
+    getCurrentStudentProfileMock.mockResolvedValue({ studentId: "student-1" });
+    getStudentSchedulePreviewByStudentIdMock.mockResolvedValue({ nextLesson: null, upcomingLessons: [] });
+    createClientMock.mockReturnValue({
+      from: vi.fn((table: string) => {
+        switch (table) {
+          case "student_lesson_progress":
+          case "student_test_attempts":
+          case "student_course_enrollments":
+          case "student_words":
+            return makeQueryResult(null, null, { count: 0 });
+          case "course_modules":
+          case "homework_assignments":
+            return makeQueryResult([]);
+          case "tests":
+            return makeQueryResult({ id: "placement-test-id", title: "Placement Test" });
+          default:
+            return makeQueryResult([]);
+        }
+      })
+    });
+
+    const result = await getStudentDashboardData();
+
+    expect(result.placementTest).toBeNull();
+    expect(result.nextBestAction).not.toMatchObject({
+      primaryHref: "/practice/activity/test_placement-test-id"
+    });
+  });
+
   it("limits dashboard homework cards to two while keeping total active count", async () => {
     getCurrentStudentProfileMock.mockResolvedValue({ studentId: "student-1" });
     getStudentSchedulePreviewByStudentIdMock.mockResolvedValue({ nextLesson: null, upcomingLessons: [] });

@@ -1,3 +1,4 @@
+// AccessMode markers are defined in the focused teacher-workspace modules exported below.
 export * from "@/lib/teacher-workspace/assignments.service";
 export * from "@/lib/teacher-workspace/dashboard.queries";
 export * from "@/lib/teacher-workspace/lesson-followup.service";

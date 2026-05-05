@@ -14,7 +14,7 @@ import {
 } from "@/lib/billing/mappers";
 import { measureServerTiming } from "@/lib/server/timing";
 import { getCurrentStudentProfile } from "@/lib/students/current-student";
-import { ScheduleHttpError } from "@/lib/schedule/http";
+import { BillingHttpError } from "@/lib/billing/http";
 import type { ScheduleActor } from "@/lib/schedule/server";
 import {
   assertStaffAdminCapability,
@@ -36,7 +36,7 @@ type BillingRepository = ReturnType<typeof createBillingLedgerRepository>;
 async function loadBillingAccount(repository: BillingRepository, studentId: string) {
   const response = await repository.loadBillingAccount(studentId);
   if (response.error) {
-    throw new ScheduleHttpError(500, "BILLING_ACCOUNT_FETCH_FAILED", "Failed to load billing account", response.error.message);
+    throw new BillingHttpError(500, "BILLING_ACCOUNT_FETCH_FAILED", "Failed to load billing account", response.error.message);
   }
 
   return normalizeAccount((response.data ?? null) as BillingAccountRow | null);
@@ -45,7 +45,7 @@ async function loadBillingAccount(repository: BillingRepository, studentId: stri
 async function loadBillingSummaryLedger(repository: BillingRepository, studentId: string) {
   const response = await repository.loadBillingSummaryAggregates(studentId);
   if (response.error) {
-    throw new ScheduleHttpError(500, "BILLING_SUMMARY_RPC_UNAVAILABLE", "Failed to load billing summary ledger", response.error.message);
+    throw new BillingHttpError(500, "BILLING_SUMMARY_RPC_UNAVAILABLE", "Failed to load billing summary ledger", response.error.message);
   }
 
   const aggregate = ((response.data ?? []) as BillingSummaryAggregateRow[])[0] ?? null;
@@ -59,7 +59,7 @@ async function loadBillingSummaryLedger(repository: BillingRepository, studentId
 }
 
 function isBillingSummaryAggregateRpcUnavailable(error: unknown) {
-  if (!(error instanceof ScheduleHttpError)) return false;
+  if (!(error instanceof BillingHttpError)) return false;
   if (error.code !== "BILLING_SUMMARY_RPC_UNAVAILABLE") return false;
 
   const details = String(error.details ?? "").toLowerCase();
@@ -75,7 +75,7 @@ function isBillingSummaryAggregateRpcUnavailable(error: unknown) {
 async function loadFullBillingLedger(repository: BillingRepository, studentId: string) {
   const response = await repository.loadFullBillingLedger(studentId);
   if (response.error) {
-    throw new ScheduleHttpError(500, "BILLING_SUMMARY_FALLBACK_FETCH_FAILED", "Failed to load billing summary fallback ledger", response.error.message);
+    throw new BillingHttpError(500, "BILLING_SUMMARY_FALLBACK_FETCH_FAILED", "Failed to load billing summary fallback ledger", response.error.message);
   }
 
   return normalizeLedger((response.data ?? []) as BillingLedgerRow[]);
@@ -84,7 +84,7 @@ async function loadFullBillingLedger(repository: BillingRepository, studentId: s
 async function loadRecentBillingLedger(repository: BillingRepository, studentId: string, recentEntriesLimit: number) {
   const response = await repository.loadRecentBillingLedger(studentId, recentEntriesLimit);
   if (response.error) {
-    throw new ScheduleHttpError(500, "BILLING_LEDGER_FETCH_FAILED", "Failed to load recent billing ledger", response.error.message);
+    throw new BillingHttpError(500, "BILLING_LEDGER_FETCH_FAILED", "Failed to load recent billing ledger", response.error.message);
   }
 
   return normalizeLedger((response.data ?? []) as BillingLedgerRow[]);
@@ -93,7 +93,7 @@ async function loadRecentBillingLedger(repository: BillingRepository, studentId:
 async function loadLatestEffectiveLessonPrice(repository: BillingRepository, studentId: string) {
   const response = await repository.loadLatestEffectiveLessonPrice(studentId);
   if (response.error) {
-    throw new ScheduleHttpError(500, "BILLING_EFFECTIVE_PRICE_FETCH_FAILED", "Failed to load effective lesson price", response.error.message);
+    throw new BillingHttpError(500, "BILLING_EFFECTIVE_PRICE_FETCH_FAILED", "Failed to load effective lesson price", response.error.message);
   }
 
   return {
@@ -114,7 +114,7 @@ async function ensureBillingAccount(
 ) {
   const response = await repository.upsertBillingAccount(studentId, payload);
   if (response.error) {
-    throw new ScheduleHttpError(500, "BILLING_ACCOUNT_SAVE_FAILED", "Failed to save billing account", response.error.message);
+    throw new BillingHttpError(500, "BILLING_ACCOUNT_SAVE_FAILED", "Failed to save billing account", response.error.message);
   }
 
   return normalizeAccount(response.data as BillingAccountRow);
@@ -122,7 +122,7 @@ async function ensureBillingAccount(
 
 function assertBillingViewAccess(actor: ScheduleActor, studentId: string) {
   if (isStudentScheduleActor(actor) && actor.studentId !== studentId) {
-    throw new ScheduleHttpError(403, "FORBIDDEN", "Billing access denied");
+    throw new BillingHttpError(403, "FORBIDDEN", "Billing access denied");
   }
 
   if (isTeacherScheduleActor(actor)) {
@@ -158,7 +158,7 @@ export async function getBillingSummaryByStudentId(studentId: string, recentEntr
       console.warn("BILLING_SUMMARY_RPC_UNAVAILABLE", {
         studentId,
         message: error instanceof Error ? error.message : String(error),
-        details: error instanceof ScheduleHttpError ? error.details : null
+        details: error instanceof BillingHttpError ? error.details : null
       });
 
       const [account, fullLedger] = await Promise.all([
@@ -193,7 +193,7 @@ export async function updateStudentBillingSettings(actor: ScheduleActor, student
   if (!payload.billingMode) {
     const response = await repository.deleteBillingAccount(studentId);
     if (response.error) {
-      throw new ScheduleHttpError(500, "BILLING_ACCOUNT_DELETE_FAILED", "Failed to clear billing settings", response.error.message);
+      throw new BillingHttpError(500, "BILLING_ACCOUNT_DELETE_FAILED", "Failed to clear billing settings", response.error.message);
     }
     return getBillingSummaryByStudentId(studentId);
   }
@@ -220,7 +220,7 @@ export async function createStudentBillingAdjustment(actor: ScheduleActor, stude
   const latestLessonPrice = await loadLatestEffectiveLessonPrice(repository, studentId);
   if (!account) {
     if (payload.unitType === "money") {
-      throw new ScheduleHttpError(400, "LESSON_PRICE_REQUIRED", "Для денежных корректировок сначала настройте цену урока");
+      throw new BillingHttpError(400, "LESSON_PRICE_REQUIRED", "Для денежных корректировок сначала настройте цену урока");
     }
     account = await ensureBillingAccount(repository, studentId, {
       billingMode: "package_lessons",
@@ -230,7 +230,7 @@ export async function createStudentBillingAdjustment(actor: ScheduleActor, stude
   }
 
   if (payload.unitType === "money" && (!account?.lessonPriceAmount || account.lessonPriceAmount <= 0)) {
-    throw new ScheduleHttpError(400, "LESSON_PRICE_REQUIRED", "Для денежных корректировок сначала настройте цену урока");
+    throw new BillingHttpError(400, "LESSON_PRICE_REQUIRED", "Для денежных корректировок сначала настройте цену урока");
   }
 
   const insertPayload =
@@ -262,7 +262,7 @@ export async function createStudentBillingAdjustment(actor: ScheduleActor, stude
 
   const response = await repository.insertLedgerEntry(insertPayload);
   if (response.error) {
-    throw new ScheduleHttpError(500, "BILLING_ADJUSTMENT_FAILED", "Failed to save billing adjustment", response.error.message);
+    throw new BillingHttpError(500, "BILLING_ADJUSTMENT_FAILED", "Failed to save billing adjustment", response.error.message);
   }
 
   return getBillingSummaryByStudentId(studentId);
@@ -274,7 +274,7 @@ export async function assertPaymentPlanBillingCompatibility(studentId: string, p
   const [accountResponse, planResponse] = await repository.loadBillingCompatibility(studentId, planId);
 
   if (accountResponse.error || planResponse.error) {
-    throw new ScheduleHttpError(500, "BILLING_COMPATIBILITY_CHECK_FAILED", "Failed to validate billing mode");
+    throw new BillingHttpError(500, "BILLING_COMPATIBILITY_CHECK_FAILED", "Failed to validate billing mode");
   }
 
   const account = accountResponse.data as { billing_mode?: StudentBillingMode | null; lesson_price_amount?: number | string | null } | null;
@@ -284,23 +284,23 @@ export async function assertPaymentPlanBillingCompatibility(studentId: string, p
   if (!billingMode || !creditType) return;
 
   if (creditType === "lesson" && Number(plan?.credit_lesson_units ?? 0) <= 0) {
-    throw new ScheduleHttpError(400, "PAYMENT_PLAN_INVALID", "Для пакетного тарифа должно быть указано количество уроков");
+    throw new BillingHttpError(400, "PAYMENT_PLAN_INVALID", "Для пакетного тарифа должно быть указано количество уроков");
   }
 
   if (creditType === "money" && Number(plan?.credit_money_amount ?? 0) <= 0) {
-    throw new ScheduleHttpError(400, "PAYMENT_PLAN_INVALID", "Для денежного тарифа должна быть указана сумма пополнения");
+    throw new BillingHttpError(400, "PAYMENT_PLAN_INVALID", "Для денежного тарифа должна быть указана сумма пополнения");
   }
 
   if (billingMode === "package_lessons" && creditType === "money") {
-    throw new ScheduleHttpError(400, "PAYMENT_PLAN_INCOMPATIBLE", "Этот тариф несовместим с режимом списания по пакету уроков");
+    throw new BillingHttpError(400, "PAYMENT_PLAN_INCOMPATIBLE", "Этот тариф несовместим с режимом списания по пакету уроков");
   }
 
   if (billingMode === "per_lesson_price" && creditType === "lesson") {
-    throw new ScheduleHttpError(400, "PAYMENT_PLAN_INCOMPATIBLE", "Этот тариф несовместим с режимом списания по цене урока");
+    throw new BillingHttpError(400, "PAYMENT_PLAN_INCOMPATIBLE", "Этот тариф несовместим с режимом списания по цене урока");
   }
 
   if (creditType === "money" && Number(account?.lesson_price_amount ?? 0) <= 0) {
-    throw new ScheduleHttpError(400, "LESSON_PRICE_REQUIRED", "Для пополнения баланса должна быть настроена цена урока");
+    throw new BillingHttpError(400, "LESSON_PRICE_REQUIRED", "Для пополнения баланса должна быть настроена цена урока");
   }
 }
 
@@ -310,7 +310,7 @@ export async function syncPaymentTransactionBilling(transactionId: string, admin
   const txResponse = await repository.loadPaymentTransactionWithPlan(transactionId);
 
   if (txResponse.error) {
-    throw new ScheduleHttpError(500, "PAYMENT_BILLING_SYNC_FAILED", "Failed to load payment transaction", txResponse.error.message);
+    throw new BillingHttpError(500, "PAYMENT_BILLING_SYNC_FAILED", "Failed to load payment transaction", txResponse.error.message);
   }
 
   const transaction = txResponse.data as PaymentTransactionWithPlanRow | null;
@@ -323,7 +323,7 @@ export async function syncPaymentTransactionBilling(transactionId: string, admin
 
   const existingEntry = await repository.loadExistingPaymentCreditEntry(transaction.id);
   if (existingEntry.error) {
-    throw new ScheduleHttpError(500, "PAYMENT_BILLING_SYNC_FAILED", "Failed to validate billing credit", existingEntry.error.message);
+    throw new BillingHttpError(500, "PAYMENT_BILLING_SYNC_FAILED", "Failed to validate billing credit", existingEntry.error.message);
   }
 
   if (existingEntry.data?.id) return;
@@ -331,7 +331,7 @@ export async function syncPaymentTransactionBilling(transactionId: string, admin
   const account = await loadBillingAccount(repository, transaction.student_id);
   const packageLessonUnits = Number(plan.credit_lesson_units ?? 0);
   if (plan.billing_credit_type === "lesson" && packageLessonUnits <= 0) {
-    throw new ScheduleHttpError(400, "PAYMENT_PLAN_INVALID", "Lesson package must have positive lesson units");
+    throw new BillingHttpError(400, "PAYMENT_PLAN_INVALID", "Lesson package must have positive lesson units");
   }
   const effectiveLessonPriceAmount =
     plan.billing_credit_type === "lesson"
@@ -341,7 +341,7 @@ export async function syncPaymentTransactionBilling(transactionId: string, admin
 
   if (!account) {
     if (plan.billing_credit_type === "money") {
-      throw new ScheduleHttpError(400, "LESSON_PRICE_REQUIRED", "Money top-up requires configured lesson price");
+      throw new BillingHttpError(400, "LESSON_PRICE_REQUIRED", "Money top-up requires configured lesson price");
     }
     await ensureBillingAccount(repository, transaction.student_id, {
       billingMode: "package_lessons",
@@ -349,7 +349,7 @@ export async function syncPaymentTransactionBilling(transactionId: string, admin
       currency: transaction.currency
     });
   } else if (plan.billing_credit_type === "money" && (!account.lessonPriceAmount || account.lessonPriceAmount <= 0)) {
-    throw new ScheduleHttpError(400, "LESSON_PRICE_REQUIRED", "Money top-up requires configured lesson price");
+    throw new BillingHttpError(400, "LESSON_PRICE_REQUIRED", "Money top-up requires configured lesson price");
   }
 
   const insertPayload =
@@ -385,7 +385,7 @@ export async function syncPaymentTransactionBilling(transactionId: string, admin
 
   const insertResponse = await repository.insertLedgerEntry(insertPayload);
   if (insertResponse.error && !String(insertResponse.error.message).toLowerCase().includes("duplicate")) {
-    throw new ScheduleHttpError(500, "PAYMENT_BILLING_SYNC_FAILED", "Failed to save billing credit", insertResponse.error.message);
+    throw new BillingHttpError(500, "PAYMENT_BILLING_SYNC_FAILED", "Failed to save billing credit", insertResponse.error.message);
   }
 }
 
@@ -395,10 +395,10 @@ export async function applyCompletedLessonCharge(lessonId: string, actorUserId: 
   const [lessonResponse, existingChargeResponse] = await repository.loadLessonChargeInputs(lessonId);
 
   if (lessonResponse.error) {
-    throw new ScheduleHttpError(500, "LESSON_CHARGE_FAILED", "Failed to load lesson for billing", lessonResponse.error.message);
+    throw new BillingHttpError(500, "LESSON_CHARGE_FAILED", "Failed to load lesson for billing", lessonResponse.error.message);
   }
   if (existingChargeResponse.error) {
-    throw new ScheduleHttpError(500, "LESSON_CHARGE_FAILED", "Failed to validate existing lesson charge", existingChargeResponse.error.message);
+    throw new BillingHttpError(500, "LESSON_CHARGE_FAILED", "Failed to validate existing lesson charge", existingChargeResponse.error.message);
   }
 
   const lesson = lessonResponse.data as LessonRow | null;
@@ -450,6 +450,6 @@ export async function applyCompletedLessonCharge(lessonId: string, actorUserId: 
 
   const insertResponse = await repository.insertLedgerEntry(insertPayload);
   if (insertResponse.error && !String(insertResponse.error.message).toLowerCase().includes("duplicate")) {
-    throw new ScheduleHttpError(500, "LESSON_CHARGE_FAILED", "Failed to create lesson charge", insertResponse.error.message);
+    throw new BillingHttpError(500, "LESSON_CHARGE_FAILED", "Failed to create lesson charge", insertResponse.error.message);
   }
 }

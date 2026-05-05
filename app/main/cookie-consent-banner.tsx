@@ -33,8 +33,8 @@ export function CookieConsentBanner() {
   if (!visible) return null;
 
   return (
-    <section aria-label="Уведомление о cookies" className="fixed inset-x-0 bottom-0 z-[80] px-3 pb-3 sm:px-4 sm:pb-4">
-      <div className="mx-auto w-full max-w-5xl space-y-2">
+    <section aria-label="Уведомление о cookies" className="fixed inset-x-0 bottom-0 z-[80] px-4 pb-3 sm:px-6 sm:pb-4 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl space-y-2">
         <div className="rounded-xl border border-[#6A6495] bg-[linear-gradient(160deg,#322F55_0%,#4A4476_100%)] px-3 py-2 shadow-[0_12px_32px_rgba(18,14,39,0.42)]">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-[11px] leading-relaxed text-[#EAE4FF] sm:text-xs">

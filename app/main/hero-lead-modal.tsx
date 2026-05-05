@@ -62,7 +62,7 @@ export function HeroLeadModal() {
       </button>
 
       {isMounted ? (
-        <div className="fixed inset-0 z-50 grid place-items-center px-4 py-6">
+        <div className="fixed inset-0 z-50 grid place-items-center px-3 py-3 sm:px-4 sm:py-6">
           <button
             aria-label="Закрыть форму заявки"
             className={cn(
@@ -73,24 +73,24 @@ export function HeroLeadModal() {
           />
           <div
             className={cn(
-              "relative z-10 w-full max-w-3xl overflow-hidden rounded-[28px] border border-[#DCD6EB] bg-[linear-gradient(160deg,#F2ECFB_0%,#F7F4FC_55%,#F3EFF9_100%)] p-2 shadow-[0_24px_80px_rgba(51,41,85,0.28)] transition-[transform,opacity] duration-300 ease-out",
+              "relative z-10 max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-[#DCD6EB] bg-[linear-gradient(160deg,#F2ECFB_0%,#F7F4FC_55%,#F3EFF9_100%)] p-1.5 shadow-[0_24px_80px_rgba(51,41,85,0.28)] transition-[transform,opacity] duration-300 ease-out md:max-w-3xl md:overflow-hidden md:rounded-[28px] md:p-2",
               isVisible ? "translate-y-0 scale-100 opacity-100" : "translate-y-4 scale-[0.98] opacity-0"
             )}
           >
-            <div className="rounded-[22px] bg-[linear-gradient(160deg,#F7F3FF_0%,#FFFFFF_60%)] p-4 sm:p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <p className="text-sm font-semibold uppercase tracking-wide text-[#706E88]">Заявка на обучение</p>
+            <div className="rounded-[18px] bg-[linear-gradient(160deg,#F7F3FF_0%,#FFFFFF_60%)] p-3 md:rounded-[22px] md:p-6">
+              <div className="mb-2 flex items-center justify-between md:mb-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#706E88] md:text-sm">Заявка на обучение</p>
                 <button
                   type="button"
                   aria-label="Закрыть окно"
                   onClick={closeModal}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#D6D5DD] bg-white text-[#706E88] transition-[color,background-color,border-color,box-shadow] hover:bg-[#F5F5F8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8D70FF] focus-visible:ring-offset-2"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#D6D5DD] bg-white text-[#706E88] transition-[color,background-color,border-color,box-shadow] hover:bg-[#F5F5F8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8D70FF] focus-visible:ring-offset-2 md:h-9 md:w-9"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="grid gap-6 rounded-2xl bg-[linear-gradient(145deg,#F6F2FF_0%,#EEE8FA_55%,#E7E0F4_100%)] p-4 md:min-h-[540px] md:grid-cols-[0.92fr_1.08fr] md:items-stretch">
-                <section className="h-full py-1">
+              <div className="grid gap-3 rounded-2xl bg-[linear-gradient(145deg,#F6F2FF_0%,#EEE8FA_55%,#E7E0F4_100%)] p-3 md:min-h-[540px] md:grid-cols-[0.92fr_1.08fr] md:items-stretch md:gap-6 md:p-4">
+                <section data-testid="hero-lead-modal-promo" className="hidden h-full py-1 md:block">
                   <h2 className="text-3xl font-bold leading-tight text-[#322F55]">Запишитесь на бесплатный вводный урок</h2>
                   <ul className="mt-5 space-y-3">
                     <li className="flex items-start gap-3">
@@ -120,9 +120,9 @@ export function HeroLeadModal() {
                   </div>
                 </section>
                 <div className="h-full py-1">
-                  <LeadForm variant="light" framed={false} stackedFields showAgreementText={false} />
+                  <LeadForm variant="light" framed={false} stackedFields compact showAgreementText={false} />
                 </div>
-                <p className="pt-1 text-xs text-[#706E88] md:col-span-2">
+                <p className="pt-0 text-[11px] leading-4 text-[#706E88] md:col-span-2 md:pt-1 md:text-xs md:leading-normal">
                   Нажимая кнопку отправки, вы принимаете пользовательское соглашение и подтверждаете достоверность указанных данных.
                 </p>
               </div>

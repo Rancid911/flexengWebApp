@@ -44,7 +44,7 @@ describe("PaymentsPage", () => {
   });
 
   it("starts base page loaders before awaiting search params", async () => {
-    let resolveSearchParams: ((value: { payment?: string }) => void) | null = null;
+    let resolveSearchParams: (value: { payment?: string }) => void = () => {};
     const searchParams = new Promise<{ payment?: string }>((resolve) => {
       resolveSearchParams = resolve;
     });

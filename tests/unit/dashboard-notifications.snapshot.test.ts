@@ -5,7 +5,7 @@ import { getCurrentNotificationsSnapshot, isNotificationsSnapshotStale } from "@
 describe("dashboard notifications snapshot helpers", () => {
   it("prefers the existing snapshot for optimistic mutations", () => {
     const snapshot = {
-      items: [{ id: "n1", title: "A", body: "B", type: "update", target_roles: ["all"], is_active: true, is_read: false, published_at: null, expires_at: null, created_at: null, updated_at: null }],
+      items: [{ id: "n1", title: "A", body: "B", type: "update" as const, is_read: false, published_at: null, expires_at: null, created_at: null }],
       unreadCount: 1,
       fetchedAt: 100
     };
@@ -21,7 +21,7 @@ describe("dashboard notifications snapshot helpers", () => {
 
   it("builds a fallback snapshot from current items when cache is absent", () => {
     const result = getCurrentNotificationsSnapshot({
-      notifications: [{ id: "n2", title: "A", body: "B", type: "update", target_roles: ["all"], is_active: true, is_read: true, published_at: null, expires_at: null, created_at: null, updated_at: null }],
+      notifications: [{ id: "n2", title: "A", body: "B", type: "update", is_read: true, published_at: null, expires_at: null, created_at: null }],
       notificationsSnapshot: null,
       unreadCount: 0
     });

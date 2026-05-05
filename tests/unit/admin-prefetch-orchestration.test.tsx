@@ -106,7 +106,7 @@ describe("useAdminPrefetchOrchestration", () => {
             tests,
             users: {
               ...usersAll,
-              roleFilter: "all" as const
+              roleFilter: "all" as "all" | "student"
             },
             blog,
             notifications
@@ -124,7 +124,7 @@ describe("useAdminPrefetchOrchestration", () => {
         tests,
         users: {
           ...usersStudents,
-          roleFilter: "student" as const
+          roleFilter: "student" as "all" | "student"
         },
         blog,
         notifications

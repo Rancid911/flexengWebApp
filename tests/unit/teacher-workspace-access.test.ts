@@ -129,6 +129,8 @@ describe("teacher workspace sections", () => {
         {
           studentId: "student-1",
           studentName: "Анна",
+          email: "anna@example.com",
+          phone: null,
           englishLevel: "A2",
           targetLevel: "B1",
           nextLessonAt: null,
@@ -153,6 +155,7 @@ describe("teacher workspace sections", () => {
       upcomingLessons: [],
       recentHomework: [],
       standaloneHomework: [],
+      placementSummary: null,
       recentMistakes: [],
       billingSummary: null,
       billingSummaryDeferred: true
@@ -182,6 +185,7 @@ describe("teacher workspace sections", () => {
       recentLessons: [],
       recentHomework: [],
       standaloneHomework: [],
+      placementSummary: null,
       recentMistakes: [],
       billingSnapshot: null,
       billingSummaryDeferred: false

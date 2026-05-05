@@ -164,6 +164,30 @@ export function CrmBoardColumns({ board, draggedLeadId, loadingLeadId, onDragSta
   );
 }
 
+function getLeadAudienceLabel(lead: CrmLeadCardDto) {
+  if (lead.audience === "child") return "Ребёнок";
+  if (lead.audience === "adult") return "Взрослый";
+  return "site";
+}
+
+function getLeadDetailAudienceLabel(lead: CrmLeadCardDto) {
+  if (lead.audience === "child") return "Ребёнок";
+  if (lead.audience === "adult") return "Взрослый";
+  return "—";
+}
+
+function getLeadAudienceBadgeClassName(lead: CrmLeadCardDto) {
+  if (lead.audience === "child") return "bg-[#e0f7fa] text-[#007c89]";
+  if (lead.audience === "adult") return "bg-[#eef2ff] text-[#4f46e5]";
+  return "bg-[#eef2ff] text-[#4f46e5]";
+}
+
+function formatDetailConsentValue(value: boolean | null) {
+  if (value === true) return "Да";
+  if (value === false) return "Нет";
+  return "—";
+}
+
 function CrmLeadCard({ lead, loading, onDragStart, onDragEnd, onOpenLead }: { lead: CrmLeadCardDto; loading: boolean; onDragStart: (leadId: string) => void; onDragEnd: () => void; onOpenLead: (leadId: string) => void }) {
   return (
     <button
@@ -182,8 +206,11 @@ function CrmLeadCard({ lead, loading, onDragStart, onDragEnd, onOpenLead }: { le
     >
       <div className="flex items-start justify-between gap-2">
         <p className="line-clamp-1 text-sm font-semibold text-slate-950">{lead.name}</p>
-        <span data-testid="crm-lead-source-badge" className="rounded-md bg-[#eef2ff] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#4f46e5]">
-          {lead.source || "site"}
+        <span
+          data-testid="crm-lead-source-badge"
+          className={cn("rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide", getLeadAudienceBadgeClassName(lead))}
+        >
+          {getLeadAudienceLabel(lead)}
         </span>
       </div>
       <div className="mt-2 space-y-1 text-xs leading-5 text-slate-600">
@@ -227,6 +254,9 @@ export function CrmLeadDrawerContent({ lead, statusDraft, commentDraft, isSaving
         <DetailItem label="Email" value={lead.email} />
         <DetailItem label="Источник" value={lead.source || "—"} />
         <DetailItem label="Тип формы" value={lead.form_type} />
+        <DetailItem label="Для кого" value={getLeadDetailAudienceLabel(lead)} />
+        <DetailItem label="Согласие на обработку ПД" value={formatDetailConsentValue(lead.consentPersonalData)} />
+        <DetailItem label="Согласие на рассылку" value={formatDetailConsentValue(lead.consentMarketing)} />
         <DetailItem label="Страница" value={lead.page_url || "—"} wide />
         <DetailItem label="Создана" value={formatCrmDate(lead.created_at)} />
         <DetailItem label="Обновлена" value={formatCrmDate(lead.updated_at)} />

@@ -290,7 +290,7 @@ describe("DashboardMobileActionsSheet", () => {
 
 describe("useDashboardShellOverlays", () => {
   it("focuses close button on open and restores focus to trigger on keyboard close", async () => {
-    const { result } = renderHook(() => useDashboardShellOverlays("/dashboard"));
+    const { result } = renderHook(() => useDashboardShellOverlays());
     const trigger = document.createElement("button");
     const closeButton = document.createElement("button");
     document.body.append(trigger, closeButton);
@@ -316,29 +316,14 @@ describe("useDashboardShellOverlays", () => {
     closeButton.remove();
   });
 
-  it("does not restore focus on pathname and resize closes", async () => {
-    const { result, rerender } = renderHook(({ pathname }) => useDashboardShellOverlays(pathname), {
-      initialProps: { pathname: "/dashboard" }
-    });
+  it("does not restore focus when resize closes the sheet", async () => {
+    const { result } = renderHook(() => useDashboardShellOverlays());
     const trigger = document.createElement("button");
     const closeButton = document.createElement("button");
     document.body.append(trigger, closeButton);
 
     result.current.mobileMoreSheetTriggerRef.current = trigger;
     result.current.mobileMoreSheetCloseRef.current = closeButton;
-
-    act(() => {
-      result.current.openMobileMoreSheet();
-    });
-
-    await waitFor(() => expect(document.activeElement).toBe(closeButton));
-
-    act(() => {
-      rerender({ pathname: "/schedule" });
-    });
-
-    await waitFor(() => expect(result.current.mobileMoreSheetOpen).toBe(false));
-    expect(document.activeElement).not.toBe(trigger);
 
     act(() => {
       result.current.openMobileMoreSheet();

@@ -1,9 +1,9 @@
 import { CRM_DEFAULT_STATUS, type CrmLeadStatus } from "@/lib/crm/stages";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export const CRM_LEAD_SELECT = "id, name, phone, email, source, form_type, page_url, comment, status, viewed_at, viewed_by, created_at, updated_at";
+export const CRM_LEAD_SELECT = "id, name, phone, email, source, form_type, page_url, comment, metadata, status, viewed_at, viewed_by, created_at, updated_at";
 export const CRM_LEAD_DETAIL_SELECT =
-  "id, name, phone, email, source, form_type, page_url, comment, status, viewed_at, viewed_by, created_at, updated_at, crm_lead_status_history(id, from_status, to_status, changed_by, created_at), crm_lead_comments(id, body, author_id, created_at)";
+  "id, name, phone, email, source, form_type, page_url, comment, metadata, status, viewed_at, viewed_by, created_at, updated_at, crm_lead_status_history(id, from_status, to_status, changed_by, created_at), crm_lead_comments(id, body, author_id, created_at)";
 
 export type CrmLeadRow = Record<string, unknown>;
 export type CrmActorNameRow = { id?: unknown; display_name?: unknown; first_name?: unknown; last_name?: unknown; email?: unknown };

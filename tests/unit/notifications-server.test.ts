@@ -126,7 +126,7 @@ function makeNotificationsQuery() {
     }),
     order: vi.fn().mockReturnThis(),
     limit: vi.fn(async () => ({
-      data: cutoff ? state.notifications.filter((item) => item.published_at >= cutoff) : state.notifications,
+      data: cutoff ? state.notifications.filter((item) => item.published_at >= (cutoff ?? "")) : state.notifications,
       error: null
     }))
   };

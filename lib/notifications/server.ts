@@ -1,4 +1,4 @@
-import { AdminHttpError } from "@/lib/admin/http";
+import { HttpError } from "@/lib/server/http";
 import { toUserNotificationDto } from "@/lib/admin/notifications";
 import type { UserNotificationDto } from "@/lib/admin/types";
 import { createNotificationsRepository } from "@/lib/notifications/repository";
@@ -33,7 +33,7 @@ export async function getAuthedSupabase() {
     await runAuthRequestWithLockRetry(() => supabase.auth.getUser())
   );
   if (error || !user) {
-    throw new AdminHttpError(401, "UNAUTHORIZED", "Authentication required");
+    throw new HttpError(401, "UNAUTHORIZED", "Authentication required");
   }
   return { supabase, userId: user.id, userCreatedAt: user.created_at ?? null };
 }
@@ -59,7 +59,7 @@ async function loadNotificationContext(limit: number, summaryOnly = false) {
     async () => await repository.listActiveNotifications({ nowIso, accountCreatedAt, limit, summaryOnly })
   );
   if (notificationsError) {
-    throw new AdminHttpError(
+    throw new HttpError(
       500,
       "NOTIFICATIONS_FETCH_FAILED",
       summaryOnly ? "Failed to fetch notifications summary" : "Failed to fetch notifications",
@@ -78,7 +78,7 @@ async function loadNotificationContext(limit: number, summaryOnly = false) {
     async () => await repository.loadStates(userId, notificationIds)
   );
   if (statesError) {
-    throw new AdminHttpError(
+    throw new HttpError(
       500,
       "NOTIFICATIONS_FETCH_FAILED",
       summaryOnly ? "Failed to fetch notification summary state" : "Failed to fetch notification state",
@@ -142,11 +142,11 @@ export async function markNotificationReadForUser(id: string): Promise<{ ok: tru
   const repository = createNotificationsRepository(supabase);
   const nowIso = new Date().toISOString();
   const { data: notification, error: notificationError } = await repository.loadNotification(id);
-  if (notificationError) throw new AdminHttpError(500, "NOTIFICATION_READ_FAILED", "Failed to access notification", notificationError.message);
-  if (!notification) throw new AdminHttpError(404, "NOTIFICATION_NOT_FOUND", "Notification not found");
+  if (notificationError) throw new HttpError(500, "NOTIFICATION_READ_FAILED", "Failed to access notification", notificationError.message);
+  if (!notification) throw new HttpError(404, "NOTIFICATION_NOT_FOUND", "Notification not found");
 
   const { error: stateError } = await repository.upsertReadState({ notificationId: id, userId, readAt: nowIso });
-  if (stateError) throw new AdminHttpError(500, "NOTIFICATION_READ_FAILED", "Failed to mark notification as read", stateError.message);
+  if (stateError) throw new HttpError(500, "NOTIFICATION_READ_FAILED", "Failed to mark notification as read", stateError.message);
 
   return { ok: true };
 }
@@ -156,11 +156,11 @@ export async function dismissNotificationForUser(id: string): Promise<{ ok: true
   const repository = createNotificationsRepository(supabase);
   const nowIso = new Date().toISOString();
   const { data: notification, error: notificationError } = await repository.loadNotification(id);
-  if (notificationError) throw new AdminHttpError(500, "NOTIFICATION_DISMISS_FAILED", "Failed to access notification", notificationError.message);
-  if (!notification) throw new AdminHttpError(404, "NOTIFICATION_NOT_FOUND", "Notification not found");
+  if (notificationError) throw new HttpError(500, "NOTIFICATION_DISMISS_FAILED", "Failed to access notification", notificationError.message);
+  if (!notification) throw new HttpError(404, "NOTIFICATION_NOT_FOUND", "Notification not found");
 
   const { error: stateError } = await repository.upsertDismissState({ notificationId: id, userId, readAt: nowIso, dismissedAt: nowIso });
-  if (stateError) throw new AdminHttpError(500, "NOTIFICATION_DISMISS_FAILED", "Failed to dismiss notification", stateError.message);
+  if (stateError) throw new HttpError(500, "NOTIFICATION_DISMISS_FAILED", "Failed to dismiss notification", stateError.message);
 
   return { ok: true };
 }

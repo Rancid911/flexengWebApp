@@ -99,7 +99,8 @@ export function createHomeworkAssignmentsRepository(client: HomeworkAssignmentsR
         .eq("homework_items.source_type", "test")
         .eq("homework_items.source_id", placementTestId)
         .order("created_at", { ascending: false })
-        .limit(1);
+        .limit(1)
+        .maybeSingle();
     },
 
     async listStudentDashboardActiveHomework(studentId: string) {

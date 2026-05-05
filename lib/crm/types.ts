@@ -1,5 +1,7 @@
 import type { CrmLeadStatus } from "@/lib/crm/stages";
 
+export type CrmLeadAudience = "child" | "adult";
+
 export type CrmLeadCardDto = {
   id: string;
   name: string;
@@ -9,6 +11,10 @@ export type CrmLeadCardDto = {
   form_type: string;
   page_url: string | null;
   comment: string | null;
+  metadata: Record<string, unknown>;
+  audience: CrmLeadAudience | null;
+  consentPersonalData: boolean | null;
+  consentMarketing: boolean | null;
   status: CrmLeadStatus;
   viewed_at: string | null;
   viewed_by: string | null;

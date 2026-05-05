@@ -7,7 +7,7 @@ function readRelationRecord<T extends Record<string, unknown>>(value: T | T[] | 
   return value ?? null;
 }
 
-export async function loadCourseModuleOptions(supabase: ReturnType<typeof createAdminClient>): Promise<CourseModuleOptionDto[]> {
+export async function loadCourseModuleOptions(supabase: ReturnType<typeof createAdminClient> = createAdminClient()): Promise<CourseModuleOptionDto[]> {
   const response = await supabase
     .from("course_modules")
     .select("id, title, is_published, courses(title)")
@@ -44,7 +44,7 @@ export async function loadCourseModuleOptions(supabase: ReturnType<typeof create
     });
 }
 
-export async function loadCourseOptions(supabase: ReturnType<typeof createAdminClient>): Promise<CourseOptionDto[]> {
+export async function loadCourseOptions(supabase: ReturnType<typeof createAdminClient> = createAdminClient()): Promise<CourseOptionDto[]> {
   const response = await supabase.from("courses").select("id, title, is_published").order("title", { ascending: true });
 
   if (response.error) {
@@ -71,13 +71,13 @@ export async function loadCourseOptions(supabase: ReturnType<typeof createAdminC
 }
 
 export async function createCourseModuleOption(
-  supabase: ReturnType<typeof createAdminClient>,
   input: {
     course_id: string;
     title: string;
     description?: string | null;
     is_published: boolean;
-  }
+  },
+  supabase: ReturnType<typeof createAdminClient> = createAdminClient()
 ): Promise<CourseModuleOptionDto> {
   const courseResponse = await supabase.from("courses").select("id, title").eq("id", input.course_id).maybeSingle();
   if (courseResponse.error) {

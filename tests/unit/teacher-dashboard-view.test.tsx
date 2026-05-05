@@ -86,6 +86,8 @@ function makeData(overrides: Partial<TeacherDashboardData> = {}): TeacherDashboa
       {
         studentId: "student-1",
         studentName: "Анна Иванова",
+        email: "anna@example.com",
+        phone: null,
         englishLevel: "A2",
         targetLevel: "B1",
         nextLessonAt: "2026-03-27T10:00:00.000Z",

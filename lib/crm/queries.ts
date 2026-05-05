@@ -15,15 +15,29 @@ import {
   updateCrmLeadStatusRow
 } from "@/lib/crm/leads.repository";
 import { loadCrmSettingsRow, upsertCrmSettingsRow } from "@/lib/crm/settings.repository";
-import type { CrmBoardDto, CrmLeadCardDto, CrmLeadCommentDto, CrmLeadDetailDto, CrmLeadHistoryDto, CrmSettingsDto } from "@/lib/crm/types";
+import type { CrmBoardDto, CrmLeadAudience, CrmLeadCardDto, CrmLeadCommentDto, CrmLeadDetailDto, CrmLeadHistoryDto, CrmSettingsDto } from "@/lib/crm/types";
 
 const DEFAULT_CRM_SETTINGS: CrmSettingsDto = {
   background_image_url: null,
   updated_at: null
 };
 
+function readCrmLeadMetadata(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function readCrmLeadAudience(metadata: Record<string, unknown>): CrmLeadAudience | null {
+  return metadata.audience === "child" || metadata.audience === "adult" ? metadata.audience : null;
+}
+
+function readOptionalBoolean(value: unknown) {
+  return typeof value === "boolean" ? value : null;
+}
+
 export function toCrmLeadCardDto(row: Record<string, unknown>): CrmLeadCardDto {
   const status = isCrmLeadStatus(row.status) ? row.status : CRM_DEFAULT_STATUS;
+  const metadata = readCrmLeadMetadata(row.metadata);
   return {
     id: String(row.id ?? ""),
     name: String(row.name ?? ""),
@@ -33,6 +47,10 @@ export function toCrmLeadCardDto(row: Record<string, unknown>): CrmLeadCardDto {
     form_type: String(row.form_type ?? ""),
     page_url: row.page_url == null ? null : String(row.page_url),
     comment: row.comment == null ? null : String(row.comment),
+    metadata,
+    audience: readCrmLeadAudience(metadata),
+    consentPersonalData: readOptionalBoolean(metadata.consent_personal_data),
+    consentMarketing: readOptionalBoolean(metadata.consent_marketing),
     status,
     viewed_at: row.viewed_at == null ? null : String(row.viewed_at),
     viewed_by: row.viewed_by == null ? null : String(row.viewed_by),
