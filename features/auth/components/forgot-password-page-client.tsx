@@ -6,8 +6,7 @@ import { FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { AuthRequestTimeoutError, runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
-import { createClient } from "@/lib/supabase/client";
+import { requestPasswordReset } from "@/features/auth/client/auth-api";
 import { mapUiErrorMessage } from "@/lib/ui-error-map";
 
 function mapAuthError(message: string) {
@@ -30,28 +29,13 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      const redirectTo = `${window.location.origin}/auth/confirm?next=/reset-password%3Fflow%3Drecovery`;
       const normalizedEmail = email.trim().toLowerCase();
-      const { error: resetError } = await runAuthRequestWithLockRetry(() =>
-        supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo })
-      );
-
-      if (resetError) {
-        console.error("FORGOT_PASSWORD_ERROR", resetError);
-        setError(mapAuthError(resetError.message || ""));
-        return;
-      }
+      await requestPasswordReset({ email: normalizedEmail });
 
       setMessage("Ссылка для восстановления отправлена на email.");
     } catch (submitError) {
-      if (submitError instanceof AuthRequestTimeoutError) {
-        console.error("FORGOT_PASSWORD_TIMEOUT", submitError);
-        setError("Истекло время ожидания. Попробуйте снова.");
-        return;
-      }
       console.error("FORGOT_PASSWORD_THROWN", submitError);
-      setError("Не удалось отправить ссылку. Попробуйте ещё раз.");
+      setError(mapAuthError(submitError instanceof Error ? submitError.message : ""));
     } finally {
       setLoading(false);
     }

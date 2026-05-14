@@ -20,6 +20,12 @@ function hasRawDbAccess(source) {
 }
 
 const apiPermissionExceptionReasons = new Map([
+  ["app/api/auth/login/route.ts", "public auth credential exchange endpoint"],
+  ["app/api/auth/signup/route.ts", "public auth registration endpoint"],
+  ["app/api/auth/logout/route.ts", "self auth session logout endpoint"],
+  ["app/api/auth/me/route.ts", "self auth session introspection endpoint"],
+  ["app/api/auth/password/reset-request/route.ts", "public auth password reset request endpoint"],
+  ["app/api/auth/password/update/route.ts", "auth recovery session password update endpoint"],
   ["app/api/blog/meta/route.ts", "public blog metadata read endpoint"],
   ["app/api/blog/posts/route.ts", "public blog posts read endpoint"],
   ["app/api/blog/posts/[slug]/route.ts", "public blog post detail read endpoint"],
@@ -116,20 +122,14 @@ for (const file of projectFiles.filter((item) => item.startsWith("lib/") && item
   }
 }
 
-const clientSupabaseAllowlist = new Set([
-  "features/auth/components/forgot-password-page-client.tsx",
-  "features/auth/components/login-page-client.tsx",
-  "features/auth/components/register-page-client.tsx",
-  "features/auth/components/reset-password-page-client.tsx",
-  "features/workspace-shell/client/use-dashboard-shell-state.ts"
-]);
+const clientSupabaseAllowlist = new Set([]);
 
 for (const file of projectFiles.filter((item) => /^(app|components|features|hooks)\//.test(item) && /\.(ts|tsx)$/.test(item))) {
   const source = read(file);
   if (!source.includes("use client")) continue;
   const usesSupabaseClient = /@\/lib\/supabase\/(client|browser)/.test(source) || /\bcreateClient\s*\(/.test(source) || /(?<!Array)\.from\s*\(/.test(source) || /storage\.from\s*\(/.test(source);
   if (usesSupabaseClient && !clientSupabaseAllowlist.has(file)) {
-    fail(file, "client UI uses Supabase/raw DB access outside the explicit browser auth/logout allowlist");
+    fail(file, "client UI uses Supabase/raw DB access; use same-origin API/service boundaries instead");
   }
 }
 

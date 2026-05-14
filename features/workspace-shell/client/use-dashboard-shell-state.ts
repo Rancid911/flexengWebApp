@@ -16,10 +16,9 @@ import {
   SIDEBAR_COLLAPSED_PERSISTENCE_KEY,
   serializeSidebarCollapsed
 } from "@/lib/dashboard/sidebar-persistence";
+import { logoutCurrentSession } from "@/features/auth/client/auth-api";
 import type { UserRole } from "@/lib/auth/get-user-role";
 import { clearRuntimeCache } from "@/lib/session-runtime-cache";
-import { runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
-import { createClient } from "@/lib/supabase/client";
 
 export type WorkspaceLayoutProfile = {
   userId: string;
@@ -227,8 +226,6 @@ export function useDashboardLogout(currentUserId: string | null, router: Dashboa
     if (isLoggingOut) return;
     await runLogout({
       action: async () => {
-        const supabase = createClient();
-
         if (currentUserId) {
           clearDashboardCache(profileCacheKey(currentUserId));
           clearDashboardCache(homeCacheKey(currentUserId));
@@ -237,12 +234,10 @@ export function useDashboardLogout(currentUserId: string | null, router: Dashboa
           clearRuntimeCache(notificationsSummaryRuntimeKey(currentUserId));
         }
 
-        const { error } = await runAuthRequestWithLockRetry(() => supabase.auth.signOut({ scope: "local" }), {
-          timeoutMs: 6000,
-          retries: 1
-        });
-        if (error) {
-          console.error("SIGNOUT_ERROR", error);
+        try {
+          await logoutCurrentSession();
+        } catch (logoutError) {
+          console.error("SIGNOUT_ERROR", logoutError);
         }
       },
       onError: (logoutError) => {

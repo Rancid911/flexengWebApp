@@ -7,8 +7,7 @@ import { FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { AuthRequestTimeoutError, runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
-import { createClient } from "@/lib/supabase/client";
+import { registerWithPassword } from "@/features/auth/client/auth-api";
 import { mapUiErrorMessage } from "@/lib/ui-error-map";
 
 function mapAuthError(message: string) {
@@ -33,23 +32,11 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
       const normalizedEmail = email.trim().toLowerCase();
-      const { data, error: signUpError } = await runAuthRequestWithLockRetry(() =>
-        supabase.auth.signUp({
-          email: normalizedEmail,
-          password
-        })
-      );
-
-      if (signUpError) {
-        console.error("REGISTER_ERROR", signUpError);
-        setError(mapAuthError(signUpError.message || ""));
-        return;
-      }
+      const data = await registerWithPassword({ email: normalizedEmail, password });
 
       // If email confirmation is disabled, Supabase returns a session immediately.
-      if (data.session) {
+      if (data.hasSession) {
         router.replace("/dashboard");
         router.refresh();
         return;
@@ -57,13 +44,8 @@ export default function RegisterPage() {
 
       setMessage("Проверьте email и подтвердите регистрацию, затем выполните вход.");
     } catch (submitError) {
-      if (submitError instanceof AuthRequestTimeoutError) {
-        console.error("REGISTER_TIMEOUT", submitError);
-        setError("Истекло время ожидания. Попробуйте снова.");
-        return;
-      }
       console.error("REGISTER_THROWN", submitError);
-      setError("Не удалось выполнить регистрацию. Попробуйте снова.");
+      setError(mapAuthError(submitError instanceof Error ? submitError.message : ""));
     } finally {
       setLoading(false);
     }

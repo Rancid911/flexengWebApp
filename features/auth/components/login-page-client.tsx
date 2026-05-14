@@ -7,8 +7,7 @@ import { FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { AuthRequestTimeoutError, runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
-import { createClient } from "@/lib/supabase/client";
+import { loginWithPassword } from "@/features/auth/client/auth-api";
 import { mapUiErrorMessage } from "@/lib/ui-error-map";
 
 function mapAuthError(message: string) {
@@ -33,31 +32,14 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
       const normalizedEmail = email.trim().toLowerCase();
-      const { error: signInError } = await runAuthRequestWithLockRetry(() =>
-        supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password
-        })
-      );
-
-      if (signInError) {
-        console.error("LOGIN_ERROR", signInError);
-        setError(mapAuthError(signInError.message || ""));
-        return;
-      }
+      await loginWithPassword({ email: normalizedEmail, password });
 
       router.replace("/dashboard");
       router.refresh();
     } catch (submitError) {
-      if (submitError instanceof AuthRequestTimeoutError) {
-        console.error("LOGIN_TIMEOUT", submitError);
-        setError("Истекло время ожидания. Попробуйте снова.");
-        return;
-      }
       console.error("LOGIN_THROWN", submitError);
-      setError("Не удалось выполнить вход. Попробуйте снова.");
+      setError(mapAuthError(submitError instanceof Error ? submitError.message : ""));
     } finally {
       setLoading(false);
     }

@@ -7,8 +7,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { AuthRequestTimeoutError, runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
-import { createClient } from "@/lib/supabase/client";
+import { getCurrentAuthUser, updatePassword } from "@/features/auth/client/auth-api";
 import { mapUiErrorMessage } from "@/lib/ui-error-map";
 
 export default function ResetPasswordPage() {
@@ -27,17 +26,16 @@ export default function ResetPasswordPage() {
     const flow = query.get("flow");
     const flowFromLink = flow === "recovery";
 
-    const supabase = createClient();
-    runAuthRequestWithLockRetry(() => supabase.auth.getUser())
-      .then(({ data }) => {
-        if (!data.user) {
-          setError("Сессия восстановления не найдена. Откройте ссылку из письма ещё раз.");
-        } else {
-          if (!flowFromLink) {
-            console.warn("Reset password page opened without flow=recovery, but session is valid.");
-          }
-          setReady(true);
+    getCurrentAuthUser()
+      .then(({ user }) => {
+        if (!flowFromLink) {
+          console.warn("Reset password page opened without flow=recovery, but session is valid.");
         }
+        if (!user) {
+          setError("Сессия восстановления не найдена. Откройте ссылку из письма ещё раз.");
+          return;
+        }
+        setReady(true);
       })
       .catch((authError) => {
         console.error("RESET_PASSWORD_GET_USER_ERROR", authError);
@@ -62,24 +60,13 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { error: updateError } = await runAuthRequestWithLockRetry(() => supabase.auth.updateUser({ password }));
-      if (updateError) {
-        console.error("RESET_PASSWORD_ERROR", updateError);
-        setError(mapUiErrorMessage(updateError.message, "Не удалось обновить пароль. Запросите новую ссылку восстановления."));
-        return;
-      }
+      await updatePassword({ password });
 
       setMessage("Пароль обновлён. Сейчас перенаправим на вход.");
       setTimeout(() => router.replace("/login"), 1200);
     } catch (submitError) {
-      if (submitError instanceof AuthRequestTimeoutError) {
-        console.error("RESET_PASSWORD_TIMEOUT", submitError);
-        setError("Истекло время ожидания. Попробуйте снова.");
-        return;
-      }
       console.error("RESET_PASSWORD_THROWN", submitError);
-      setError("Не удалось обновить пароль. Запросите новую ссылку восстановления.");
+      setError(mapUiErrorMessage(submitError instanceof Error ? submitError.message : "", "Не удалось обновить пароль. Запросите новую ссылку восстановления."));
     } finally {
       setLoading(false);
     }
