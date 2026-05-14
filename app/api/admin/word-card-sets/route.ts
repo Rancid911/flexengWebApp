@@ -4,15 +4,18 @@ import { requireStaffAdminApi } from "@/lib/admin/auth";
 import { AdminHttpError, parsePagination, withAdminErrorHandling } from "@/lib/admin/http";
 import { createAdminWordCardSet, listAdminWordCardSets } from "@/lib/admin/word-card-sets.service";
 import { adminWordCardSetCreateSchema } from "@/lib/admin/validation";
+import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async (request: NextRequest) => {
-  await requireStaffAdminApi();
+  const actor = await requireStaffAdminApi();
+  requirePermission(actor, "words.cardSets.manage");
   const result = await listAdminWordCardSets(parsePagination(new URL(request.url)));
   return NextResponse.json(result);
 });
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
+  requirePermission(actor, "words.cardSets.manage");
   const body = await request.json();
   const parsed = adminWordCardSetCreateSchema.safeParse(body);
   if (!parsed.success) throw new AdminHttpError(400, "VALIDATION_ERROR", "Invalid word card set payload", parsed.error.flatten());

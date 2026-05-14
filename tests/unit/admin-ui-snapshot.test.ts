@@ -5,7 +5,7 @@ import {
   resetAdminUiRuntimeSnapshot,
   readAdminUiSessionSnapshot,
   type AdminUiSnapshot
-} from "@/app/(workspace)/(staff-zone)/admin/ui/admin-ui-snapshot";
+} from "@/features/admin/components/admin-console/admin-ui-snapshot";
 
 const validSnapshot: AdminUiSnapshot = {
   fetchedAt: Date.now(),

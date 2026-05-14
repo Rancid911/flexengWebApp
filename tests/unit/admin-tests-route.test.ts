@@ -90,6 +90,16 @@ function buildCreatePayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
+async function expectForbidden(response: Response) {
+  expect(response.status).toBe(403);
+  expect(await response.json()).toMatchObject({
+    code: "FORBIDDEN",
+    message: "Permission denied"
+  });
+  expect(createAdminClientMock).not.toHaveBeenCalled();
+  expect(writeAuditMock).not.toHaveBeenCalled();
+}
+
 describe("/api/admin/tests", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -114,6 +124,30 @@ describe("/api/admin/tests", () => {
     expect(response.status).toBe(400);
     const payload = await response.json();
     expect(payload.details.fieldErrors.module_id).toContain("module_id is required for trainer");
+  });
+
+  it("rejects list access without the learning tests permission", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+
+    const { GET } = await import("@/app/api/admin/tests/route");
+    const response = await GET(new NextRequest("http://localhost/api/admin/tests?page=1"));
+
+    await expectForbidden(response);
+  });
+
+  it("rejects create access without the learning tests permission", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+
+    const { POST } = await import("@/app/api/admin/tests/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/admin/tests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildCreatePayload())
+      })
+    );
+
+    await expectForbidden(response);
   });
 
   it("returns a field validation error when a final test is missing module_id", async () => {
@@ -318,6 +352,46 @@ describe("/api/admin/tests/[id]", () => {
     expect(payload.has_attempts).toBe(true);
     expect(payload.questions).toHaveLength(1);
     expect(payload.questions[0]?.options).toHaveLength(4);
+  });
+
+  it("rejects detail access without the learning tests permission", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+
+    const { GET } = await import("@/app/api/admin/tests/[id]/route");
+    const response = await GET(new NextRequest("http://localhost/api/admin/tests/test-1"), {
+      params: Promise.resolve({ id: "test-1" })
+    });
+
+    await expectForbidden(response);
+  });
+
+  it("rejects update access without the learning tests permission", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+
+    const { PATCH } = await import("@/app/api/admin/tests/[id]/route");
+    const response = await PATCH(
+      new NextRequest("http://localhost/api/admin/tests/test-1", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ time_limit_minutes: 25 })
+      }),
+      {
+        params: Promise.resolve({ id: "test-1" })
+      }
+    );
+
+    await expectForbidden(response);
+  });
+
+  it("rejects delete access without the learning tests permission", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+
+    const { DELETE } = await import("@/app/api/admin/tests/[id]/route");
+    const response = await DELETE(new NextRequest("http://localhost/api/admin/tests/test-1", { method: "DELETE" }), {
+      params: Promise.resolve({ id: "test-1" })
+    });
+
+    await expectForbidden(response);
   });
 
   it("blocks question deletion for a test that already has attempts", async () => {

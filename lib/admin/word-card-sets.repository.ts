@@ -1,4 +1,4 @@
-import { WORD_CARD_SET_DETAIL_SELECT } from "@/lib/admin/word-card-sets";
+import { WORD_CARD_SET_BASE_SELECT, WORD_CARD_SET_DETAIL_SELECT } from "@/lib/admin/word-card-sets";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AdminWordCardSetRepositoryClient = ReturnType<typeof createAdminClient>;
@@ -12,7 +12,7 @@ export function createAdminWordCardSetRepository(client: AdminWordCardSetReposit
     async list({ from, to, q }: { from: number; to: number; q?: string }) {
       let query = client
         .from("word_card_sets")
-        .select("*, word_card_items(id)", { count: "exact" })
+        .select(`${WORD_CARD_SET_BASE_SELECT}, word_card_items(id)`, { count: "exact" })
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: false })
         .range(from, to);
@@ -27,7 +27,7 @@ export function createAdminWordCardSetRepository(client: AdminWordCardSetReposit
     async listMaterials(q?: string) {
       let query = client
         .from("word_card_sets")
-        .select("*, word_card_items(id)")
+        .select(`${WORD_CARD_SET_BASE_SELECT}, word_card_items(id)`)
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: false });
 
@@ -43,11 +43,11 @@ export function createAdminWordCardSetRepository(client: AdminWordCardSetReposit
     },
 
     async loadRaw(id: string) {
-      return await client.from("word_card_sets").select("*").eq("id", id).single();
+      return await client.from("word_card_sets").select(WORD_CARD_SET_BASE_SELECT).eq("id", id).single();
     },
 
     async createSet(payload: Record<string, unknown>) {
-      return await client.from("word_card_sets").insert(payload).select("*").single();
+      return await client.from("word_card_sets").insert(payload).select(WORD_CARD_SET_BASE_SELECT).single();
     },
 
     async updateSet(id: string, patch: Record<string, unknown>) {

@@ -4,7 +4,7 @@ import StudentDashboardPage from "@/app/(workspace)/(student-zone)/student-dashb
 
 const renderStudentDashboardRouteMock = vi.fn();
 
-vi.mock("@/app/(workspace)/_components/student-dashboard-route", () => ({
+vi.mock("@/features/dashboard/server/student-dashboard-route", () => ({
   renderStudentDashboardRoute: (...args: unknown[]) => renderStudentDashboardRouteMock(...args)
 }));
 

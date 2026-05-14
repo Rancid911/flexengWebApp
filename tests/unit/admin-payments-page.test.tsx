@@ -15,7 +15,7 @@ vi.mock("@/lib/admin/payments-control", () => ({
   getAdminPaymentReminderSettings: () => getAdminPaymentReminderSettingsMock()
 }));
 
-vi.mock("@/app/(workspace)/(staff-zone)/admin/payments/payments-control-client", () => ({
+vi.mock("@/features/billing/components/admin-payments-control-client", () => ({
   AdminPaymentsControlClient: (props: { initialData: unknown; initialSettings: unknown }) => (
     <div data-testid="admin-payments-control-probe">{JSON.stringify(props)}</div>
   )

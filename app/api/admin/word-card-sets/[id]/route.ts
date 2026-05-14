@@ -4,15 +4,18 @@ import { requireStaffAdminApi } from "@/lib/admin/auth";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { deleteAdminWordCardSet, getAdminWordCardSet, updateAdminWordCardSet } from "@/lib/admin/word-card-sets.service";
 import { adminWordCardSetUpdateSchema } from "@/lib/admin/validation";
+import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-  await requireStaffAdminApi();
+  const actor = await requireStaffAdminApi();
+  requirePermission(actor, "words.cardSets.manage");
   const { id } = await params;
   return NextResponse.json(await getAdminWordCardSet(id));
 });
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
+  requirePermission(actor, "words.cardSets.manage");
   const { id } = await params;
   const body = await request.json();
   const parsed = adminWordCardSetUpdateSchema.safeParse(body);
@@ -23,6 +26,7 @@ export const PATCH = withAdminErrorHandling(async (request: NextRequest, { param
 
 export const DELETE = withAdminErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
+  requirePermission(actor, "words.cardSets.manage");
   const { id } = await params;
   return NextResponse.json(await deleteAdminWordCardSet(actor, id));
 });

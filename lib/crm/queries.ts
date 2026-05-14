@@ -15,12 +15,23 @@ import {
   updateCrmLeadStatusRow
 } from "@/lib/crm/leads.repository";
 import { loadCrmSettingsRow, upsertCrmSettingsRow } from "@/lib/crm/settings.repository";
-import type { CrmBoardDto, CrmLeadAudience, CrmLeadCardDto, CrmLeadCommentDto, CrmLeadDetailDto, CrmLeadHistoryDto, CrmSettingsDto } from "@/lib/crm/types";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type {
+  CrmBackgroundUploadResponse,
+  CrmBoardDto,
+  CrmLeadAudience,
+  CrmLeadCardDto,
+  CrmLeadCommentDto,
+  CrmLeadDetailDto,
+  CrmLeadHistoryDto,
+  CrmSettingsDto
+} from "@/lib/crm/types";
 
 const DEFAULT_CRM_SETTINGS: CrmSettingsDto = {
   background_image_url: null,
   updated_at: null
 };
+const CRM_ASSETS_BUCKET = "crm-assets";
 
 function readCrmLeadMetadata(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -141,6 +152,27 @@ export async function updateCrmSettings(actor: AdminActor, payload: { background
   return {
     background_image_url: data.background_image_url ?? null,
     updated_at: data.updated_at ?? null
+  };
+}
+
+function getUploadedBackgroundPath(fileName: string) {
+  const extension = fileName.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  return `background/crm-board-${Date.now()}.${extension}`;
+}
+
+export async function uploadCrmBackgroundImage(file: Blob & { name?: string; type: string }): Promise<CrmBackgroundUploadResponse> {
+  const supabase = createAdminClient();
+  const path = getUploadedBackgroundPath(file.name ?? "background.jpg");
+  const { error: uploadError } = await supabase.storage.from(CRM_ASSETS_BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    contentType: file.type,
+    upsert: true
+  });
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from(CRM_ASSETS_BUCKET).getPublicUrl(path);
+  return {
+    publicUrl: `${data.publicUrl}?v=${Date.now()}`
   };
 }
 

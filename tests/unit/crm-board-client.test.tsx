@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CrmBoardClient } from "@/app/(workspace)/(staff-zone)/crm/crm-board-client";
+import { CrmBoardClient } from "@/features/crm/components/crm-board-client";
+import { CrmBackgroundContext } from "@/features/workspace-shell/client/crm-background-context";
 import { CRM_STAGES } from "@/lib/crm/stages";
 import type { CrmBoardDto, CrmLeadDetailDto, CrmSettingsDto } from "@/lib/crm/types";
 
@@ -228,13 +229,43 @@ describe("CrmBoardClient", () => {
     expect(screen.getByTestId("crm-board-root").style.backgroundImage).not.toContain("linear-gradient");
   });
 
+  it("announces the initial CRM background to the workspace shell", async () => {
+    const eventSpy = vi.fn();
+    window.addEventListener("crm:background-image-change", eventSpy);
+
+    render(<CrmBoardClient initialBoard={board} initialSettings={crmSettings} />);
+
+    await waitFor(() => expect(eventSpy).toHaveBeenCalledTimes(1));
+    expect(eventSpy.mock.calls[0]?.[0]).toMatchObject({
+      detail: { backgroundImageUrl: "https://example.com/crm-bg.jpg" }
+    });
+    window.removeEventListener("crm:background-image-change", eventSpy);
+  });
+
+  it("publishes the initial CRM background through the shell context", async () => {
+    const setCrmBackgroundImageUrl = vi.fn();
+
+    render(
+      <CrmBackgroundContext.Provider value={{ setCrmBackgroundImageUrl }}>
+        <CrmBoardClient initialBoard={board} initialSettings={crmSettings} />
+      </CrmBackgroundContext.Provider>
+    );
+
+    await waitFor(() => expect(setCrmBackgroundImageUrl).toHaveBeenCalledWith("https://example.com/crm-bg.jpg"));
+  });
+
   it("clears CRM background through settings drawer", async () => {
+    const setCrmBackgroundImageUrl = vi.fn();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({ background_image_url: null, updated_at: "2026-04-24T12:00:00.000Z" })
     } as Response);
 
-    render(<CrmBoardClient initialBoard={board} initialSettings={crmSettings} />);
+    render(
+      <CrmBackgroundContext.Provider value={{ setCrmBackgroundImageUrl }}>
+        <CrmBoardClient initialBoard={board} initialSettings={crmSettings} />
+      </CrmBackgroundContext.Provider>
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Настройки CRM" }));
     fireEvent.click(screen.getByRole("button", { name: "Удалить фон" }));
@@ -248,6 +279,35 @@ describe("CrmBoardClient", () => {
       })
     );
     expect(screen.getByTestId("crm-board-root").style.backgroundImage).toBe("");
+    expect(setCrmBackgroundImageUrl).toHaveBeenCalledWith(null);
+  });
+
+  it("uploads CRM background through settings API before saving", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ publicUrl: "https://example.com/new-crm-bg.jpg?v=123" })
+    } as Response);
+
+    render(<CrmBoardClient initialBoard={board} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Настройки CRM" }));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["image"], "crm-bg.jpg", { type: "image/jpeg" })]
+      }
+    });
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Фото загружено. Сохраните настройки, чтобы применить фон."));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/crm/settings/background",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(FormData)
+      })
+    );
+    const body = fetchMock.mock.calls[0]?.[1]?.body as FormData;
+    expect(body.get("file")).toBeInstanceOf(File);
   });
 
   it("opens lead details with history and comments", async () => {

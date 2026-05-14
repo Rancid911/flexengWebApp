@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { requirePermission } from "@/lib/permissions";
 import { getScheduleFilterCatalog } from "@/lib/schedule/queries";
 import { requireScheduleApi } from "@/lib/schedule/server";
 import { withScheduleErrorHandling } from "@/lib/schedule/http";
@@ -15,6 +16,7 @@ function parseEntity(value: string | null): ScheduleFilterCatalogEntity {
 
 export const GET = withScheduleErrorHandling(async (request: NextRequest) => {
   const actor = await requireScheduleApi();
+  requirePermission(actor, "schedule.lessons.read");
   const searchParams = request.nextUrl.searchParams;
   const entity = parseEntity(searchParams.get("entity"));
   const search = searchParams.get("q");

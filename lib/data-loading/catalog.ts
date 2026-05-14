@@ -70,7 +70,7 @@ import {
 
 const SETTINGS_PROFILE_DATA_LOADING = defineDataLoadingDescriptor({
   id: "settings-profile",
-  owner: "@/app/(workspace)/(shared-zone)/settings/profile/page#ProfileSettingsPage",
+  owner: "@/features/settings/components/settings-client#SettingsClient",
   accessMode: "user_scoped",
   loadLevel: "page",
   shape: "detail",
@@ -81,7 +81,7 @@ const SETTINGS_PROFILE_DATA_LOADING = defineDataLoadingDescriptor({
 
 const ADMIN_CONSOLE_DATA_LOADING = defineDataLoadingDescriptor({
   id: "admin-console",
-  owner: "@/app/(workspace)/(staff-zone)/admin/page#AdminPage",
+  owner: "@/features/admin/components/admin-console/admin-console#AdminConsole",
   accessMode: "privileged",
   loadLevel: "page",
   shape: "aggregate",
@@ -92,7 +92,7 @@ const ADMIN_CONSOLE_DATA_LOADING = defineDataLoadingDescriptor({
 
 const SEARCH_PAGE_DATA_LOADING = defineDataLoadingDescriptor({
   id: "search-page",
-  owner: "@/app/(workspace)/(search-zone)/search/page#SearchPage",
+  owner: "@/features/search/server/search-route#renderSearchRoute",
   accessMode: "aggregate",
   loadLevel: "page",
   shape: "list",
@@ -102,7 +102,7 @@ const SEARCH_PAGE_DATA_LOADING = defineDataLoadingDescriptor({
 
 const STUDENT_DASHBOARD_ENTRY_DATA_LOADING = defineDataLoadingDescriptor({
   id: "student-dashboard-entry",
-  owner: "@/app/(workspace)/(student-zone)/student-dashboard/page#AdminStudentDashboardPage",
+  owner: "@/features/dashboard/server/student-dashboard-route#renderStudentDashboardRoute",
   accessMode: "user_scoped",
   loadLevel: "page",
   shape: "summary",

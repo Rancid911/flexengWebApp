@@ -1,31 +1,31 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  adminActiveTabClassName,
-  adminInactiveTabClassName,
-  adminPrimaryButtonClassName
-} from "@/app/(workspace)/(staff-zone)/admin/ui/admin-button-tokens";
+  workspaceActiveTabClassName,
+  workspaceInactiveTabClassName,
+  workspacePrimaryButtonClassName
+} from "@/shared/constants/workspace-button-tokens";
 
-describe("adminPrimaryButtonClassName", () => {
+describe("workspacePrimaryButtonClassName", () => {
   it("matches the schedule primary button colors", () => {
-    expect(adminPrimaryButtonClassName).toContain("bg-[#1f7aff]");
-    expect(adminPrimaryButtonClassName).toContain("hover:bg-[#1669db]");
-    expect(adminPrimaryButtonClassName).toContain("text-white");
-    expect(adminPrimaryButtonClassName).toContain("font-black");
+    expect(workspacePrimaryButtonClassName).toContain("bg-[#1f7aff]");
+    expect(workspacePrimaryButtonClassName).toContain("hover:bg-[#1669db]");
+    expect(workspacePrimaryButtonClassName).toContain("text-white");
+    expect(workspacePrimaryButtonClassName).toContain("font-black");
   });
 });
 
-describe("admin tab color tokens", () => {
+describe("workspace tab color tokens", () => {
   it("uses the soft blue active state", () => {
-    expect(adminActiveTabClassName).toContain("bg-[#eaf3ff]");
-    expect(adminActiveTabClassName).toContain("text-[#1669db]");
-    expect(adminActiveTabClassName).toContain("border-[#b8d4ff]");
-    expect(adminActiveTabClassName).toContain("hover:bg-[#deedff]");
+    expect(workspaceActiveTabClassName).toContain("bg-[#eaf3ff]");
+    expect(workspaceActiveTabClassName).toContain("text-[#1669db]");
+    expect(workspaceActiveTabClassName).toContain("border-[#b8d4ff]");
+    expect(workspaceActiveTabClassName).toContain("hover:bg-[#deedff]");
   });
 
   it("keeps inactive tabs neutral", () => {
-    expect(adminInactiveTabClassName).toContain("bg-slate-100");
-    expect(adminInactiveTabClassName).toContain("text-slate-700");
-    expect(adminInactiveTabClassName).toContain("hover:bg-slate-200");
+    expect(workspaceInactiveTabClassName).toContain("bg-slate-100");
+    expect(workspaceInactiveTabClassName).toContain("text-slate-700");
+    expect(workspaceInactiveTabClassName).toContain("hover:bg-slate-200");
   });
 });

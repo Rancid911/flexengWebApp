@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { useDashboardShellOverlays } from "@/app/(workspace)/use-dashboard-shell-state";
+import { useDashboardShellOverlays } from "@/features/workspace-shell/client/use-dashboard-shell-state";
 
 describe("useDashboardShellOverlays", () => {
   it("moves focus to mobile more close button on open and restores it to the trigger on keyboard close", async () => {

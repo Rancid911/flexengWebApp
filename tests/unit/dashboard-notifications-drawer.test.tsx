@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { DashboardNotificationsDrawer } from "@/app/(workspace)/dashboard-notifications-drawer";
+import { DashboardNotificationsDrawer } from "@/features/workspace-shell/components/dashboard-notifications-drawer";
 import type { UserNotificationDto } from "@/lib/admin/types";
 
 function makeNotification(overrides: Partial<UserNotificationDto> = {}): UserNotificationDto {

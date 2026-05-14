@@ -1,7 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export const TEST_BASE_SELECT =
+  "id, lesson_id, module_id, activity_type, assessment_kind, title, description, cefr_level, drill_topic_key, drill_kind, scoring_profile, lesson_reinforcement, sort_order, passing_score, time_limit_minutes, is_published, created_at, updated_at";
+
 export const TEST_DETAIL_SELECT =
-  "*, test_questions(id, prompt, explanation, question_type, placement_band, sort_order, test_question_options(id, option_text, is_correct, sort_order))";
+  `${TEST_BASE_SELECT}, test_questions(id, prompt, explanation, question_type, placement_band, sort_order, test_question_options(id, option_text, is_correct, sort_order))`;
 
 export type AdminTestRepositoryClient = ReturnType<typeof createAdminClient>;
 
@@ -10,7 +13,7 @@ export function createAdminTestRepository(client: AdminTestRepositoryClient = cr
     async list(q?: string) {
       let query = client
         .from("tests")
-        .select("*")
+        .select(TEST_BASE_SELECT)
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: false });
 
@@ -32,7 +35,7 @@ export function createAdminTestRepository(client: AdminTestRepositoryClient = cr
     },
 
     async loadRaw(id: string) {
-      return await client.from("tests").select("*").eq("id", id).single();
+      return await client.from("tests").select(TEST_BASE_SELECT).eq("id", id).single();
     },
 
     async hasAttempts(testId: string) {
@@ -40,7 +43,7 @@ export function createAdminTestRepository(client: AdminTestRepositoryClient = cr
     },
 
     async createTest(payload: Record<string, unknown>) {
-      return await client.from("tests").insert(payload).select("*").single();
+      return await client.from("tests").insert(payload).select(TEST_BASE_SELECT).single();
     },
 
     async updateTest(id: string, patch: Record<string, unknown>) {

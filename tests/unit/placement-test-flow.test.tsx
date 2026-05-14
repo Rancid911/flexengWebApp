@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PlacementTestFlow } from "@/app/(workspace)/(shared-zone)/practice/activity/[activityId]/placement-test-flow";
+import { PlacementTestFlow } from "@/features/practice/components/placement-test-flow";
 import type { PracticeTestActivityDetail } from "@/lib/practice/queries";
 
 vi.mock("next/navigation", () => ({

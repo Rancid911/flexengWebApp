@@ -2,10 +2,10 @@ import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { StudentProfileView } from "@/app/(workspace)/_components/student-profile/student-profile-view";
+import { StudentProfileView } from "@/features/students/components/student-profile-view";
 import type { TeacherStudentProfileSections } from "@/lib/teacher-workspace/sections";
 
-vi.mock("@/app/(workspace)/(teacher-zone)/students/[studentId]/teacher-student-profile-client", () => ({
+vi.mock("@/features/teacher-workspace/components/teacher-student-profile-client", () => ({
   TeacherStudentProfileClient: (props: {
     detailBasePath: string;
     lessonsSlot?: ReactNode;

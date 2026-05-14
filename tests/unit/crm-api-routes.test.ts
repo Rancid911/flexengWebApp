@@ -12,6 +12,7 @@ const createCrmLeadCommentMock = vi.fn();
 const deleteCrmLeadMock = vi.fn();
 const loadCrmSettingsMock = vi.fn();
 const updateCrmSettingsMock = vi.fn();
+const uploadCrmBackgroundImageMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
   requireStaffAdminApi: () => requireStaffAdminApiMock()
@@ -25,7 +26,8 @@ vi.mock("@/lib/crm/queries", () => ({
   createCrmLeadComment: (...args: unknown[]) => createCrmLeadCommentMock(...args),
   deleteCrmLead: (...args: unknown[]) => deleteCrmLeadMock(...args),
   loadCrmSettings: (...args: unknown[]) => loadCrmSettingsMock(...args),
-  updateCrmSettings: (...args: unknown[]) => updateCrmSettingsMock(...args)
+  updateCrmSettings: (...args: unknown[]) => updateCrmSettingsMock(...args),
+  uploadCrmBackgroundImage: (...args: unknown[]) => uploadCrmBackgroundImageMock(...args)
 }));
 
 describe("CRM protected API routes", () => {
@@ -40,6 +42,7 @@ describe("CRM protected API routes", () => {
     deleteCrmLeadMock.mockReset();
     loadCrmSettingsMock.mockReset();
     updateCrmSettingsMock.mockReset();
+    uploadCrmBackgroundImageMock.mockReset();
   });
 
   it("returns unread CRM summary for staff users", async () => {
@@ -114,6 +117,67 @@ describe("CRM protected API routes", () => {
 
     expect(response.status).toBe(400);
     expect(updateCrmSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it("uploads CRM background image after settings update permission check", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    uploadCrmBackgroundImageMock.mockResolvedValue({ publicUrl: "https://example.com/crm-bg.jpg?v=123" });
+    const formData = new URLSearchParams();
+    formData.set("file", "image");
+
+    const { POST } = await import("@/app/api/crm/settings/background/route");
+    const response = await POST(
+      new Request("http://localhost/api/crm/settings/background", {
+        method: "POST",
+        body: formData
+      }) as NextRequest
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ publicUrl: "https://example.com/crm-bg.jpg?v=123" });
+    expect(uploadCrmBackgroundImageMock).toHaveBeenCalledWith(expect.objectContaining({ type: "image/jpeg" }));
+  });
+
+  it("does not upload CRM background without settings update permission", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    const formData = new FormData();
+    formData.set("file", new File(["image"], "crm-bg.jpg", { type: "image/jpeg" }));
+
+    const { POST } = await import("@/app/api/crm/settings/background/route");
+    const response = await POST(
+      new Request("http://localhost/api/crm/settings/background", {
+        method: "POST",
+        body: formData
+      }) as NextRequest
+    );
+
+    expect(response.status).toBe(403);
+    expect(uploadCrmBackgroundImageMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects missing and non-image CRM background uploads", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+
+    const { POST } = await import("@/app/api/crm/settings/background/route");
+    const missingResponse = await POST(
+      new Request("http://localhost/api/crm/settings/background", {
+        method: "POST",
+        body: new FormData()
+      }) as NextRequest
+    );
+
+    const formData = new FormData();
+    formData.set("file", new File(["text"], "notes.txt", { type: "text/plain" }));
+    const textResponse = await POST(
+      new Request("http://localhost/api/crm/settings/background", {
+        method: "POST",
+        body: formData
+      }) as NextRequest
+    );
+
+    expect(missingResponse.status).toBe(400);
+    expect(textResponse.status).toBe(400);
+    expect(uploadCrmBackgroundImageMock).not.toHaveBeenCalled();
   });
 
   it("marks an unread lead as viewed when details are opened", async () => {

@@ -1,5 +1,5 @@
-import { WorkspaceShell } from "../workspace-shell.server";
-import { resolveWorkspaceShellOptions } from "../workspace-shell-options";
+import { WorkspaceShell } from "@/features/workspace-shell/server/workspace-shell.server";
+import { resolveWorkspaceShellOptions } from "@/features/workspace-shell/server/workspace-shell-options";
 
 export default async function SearchZoneLayout({ children }: { children: React.ReactNode }) {
   const shellOptions = resolveWorkspaceShellOptions({

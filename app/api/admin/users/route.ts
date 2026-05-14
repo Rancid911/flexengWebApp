@@ -6,9 +6,11 @@ import { createAdminUser } from "@/lib/admin/user-service";
 import { listAdminUsers } from "@/lib/admin/user-directory";
 import { adminUserCreateSchema } from "@/lib/admin/validation";
 import type { AdminUserRole } from "@/lib/admin/types";
+import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async (request: NextRequest) => {
-  await requireStaffAdminApi();
+  const actor = await requireStaffAdminApi();
+  requirePermission(actor, "admin.users.read");
   const requestUrl = new URL(request.url);
   const { page, pageSize, q } = parsePagination(requestUrl);
   const roleParam = (requestUrl.searchParams.get("role") ?? "all").trim().toLowerCase();
@@ -22,6 +24,7 @@ export const GET = withAdminErrorHandling(async (request: NextRequest) => {
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
+  requirePermission(actor, "admin.users.create");
   const body = await request.json();
   const parsed = adminUserCreateSchema.safeParse(body);
   if (!parsed.success) throw new AdminHttpError(400, "VALIDATION_ERROR", "Invalid user payload", parsed.error.flatten());

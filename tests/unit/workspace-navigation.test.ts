@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getActiveWorkspaceNavItemId, getWorkspaceNavConfig, isWorkspaceNavItemActive } from "@/app/(workspace)/workspace-navigation";
+import { getActiveWorkspaceNavItemId, getWorkspaceNavConfig, isWorkspaceNavItemActive } from "@/features/workspace-shell/model/workspace-navigation";
 
 describe("getWorkspaceNavConfig", () => {
   it("returns staff navigation for staff shell", () => {

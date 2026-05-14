@@ -3,6 +3,11 @@ import { NextRequest } from "next/server";
 
 const getStudentPaymentsMock = vi.fn();
 const getCurrentStudentBillingSummaryMock = vi.fn();
+const getAppActorMock = vi.fn();
+
+vi.mock("@/lib/auth/request-context", () => ({
+  getAppActor: () => getAppActorMock()
+}));
 
 vi.mock("@/lib/payments/queries", () => ({
   getStudentPayments: (...args: unknown[]) => getStudentPaymentsMock(...args)
@@ -14,6 +19,8 @@ vi.mock("@/lib/billing/server", () => ({
 
 describe("/api/payments GET", () => {
   beforeEach(() => {
+    getAppActorMock.mockReset();
+    getAppActorMock.mockResolvedValue({ userId: "student-profile-1", role: "student", isStudent: true });
     getStudentPaymentsMock.mockReset();
     getCurrentStudentBillingSummaryMock.mockReset();
   });
@@ -62,5 +69,29 @@ describe("/api/payments GET", () => {
       payments: [],
       billingSummary: { studentId: "student-1" }
     });
+  });
+
+  it("returns 401 for unauthenticated actors before loading payments", async () => {
+    getAppActorMock.mockResolvedValue(null);
+
+    const { GET } = await import("@/app/api/payments/route");
+    const response = await GET(new NextRequest("http://localhost/api/payments"));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(getStudentPaymentsMock).not.toHaveBeenCalled();
+    expect(getCurrentStudentBillingSummaryMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 for non-student actors before loading payments", async () => {
+    getAppActorMock.mockResolvedValue({ userId: "manager-1", role: "manager", isStaffAdmin: true });
+
+    const { GET } = await import("@/app/api/payments/route");
+    const response = await GET(new NextRequest("http://localhost/api/payments"));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN" });
+    expect(getStudentPaymentsMock).not.toHaveBeenCalled();
+    expect(getCurrentStudentBillingSummaryMock).not.toHaveBeenCalled();
   });
 });

@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { MainHeader } from "@/app/main/main-header";
-import { sitePrimaryNavItems } from "@/app/main/site-navigation";
+import { MainHeader } from "@/features/marketing/components/main-header";
+import { sitePrimaryNavItems } from "@/features/marketing/model/site-navigation";
 
 describe("MainHeader", () => {
   it("keeps the public search link pointed at /search", () => {

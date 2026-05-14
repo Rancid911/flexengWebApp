@@ -71,6 +71,20 @@ describe("/api/admin/course-modules/options", () => {
       }
     ]);
   });
+
+  it("rejects module options access without the learning content permission", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+
+    const { GET } = await import("@/app/api/admin/course-modules/options/route");
+    const response = await GET();
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      code: "FORBIDDEN",
+      message: "Permission denied"
+    });
+    expect(createAdminClientMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("/api/admin/courses/options", () => {
@@ -109,6 +123,20 @@ describe("/api/admin/courses/options", () => {
       { id: "course-1", label: "Grammar", title: "Grammar", isPublished: true },
       { id: "course-2", label: "Vocabulary", title: "Vocabulary", isPublished: false }
     ]);
+  });
+
+  it("rejects course options access without the learning content permission", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+
+    const { GET } = await import("@/app/api/admin/courses/options/route");
+    const response = await GET();
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      code: "FORBIDDEN",
+      message: "Permission denied"
+    });
+    expect(createAdminClientMock).not.toHaveBeenCalled();
   });
 });
 
@@ -213,5 +241,28 @@ describe("/api/admin/course-modules", () => {
     const payload = await response.json();
     expect(payload.details.fieldErrors.course_id).toBeDefined();
     expect(payload.details.fieldErrors.title).toBeDefined();
+  });
+
+  it("rejects module creation without the learning content permission", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+
+    const { POST } = await import("@/app/api/admin/course-modules/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/admin/course-modules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          course_id: "11111111-1111-4111-8111-111111111111",
+          title: "Past Simple"
+        })
+      })
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      code: "FORBIDDEN",
+      message: "Permission denied"
+    });
+    expect(createAdminClientMock).not.toHaveBeenCalled();
   });
 });

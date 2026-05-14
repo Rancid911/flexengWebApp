@@ -1,7 +1,6 @@
 import { requireStaffAdminPage } from "@/lib/admin/auth";
 import { loadCrmBoard, loadCrmSettings } from "@/lib/crm/queries";
-
-import { CrmBoardClient } from "./crm-board-client";
+import { CrmBoardClient } from "@/features/crm/components/crm-board-client";
 
 export default async function CrmPage() {
   await requireStaffAdminPage();

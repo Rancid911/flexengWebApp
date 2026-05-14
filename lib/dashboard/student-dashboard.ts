@@ -213,9 +213,22 @@ async function loadRecentPracticeHero(
 } | null> {
   const dashboardRepository = repository ?? createStudentDashboardRepository(await createClient());
   const moduleSummary = (await loadRecentPracticeModuleSummaries(studentId, dashboardRepository))[0] ?? null;
+  return loadRecentPracticeHeroFromModuleSummary(studentId, moduleSummary, dashboardRepository);
+}
+
+async function loadRecentPracticeHeroFromModuleSummary(
+  studentId: string,
+  moduleSummary: DashboardRecentPracticeModuleSummary | null,
+  repository: StudentDashboardRepository
+): Promise<{
+  module: DashboardRecentPracticeModuleSummary;
+  totalDrills: number;
+  completedDrills: number;
+  progressPercent: number;
+} | null> {
   if (!moduleSummary) return null;
 
-  const drillsResponse = await dashboardRepository.loadPublishedTrainerDrills(moduleSummary.moduleId);
+  const drillsResponse = await repository.loadPublishedTrainerDrills(moduleSummary.moduleId);
   if (drillsResponse.error) {
     return {
       module: moduleSummary,
@@ -235,7 +248,7 @@ async function loadRecentPracticeHero(
     };
   }
 
-  const attemptsResponse = await dashboardRepository.loadCompletedDrillAttempts(studentId, drillIds);
+  const attemptsResponse = await repository.loadCompletedDrillAttempts(studentId, drillIds);
   const completedDrillIds = new Set(
     (attemptsResponse.error ? [] : ((attemptsResponse.data ?? []) as Array<{ test_id?: string | null }>)).flatMap((row) =>
       row.test_id ? [String(row.test_id)] : []
@@ -411,6 +424,15 @@ async function loadInitialDashboardCore(studentId: string, supabase: DashboardSu
   });
 }
 
+function buildEmptyStudentDashboardSecondaryData(): StudentDashboardSecondaryData {
+  return {
+    recommendationCards: [],
+    summaryStats: buildStudentDashboardFallback().summaryStats,
+    nextScheduledLesson: null,
+    upcomingScheduleLessons: []
+  };
+}
+
 export async function getStudentDashboardInitialData(): Promise<StudentDashboardCoreData> {
   return measureServerTiming("student-dashboard-core", async () => {
     void STUDENT_DASHBOARD_CORE_ACCESS_MODE;
@@ -423,18 +445,86 @@ export async function getStudentDashboardInitialData(): Promise<StudentDashboard
   });
 }
 
+export async function getStudentDashboardRouteData(): Promise<{
+  initialData: StudentDashboardCoreData;
+  secondaryDataPromise: Promise<StudentDashboardSecondaryData>;
+}> {
+  void STUDENT_DASHBOARD_CORE_ACCESS_MODE;
+  const profile = await getCurrentStudentProfile();
+  const fallback = buildStudentDashboardFallback();
+
+  if (!profile?.studentId) {
+    return {
+      initialData: fallback,
+      secondaryDataPromise: Promise.resolve(buildEmptyStudentDashboardSecondaryData())
+    };
+  }
+
+  const studentId = profile.studentId;
+  const supabase = await createClient();
+  const repository = createStudentDashboardRepository(supabase);
+  const wordCountsPromise = loadStudentDashboardWordCounts(studentId, repository);
+  const recentPracticeModuleSummariesPromise = loadRecentPracticeModuleSummaries(studentId, repository);
+
+  const secondaryDataPromise = measureServerTiming("student-dashboard-secondary", async () => {
+    const [moduleSummaries, wordCounts, completedTeacherLessons7d, submittedTests7d, schedulePreview] = await Promise.all([
+      recentPracticeModuleSummariesPromise,
+      wordCountsPromise,
+      getCompletedTeacherLessonsCountLast7Days(studentId, supabase),
+      getSubmittedTestsCountLast7Days(studentId, supabase),
+      loadSchedulePreview(studentId)
+    ]);
+
+    return {
+      recommendationCards: buildRecommendationCards(moduleSummaries),
+      summaryStats: buildSummaryStats({ completedTeacherLessons7d, submittedTests7d, dueReviewCount: wordCounts.dueReviewCount }),
+      nextScheduledLesson: schedulePreview.nextLesson,
+      upcomingScheduleLessons: schedulePreview.upcomingLessons
+    };
+  });
+
+  const initialData = await measureServerTiming("student-dashboard-core", async () => {
+    const recentPracticeHeroPromise = recentPracticeModuleSummariesPromise.then((moduleSummaries) =>
+      loadRecentPracticeHeroFromModuleSummary(studentId, moduleSummaries[0] ?? null, repository)
+    );
+    const [progressResponse, attemptsResponse, enrollmentsResponse, homeworkResponse, wordCounts, placementTest, recentPracticeHero] = await Promise.all([
+      repository.loadLessonProgress(studentId),
+      repository.loadTestAttempts(studentId),
+      repository.loadActiveCourseEnrollments(studentId),
+      repository.loadActiveHomework(studentId),
+      wordCountsPromise,
+      loadStudentPlacementSummary(studentId, repository),
+      recentPracticeHeroPromise
+    ]);
+
+    return buildCoreDashboardPayload({
+      progressRows: progressResponse.error ? [] : (progressResponse.data ?? []),
+      attemptRows: attemptsResponse.error ? [] : (attemptsResponse.data ?? []).filter((row) => !isPlacementAttempt(row.tests)),
+      activeCourses: enrollmentsResponse.error ? [] : (enrollmentsResponse.data ?? []),
+      homeworkRows: normalizeHomeworkRows(homeworkResponse),
+      recommendationCards: [],
+      wordCounts,
+      completedTeacherLessons7d: 0,
+      submittedTests7d: 0,
+      schedulePreview: { nextScheduledLesson: null, upcomingScheduleLessons: [] },
+      placementTest,
+      recentPracticeHero
+    });
+  });
+
+  return {
+    initialData,
+    secondaryDataPromise
+  };
+}
+
 export async function getStudentDashboardSecondaryData(): Promise<StudentDashboardSecondaryData> {
   return measureServerTiming("student-dashboard-secondary", async () => {
     void STUDENT_DASHBOARD_CORE_ACCESS_MODE;
     const profile = await getCurrentStudentProfile();
 
     if (!profile?.studentId) {
-      return {
-        recommendationCards: [],
-        summaryStats: buildStudentDashboardFallback().summaryStats,
-        nextScheduledLesson: null,
-        upcomingScheduleLessons: []
-      };
+      return buildEmptyStudentDashboardSecondaryData();
     }
 
     const studentId = profile.studentId;

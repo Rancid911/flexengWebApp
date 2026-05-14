@@ -1,7 +1,10 @@
 import type { AdminWordCardItemDto, AdminWordCardSetDetailDto, AdminWordCardSetDto } from "@/lib/admin/types";
 
+export const WORD_CARD_SET_BASE_SELECT =
+  "id, title, description, topic_slug, topic_title, cefr_level, sort_order, is_published, created_at, updated_at";
+
 export const WORD_CARD_SET_DETAIL_SELECT =
-  "*, word_card_items(id, term, translation, example_sentence, example_translation, sort_order)";
+  `${WORD_CARD_SET_BASE_SELECT}, word_card_items(id, term, translation, example_sentence, example_translation, sort_order)`;
 
 export function toWordCardSetDto(row: Record<string, unknown>): AdminWordCardSetDto {
   const cards = Array.isArray(row.word_card_items) ? row.word_card_items : [];

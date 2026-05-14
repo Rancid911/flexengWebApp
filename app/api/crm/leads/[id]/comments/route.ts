@@ -4,9 +4,11 @@ import { requireStaffAdminApi } from "@/lib/admin/auth";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { createCrmLeadComment } from "@/lib/crm/queries";
 import { crmLeadCommentCreateSchema } from "@/lib/crm/validation";
+import { requirePermission } from "@/lib/permissions";
 
 export const POST = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
+  requirePermission(actor, "crm.leads.update");
   const { id } = await params;
   const body = await request.json();
   const parsed = crmLeadCommentCreateSchema.safeParse(body);

@@ -1,7 +1,9 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { WorkspaceShellClient } from "@/app/(workspace)/workspace-shell-client";
+import { useCrmBackgroundContext } from "@/features/workspace-shell/client/crm-background-context";
+import { WorkspaceShellClient } from "@/features/workspace-shell/components/workspace-shell-client";
 
 const navigationMockState = vi.hoisted(() => ({
   pathname: "/dashboard"
@@ -12,7 +14,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() })
 }));
 
-vi.mock("@/app/(workspace)/use-dashboard-shell-state", () => ({
+vi.mock("@/features/workspace-shell/client/use-dashboard-shell-state", () => ({
   useDashboardSidebarState: () => ({
     sidebarCollapsed: false,
     sidebarTransitionsEnabled: true,
@@ -46,6 +48,16 @@ vi.mock("@/app/(workspace)/use-dashboard-shell-state", () => ({
   })
 }));
 
+function CrmBackgroundProbe({ backgroundImageUrl }: { backgroundImageUrl: string | null }) {
+  const crmBackground = useCrmBackgroundContext();
+
+  useEffect(() => {
+    crmBackground.setCrmBackgroundImageUrl(backgroundImageUrl);
+  }, [backgroundImageUrl, crmBackground]);
+
+  return <div>crm content</div>;
+}
+
 describe("WorkspaceShellClient", () => {
   const baseProps = {
     initialSidebarCollapsed: false,
@@ -76,6 +88,10 @@ describe("WorkspaceShellClient", () => {
 
   afterEach(() => {
     navigationMockState.pathname = "/dashboard";
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible"
+    });
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -137,6 +153,67 @@ describe("WorkspaceShellClient", () => {
     expect(screen.getByTestId("notifications-bell")).toHaveClass("text-white");
   });
 
+  it("applies CRM background provided by a child context bridge on the CRM page", async () => {
+    navigationMockState.pathname = "/crm";
+
+    render(
+      <WorkspaceShellClient {...baseProps}>
+        <CrmBackgroundProbe backgroundImageUrl="https://example.com/context-crm-bg.jpg" />
+      </WorkspaceShellClient>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-shell-root").style.backgroundImage).toContain("context-crm-bg.jpg");
+    });
+    expect(screen.getByTestId("workspace-shell-root")).toHaveClass("bg-transparent");
+    expect(screen.getByTestId("dashboard-mobile-menu-trigger")).toHaveClass("text-white");
+  });
+
+  it("clears CRM glass background when the child context bridge sends null", async () => {
+    navigationMockState.pathname = "/crm";
+
+    const { rerender } = render(
+      <WorkspaceShellClient {...baseProps}>
+        <CrmBackgroundProbe backgroundImageUrl="https://example.com/context-crm-bg.jpg" />
+      </WorkspaceShellClient>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-shell-root").style.backgroundImage).toContain("context-crm-bg.jpg");
+    });
+
+    rerender(
+      <WorkspaceShellClient {...baseProps}>
+        <CrmBackgroundProbe backgroundImageUrl={null} />
+      </WorkspaceShellClient>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-shell-root").style.backgroundImage).toBe("");
+    });
+    expect(screen.getByTestId("workspace-shell-root")).toHaveClass("bg-[#f5f7f9]");
+    expect(screen.getByTestId("dashboard-mobile-menu-trigger")).toHaveClass("text-slate-700");
+  });
+
+  it("keeps the CRM background window event as a fallback", async () => {
+    navigationMockState.pathname = "/crm";
+
+    render(
+      <WorkspaceShellClient {...baseProps}>
+        <div>crm content</div>
+      </WorkspaceShellClient>
+    );
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("crm:background-image-change", { detail: { backgroundImageUrl: "https://example.com/event-crm-bg.jpg" } }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-shell-root").style.backgroundImage).toContain("event-crm-bg.jpg");
+    });
+    expect(screen.getByTestId("workspace-shell-root")).toHaveClass("bg-transparent");
+  });
+
   it("shows CRM unread badge in the staff shell outside the CRM page", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
@@ -149,6 +226,7 @@ describe("WorkspaceShellClient", () => {
       </WorkspaceShellClient>
     );
 
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledWith("/api/crm/unread-summary", expect.objectContaining({ cache: "no-store" })));
     const crmLink = screen.getByRole("link", { name: /CRM/ });
     expect(crmLink).toBeInTheDocument();
@@ -259,8 +337,9 @@ describe("WorkspaceShellClient", () => {
       </WorkspaceShellClient>
     );
 
+    expect(fetchMock).not.toHaveBeenCalled();
     await act(async () => {
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(100);
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -272,6 +351,45 @@ describe("WorkspaceShellClient", () => {
     const crmLink = screen.getByRole("link", { name: /CRM/ });
     expect(within(crmLink).getByTestId("workspace-nav-badge")).toHaveTextContent("2");
     expect(screen.getAllByTestId("workspace-nav-badge")).toHaveLength(1);
+  });
+
+  it("does not poll CRM unread summary while the document is hidden", async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden"
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ unreadCount: 1 })
+    } as Response);
+
+    render(
+      <WorkspaceShellClient {...baseProps} initialProfile={adminProfile} shellVariant="shared">
+        <div>staff content</div>
+      </WorkspaceShellClient>
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible"
+    });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("updates the CRM badge through the unread summary event without moving it to the active item", async () => {

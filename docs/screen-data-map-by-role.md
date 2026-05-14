@@ -10,7 +10,7 @@
 
 - Entry points:
   - [request-context.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/auth/request-context.ts)
-  - [workspace-shell.server.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/workspace-shell.server.tsx)
+  - [workspace-shell.server.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/workspace-shell/server/workspace-shell.server.tsx)
 - Что грузится:
   - `supabase.auth.getUser()` через SSR client
   - профиль пользователя из `profiles`
@@ -34,7 +34,8 @@
 ### `/dashboard`
 
 - Route:
-  - [student-dashboard-route.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/_components/student-dashboard-route.tsx)
+  - [dashboard-route.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/dashboard/server/dashboard-route.tsx)
+  - [student-dashboard-route.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/dashboard/server/student-dashboard-route.tsx)
   - [student-dashboard.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/dashboard/student-dashboard.ts)
 - Initial block:
   - `student_lesson_progress`
@@ -69,6 +70,7 @@
 
 - Route:
   - [schedule/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/schedule/page.tsx)
+  - [schedule-route.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/schedule/server/schedule-route.tsx)
   - [schedule/queries.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/schedule/queries.ts)
 - Основная таблица:
   - `student_schedule_lessons`
@@ -91,6 +93,8 @@
 
 - Route:
   - [practice/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/practice/page.tsx)
+  - [practice-overview-route.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/practice/server/practice-overview-route.tsx)
+  - [practice-library-routes.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/practice/server/practice-library-routes.tsx)
   - [practice/queries.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/practice/queries.ts)
 - Overview summary source:
   - `student_course_enrollments`
@@ -187,6 +191,7 @@
 
 - Route:
   - [homework/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/homework/page.tsx)
+  - [homework-routes.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/homework/server/homework-routes.tsx)
   - [homework/queries.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/homework/queries.ts)
 - Overview summary and list:
   - `homework_assignments`
@@ -214,6 +219,9 @@
 
 - Route:
   - [words/my/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/words/my/page.tsx)
+  - [words-overview-routes.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/words/server/words-overview-routes.tsx)
+  - [words-list-routes.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/words/server/words-list-routes.tsx)
+  - [words-overview.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/words/components/words-overview.tsx)
   - [words/queries.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/words/queries.ts)
 - Источники:
   - summary counters:
@@ -243,6 +251,8 @@
 
 - Route:
   - [progress/overview/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/progress/overview/page.tsx)
+  - [progress-routes.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/progress/server/progress-routes.tsx)
+  - [progress-overview.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/progress/components/progress-overview.tsx)
   - [progress/queries.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/progress/queries.ts)
 - Источники:
   - `student_lesson_progress`
@@ -278,23 +288,28 @@
 
 - Route:
   - [settings/profile/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/settings/profile/page.tsx)
-  - [use-settings-form-state.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/settings/use-settings-form-state.ts)
+  - [use-settings-form-state.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/settings/client/use-settings-form-state.ts)
+  - [api/settings/profile/route.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/api/settings/profile/route.ts)
+  - [profile.service.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/settings/profile.service.ts)
 - Initial data:
-  - `supabase.auth.getUser()`
+  - `GET /api/settings/profile`
+  - server-side current auth user lookup
   - `profiles`
     - поля: `first_name`, `last_name`, `phone`, `avatar_url`, `role`, `email`, `birth_date`
   - fallback birth date from `students.birth_date` by `profile_id`
-  - avatar storage bucket: `avatars`
-- Mutation targets:
+  - avatar public URL from server-side `avatars` storage access
+- Mutation boundary:
+  - `PATCH /api/settings/profile`
   - `profiles`
   - `students`
-  - `supabase.auth.updateUser()`
-  - `supabase.storage.from("avatars")`
+  - server-side Supabase Auth email/password update
+  - server-side avatar upload/delete in `avatars`
 
 ### `/settings/payments`
 
 - Route:
   - [settings/payments/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(student-zone)/settings/payments/page.tsx)
+  - [payments-route.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/payments/server/payments-route.tsx)
   - [payments/queries.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/payments/queries.ts)
   - [billing/server.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/billing/server.ts)
 - Initial page:
@@ -313,7 +328,8 @@
 ### `/search`
 
 - Route:
-  - [search/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(search-zone)/search/page.tsx)
+  - [search/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/search/page.tsx)
+  - [search-route.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/search/server/search-route.tsx)
   - [search-service.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/search/search-service.ts)
 - Источники:
   - search candidates via RPC `search_documents_query`
@@ -334,6 +350,7 @@
 ### `/dashboard`
 
 - Route:
+  - [dashboard-route.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/dashboard/server/dashboard-route.tsx)
   - [dashboard/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/dashboard/page.tsx)
   - [teacher-workspace/queries.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/teacher-workspace/queries.ts)
 - Initial critical agenda:
@@ -415,8 +432,9 @@
 ### `/dashboard`
 
 - Route:
+  - [dashboard-route.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/dashboard/server/dashboard-route.tsx)
   - [dashboard/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/dashboard/page.tsx)
-  - [use-admin-dashboard-metrics.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/dashboard/use-admin-dashboard-metrics.ts)
+  - [use-admin-dashboard-metrics.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/dashboard/client/use-admin-dashboard-metrics.ts)
   - [api/admin/dashboard/metrics/route.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/api/admin/dashboard/metrics/route.ts)
 - Initial server page:
   - только admin access check через request-context/profile identity
@@ -453,7 +471,7 @@
 
 - Route:
   - [admin/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(staff-zone)/admin/page.tsx)
-  - [use-admin-tab-data.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(staff-zone)/admin/ui/use-admin-tab-data.ts)
+  - [use-admin-tab-data.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/admin/components/admin-console/use-admin-tab-data.ts)
 - Сам экран почти весь client-side и тянет данные через API tabs.
 
 #### Tab: Tests
@@ -532,6 +550,8 @@
 Это не “профильные” экраны, но для полноты:
 
 - Public blog:
+  - [blog-live-search-shell.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/blog/components/blog-live-search-shell.tsx)
+  - [blog-article-view.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/blog/components/blog-article-view.tsx)
   - [blog/public.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/blog/public.ts)
   - таблицы:
     - `blog_posts`

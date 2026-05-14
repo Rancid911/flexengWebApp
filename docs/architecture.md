@@ -4,12 +4,14 @@ This document defines the current layering rules for the dashboard-next project.
 
 ## Current Layers
 
-- `app/*`: Next.js routing, layouts, pages, route handlers, and API transport boundaries.
-- `app/(workspace)/*`: workspace shell, role-based route groups, route-level UI, and feature entrypoints for authenticated users.
-- `app/(public)/*` and `app/main/*`: public website pages and public marketing UI.
-- `app/(auth)/*`: authentication pages and Supabase auth UI flows.
+- `app/*`: Next.js routing conventions, layouts, pages, route handlers, and API transport boundaries only.
+- `app/(workspace)/*`: workspace route groups and thin route entrypoints for authenticated users.
+- `app/(public)/*`: public website route pages, metadata, and layouts.
+- `features/marketing/*`: public marketing UI, home page render/content, lead forms, header/footer, navigation model, and consent UI.
+- `app/(auth)/*`: authentication route pages, layouts, loading and error boundaries.
+- `features/auth/*`: Supabase auth UI flows that require browser interaction.
 - `components/ui/*`: reusable UI primitives only. These components should not know business domains.
-- `components/search/*`: shared search UI and global search behavior.
+- `features/search/*`: shared search UI and global search behavior.
 - `hooks/*`: generic reusable React hooks. Domain-specific hooks should stay near the feature/domain.
 - `lib/supabase/*`: Supabase client helpers and auth/session infrastructure.
 - `lib/<domain>/*`: domain server logic, read queries, validation, DTO mapping, domain types, and service orchestration.
@@ -23,16 +25,18 @@ This document defines the current layering rules for the dashboard-next project.
 - Practice and teacher workspace legacy files have been removed; new work should use the focused modules under `lib/practice/*` and `lib/teacher-workspace/*`.
 - CRM, admin users, admin tests, admin word-card sets, teacher dossier, billing ledger and homework assignments have service/repository boundaries for the main workflows.
 - Student dashboard aggregation is split into a read-only facade/orchestrator plus focused `types`, `descriptors`, `mappers` and `repository` modules.
-- Admin blog, admin notifications, schedule queries, schedule UI, settings profile UI and the largest client-component shells have completed their planned cleanup passes.
+- Admin blog, admin notifications, schedule queries, schedule UI, settings profile UI/API boundary and the largest client-component shells have completed their planned cleanup passes.
 - Cross-domain read models are allowed for dashboard and search, but they must stay read-only aggregators and must not own mutations for the domains they read from.
-- The active architecture backlog is empty. New cleanup candidates should be added only when tied to a concrete feature, bug, performance issue, or review finding.
+- The broad architecture migration is complete and the active architecture backlog is empty. New cleanup candidates should be added only when tied to a concrete feature, bug, performance issue, or review finding.
 
 ## Core Boundary Rules
 
 - Pages and layouts may compose UI and call domain queries, but should not contain multi-table business workflows.
 - API routes are transport adapters. They should parse, authorize, validate, call a domain service/query, and return a response.
+- Protected API routes must call `requirePermission()`. Public, provider-authenticated, or internal utility routes must be explicitly allowlisted in `scripts/check-architecture.mjs`.
 - API routes should not directly own complex Supabase persistence flows across multiple tables.
-- UI components should not directly call Supabase except for explicit auth/client SDK flows where Supabase requires browser interaction.
+- UI components should not directly call Supabase except for explicit auth/client SDK flows where Supabase requires browser interaction; storage and persistence writes go through API/service boundaries.
+- New feature/client/server implementation files should not be added under `app`; use `features/*`, `shared/*`, or `lib/*` according to ownership.
 - Domain modules should expose use-case oriented functions, not table-shaped helpers for UI to orchestrate.
 - Shared UI must stay domain-neutral. If a component contains CRM, student, teacher, payment, or learning rules, it belongs to that feature/domain.
 - Privileged Supabase admin access must stay behind server-side authorization and domain service/query/repository boundaries.
@@ -86,5 +90,5 @@ Do not put direct multi-table business workflows inside a route handler. If the 
 - Avoid radical rewrites and mass moves.
 - Prefer small PRs that preserve public API contracts and runtime behavior.
 - Every refactor PR should state which boundary it improves: API transport, service orchestration, repository/data-access, mapper, validation, or UI decomposition.
-- Minimum verification for documentation-only architecture changes: `npm run lint` and `npm run build`.
+- Minimum verification for documentation-only architecture changes: `npm run check:architecture`, `npm run lint`, and `npm run build`.
 - Runtime refactors should add or update focused unit tests for the changed domain.

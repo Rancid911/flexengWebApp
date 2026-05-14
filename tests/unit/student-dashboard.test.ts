@@ -6,6 +6,7 @@ import {
   getStudentDashboardCoreData,
   getStudentDashboardData,
   getStudentDashboardPaymentReminder,
+  getStudentDashboardRouteData,
   getSubmittedTestsCountLast7Days
 } from "@/lib/dashboard/student-dashboard";
 
@@ -831,6 +832,120 @@ describe("getStudentDashboardData", () => {
 
     expect(result).toBeNull();
     expect(createStudentPaymentReminderPopupMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("getStudentDashboardRouteData", () => {
+  beforeEach(() => {
+    createClientMock.mockReset();
+    getCurrentStudentProfileMock.mockReset();
+    getStudentSchedulePreviewByStudentIdMock.mockReset();
+  });
+
+  it("resolves the student profile once and reuses word and recent-practice loads", async () => {
+    const selectCalls: Array<{ table: string; columns: string }> = [];
+    getCurrentStudentProfileMock.mockResolvedValue({ studentId: "student-1" });
+    getStudentSchedulePreviewByStudentIdMock.mockResolvedValue({ nextLesson: null, upcomingLessons: [] });
+
+    const makeTrackedQueryResult = (table: string, data: unknown, options: { count?: number | null } = {}) => {
+      const result = { data, error: null, count: options.count ?? null };
+      const builder = {
+        select: vi.fn((columns: string) => {
+          selectCalls.push({ table, columns });
+          return builder;
+        }),
+        eq: vi.fn(() => builder),
+        neq: vi.fn(() => builder),
+        maybeSingle: vi.fn(() => builder),
+        order: vi.fn(() => builder),
+        limit: vi.fn(() => builder),
+        in: vi.fn(() => builder),
+        lte: vi.fn(() => builder),
+        gte: vi.fn(() => builder),
+        then: (resolve: (value: typeof result) => unknown) => Promise.resolve(result).then(resolve),
+        catch: (reject: (reason: unknown) => unknown) => Promise.resolve(result).catch(reject),
+        finally: (callback: () => void) => Promise.resolve(result).finally(callback)
+      };
+      return builder;
+    };
+
+    const fromMock = vi.fn((table: string) => {
+      switch (table) {
+        case "student_lesson_progress":
+          return makeTrackedQueryResult(table, [
+            {
+              status: "completed",
+              progress_percent: 75,
+              updated_at: "2026-04-18T11:00:00.000Z",
+              lessons: { title: "Speaking basics", duration_minutes: 20, module_id: "module-1" }
+            }
+          ]);
+        case "student_test_attempts":
+          return makeTrackedQueryResult(table, [
+            {
+              student_id: "student-1",
+              test_id: "test-drill-1",
+              status: "passed",
+              score: 90,
+              created_at: "2026-04-18T10:00:00.000Z",
+              submitted_at: "2026-04-18T10:05:00.000Z",
+              tests: { title: "Speaking Drill", module_id: "module-1", assessment_kind: "regular" }
+            }
+          ], { count: 1 });
+        case "student_course_enrollments":
+          return makeTrackedQueryResult(table, [{ status: "active", courses: { title: "English A2" } }]);
+        case "homework_assignments":
+          return makeTrackedQueryResult(table, []);
+        case "student_words":
+          return makeTrackedQueryResult(table, [
+            { status: "learning", next_review_at: null },
+            { status: "review", next_review_at: "2020-01-01T00:00:00.000Z" }
+          ]);
+        case "tests":
+          return makeTrackedQueryResult(table, [{ id: "test-drill-1" }]);
+        case "course_modules":
+          return makeTrackedQueryResult(table, [
+            { id: "module-1", title: "Speaking Basics", course_id: "course-1", courses: { slug: "speaking", title: "Speaking" } }
+          ]);
+        case "lesson_attendance":
+          return makeTrackedQueryResult(table, null, { count: 1 });
+        default:
+          return makeTrackedQueryResult(table, []);
+      }
+    });
+    createClientMock.mockReturnValue({ from: fromMock });
+
+    const result = await getStudentDashboardRouteData();
+    const secondaryData = await result.secondaryDataPromise;
+
+    expect(result.initialData.lessonOfTheDay.title).toBe("Speaking Basics");
+    expect(secondaryData.recommendationCards[0]?.title).toBe("Speaking Basics");
+    expect(getCurrentStudentProfileMock).toHaveBeenCalledTimes(1);
+    expect(createClientMock).toHaveBeenCalledTimes(1);
+    expect(selectCalls.filter((call) => call.table === "student_words")).toHaveLength(1);
+    expect(
+      selectCalls.filter((call) => call.table === "student_lesson_progress" && call.columns === "updated_at, lessons(title, module_id)")
+    ).toHaveLength(1);
+    expect(
+      selectCalls.filter((call) => call.table === "student_test_attempts" && call.columns === "created_at, tests(title, module_id, assessment_kind)")
+    ).toHaveLength(1);
+  });
+
+  it("returns fallback route data without Supabase when the student profile is unavailable", async () => {
+    getCurrentStudentProfileMock.mockResolvedValue(null);
+
+    const result = await getStudentDashboardRouteData();
+    const secondaryData = await result.secondaryDataPromise;
+
+    expect(result.initialData.lessonOfTheDay.title).toBe("Практика");
+    expect(secondaryData).toEqual({
+      recommendationCards: [],
+      summaryStats: result.initialData.summaryStats,
+      nextScheduledLesson: null,
+      upcomingScheduleLessons: []
+    });
+    expect(getCurrentStudentProfileMock).toHaveBeenCalledTimes(1);
+    expect(createClientMock).not.toHaveBeenCalled();
   });
 });
 

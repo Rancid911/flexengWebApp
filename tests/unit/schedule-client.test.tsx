@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ScheduleClient } from "@/app/(workspace)/(shared-zone)/schedule/schedule-client";
-import { parseScheduleApiResponse } from "@/app/(workspace)/(shared-zone)/schedule/use-staff-schedule-query-state";
+import { parseScheduleApiResponse } from "@/features/schedule/client/use-staff-schedule-query-state";
+import { ScheduleClient } from "@/features/schedule/components/schedule-client";
 import type { StaffSchedulePageData, StudentSchedulePageData } from "@/lib/schedule/types";
 
 const fetchMock = vi.fn();
@@ -100,6 +100,19 @@ function makeStaffData(overrides: Partial<StaffSchedulePageData> = {}): StaffSch
     teacherLocked: true,
     ...overrides
   };
+}
+
+async function waitForFollowupEnrichmentRequest() {
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith("/api/schedule?includeFollowup=1", expect.objectContaining({ cache: "no-store" }));
+  });
+}
+
+async function waitForDeferredCatalogRequests() {
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith("/api/schedule/options?entity=students&limit=50", { cache: "no-store" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/schedule/options?entity=teachers&limit=50", { cache: "no-store" });
+  });
 }
 
 describe("ScheduleClient", () => {
@@ -317,6 +330,9 @@ describe("ScheduleClient", () => {
       />
     );
 
+    await waitForFollowupEnrichmentRequest();
+    await waitForDeferredCatalogRequests();
+
     fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
 
     expect(screen.getByText("Редактировать урок")).toBeInTheDocument();
@@ -352,11 +368,15 @@ describe("ScheduleClient", () => {
       />
     );
 
+    await waitForFollowupEnrichmentRequest();
+
     expect(screen.getAllByText("Отменён")).toHaveLength(2);
   });
 
   it("keeps scheduled lesson actions in a single responsive action block", async () => {
     render(<ScheduleClient initialData={makeStaffData()} />);
+
+    await waitForFollowupEnrichmentRequest();
 
     const actions = screen.getByTestId("staff-lesson-actions");
     expect(actions.className).toContain("flex-col");
@@ -377,6 +397,8 @@ describe("ScheduleClient", () => {
       hasOutcome: false
     };
     render(<ScheduleClient initialData={makeStaffData({ lessons: [completedLesson] })} />);
+
+    await waitForFollowupEnrichmentRequest();
 
     expect(screen.getByRole("button", { name: "Заполнить итог" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Отменить" })).not.toBeInTheDocument();

@@ -4,9 +4,11 @@ import { requireStaffAdminApi } from "@/lib/admin/auth";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { updateTeacherMethodologyStyle } from "@/lib/admin/teacher-dossier.service";
 import { teacherMethodologyStyleUpdateSchema } from "@/lib/admin/validation";
+import { requirePermission } from "@/lib/permissions";
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ teacherId: string }> }) => {
   const actor = await requireStaffAdminApi();
+  requirePermission(actor, "admin.teachers.update");
   const { teacherId } = await params;
   const body = await request.json();
   const parsed = teacherMethodologyStyleUpdateSchema.safeParse(body);

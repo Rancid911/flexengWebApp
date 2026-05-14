@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
 
 import DashboardPage from "@/app/(workspace)/(shared-zone)/dashboard/page";
 
@@ -8,6 +9,7 @@ const resolveScheduleActorMock = vi.fn();
 const getTeacherDashboardAttentionQueueMock = vi.fn();
 const getTeacherDashboardWeekLessonBundleMock = vi.fn();
 const getTeacherDashboardStudentRosterSummaryMock = vi.fn();
+const getAdminDashboardMetricsMock = vi.fn();
 
 vi.mock("@/lib/auth/request-context", () => ({
   requireLayoutActor: () => requireLayoutActorMock(),
@@ -19,7 +21,7 @@ vi.mock("@/lib/auth/request-context", () => ({
   }
 }));
 
-vi.mock("@/app/(workspace)/_components/student-dashboard-route", () => ({
+vi.mock("@/features/dashboard/server/student-dashboard-route", () => ({
   renderStudentDashboardRoute: (...args: unknown[]) => renderStudentDashboardRouteMock(...args)
 }));
 
@@ -37,17 +39,36 @@ vi.mock("@/lib/teacher-workspace/queries", () => ({
   getTeacherDashboardStudentRosterSummary: (...args: unknown[]) => getTeacherDashboardStudentRosterSummaryMock(...args)
 }));
 
-vi.mock("@/app/(workspace)/(shared-zone)/dashboard/admin-dashboard-view", () => ({
-  default: () => <div data-testid="admin-dashboard" />
+vi.mock("@/lib/admin/dashboard-metrics", () => ({
+  getAdminDashboardMetrics: (...args: unknown[]) => getAdminDashboardMetricsMock(...args)
 }));
 
-vi.mock("@/app/(workspace)/(shared-zone)/dashboard/staff-dashboard-view", () => ({
+vi.mock("@/features/dashboard/components/admin-dashboard-view", () => ({
+  default: ({ initialMetrics }: { initialMetrics?: unknown }) => <div data-testid="admin-dashboard">{JSON.stringify(initialMetrics ?? null)}</div>
+}));
+
+vi.mock("@/features/dashboard/components/staff-dashboard-view", () => ({
   default: ({ role }: { role?: string }) => <div data-testid="staff-dashboard">{role}</div>
 }));
 
-vi.mock("@/app/(workspace)/(shared-zone)/dashboard/teacher-dashboard-view", () => ({
-  default: ({ data, profileLinked = true }: { data: unknown; profileLinked?: boolean }) => (
-    <div data-testid="teacher-dashboard" data-profile-linked={profileLinked ? "true" : "false"}>
+vi.mock("@/features/dashboard/components/teacher-dashboard-view", () => ({
+  default: ({
+    data,
+    profileLinked = true,
+    studentRosterCount,
+    studentRosterSlot
+  }: {
+    data: unknown;
+    profileLinked?: boolean;
+    studentRosterCount?: number | null;
+    studentRosterSlot?: ReactNode;
+  }) => (
+    <div
+      data-testid="teacher-dashboard"
+      data-profile-linked={profileLinked ? "true" : "false"}
+      data-roster-count={studentRosterCount === null ? "null" : String(studentRosterCount ?? "")}
+      data-has-roster-slot={studentRosterSlot ? "true" : "false"}
+    >
       {JSON.stringify(data)}
     </div>
   ),
@@ -63,6 +84,7 @@ describe("DashboardPage", () => {
     getTeacherDashboardAttentionQueueMock.mockReset();
     getTeacherDashboardWeekLessonBundleMock.mockReset();
     getTeacherDashboardStudentRosterSummaryMock.mockReset();
+    getAdminDashboardMetricsMock.mockReset();
   });
 
   it("uses the shared student dashboard assembly for the student workspace branch", async () => {
@@ -90,20 +112,53 @@ describe("DashboardPage", () => {
       isStaffAdmin: false
     };
     requireLayoutActorMock.mockResolvedValue(actor);
-    resolveScheduleActorMock
-      .mockResolvedValueOnce({ role: "teacher", userId: "user-1", teacherId: "teacher-1", studentId: "student-1", accessibleStudentIds: null })
-      .mockResolvedValueOnce({ role: "teacher", userId: "user-1", teacherId: "teacher-1", studentId: "student-1", accessibleStudentIds: ["student-1"] });
+    resolveScheduleActorMock.mockResolvedValueOnce({
+      role: "teacher",
+      userId: "user-1",
+      teacherId: "teacher-1",
+      studentId: "student-1",
+      accessibleStudentIds: null
+    });
     getTeacherDashboardWeekLessonBundleMock.mockResolvedValue({ todayLessons: [], weekLessons: [], attentionQueue: [] });
-    getTeacherDashboardStudentRosterSummaryMock.mockResolvedValue([{ studentId: "student-1", studentName: "Анна", englishLevel: "A2", targetLevel: "B1", nextLessonAt: null, activeHomeworkCount: 0 }]);
     getTeacherDashboardAttentionQueueMock.mockResolvedValue([]);
     const result = await DashboardPage();
 
     expect(renderStudentDashboardRouteMock).not.toHaveBeenCalled();
     expect(resolveScheduleActorMock).toHaveBeenCalledWith(actor, "contextOnly");
-    expect(resolveScheduleActorMock).toHaveBeenCalledWith(actor, "teacherScope");
+    expect(resolveScheduleActorMock).not.toHaveBeenCalledWith(actor, "teacherScope");
     expect(getTeacherDashboardWeekLessonBundleMock).toHaveBeenCalled();
-    expect(getTeacherDashboardStudentRosterSummaryMock).toHaveBeenCalled();
+    expect(getTeacherDashboardStudentRosterSummaryMock).not.toHaveBeenCalled();
+    expect((result as { props: { data: { students: unknown[] }; studentRosterCount: unknown; studentRosterSlot: unknown } }).props.data.students).toEqual([]);
+    expect((result as { props: { studentRosterCount: unknown } }).props.studentRosterCount).toBeNull();
+    expect((result as { props: { studentRosterSlot: unknown } }).props.studentRosterSlot).toBeTruthy();
     expect(result).toBeTruthy();
+  });
+
+  it("does not await teacher roster before returning the teacher dashboard", async () => {
+    const actor = {
+      userId: "teacher-user-1",
+      profileRole: "teacher",
+      isStudent: false,
+      isTeacher: true,
+      isStaffAdmin: false
+    };
+    requireLayoutActorMock.mockResolvedValue(actor);
+    resolveScheduleActorMock.mockResolvedValueOnce({
+      role: "teacher",
+      userId: "teacher-user-1",
+      teacherId: "teacher-1",
+      studentId: null,
+      accessibleStudentIds: null
+    });
+    getTeacherDashboardWeekLessonBundleMock.mockResolvedValue({ todayLessons: [], weekLessons: [], attentionQueue: [] });
+
+    const result = await DashboardPage();
+
+    expect(getTeacherDashboardWeekLessonBundleMock).toHaveBeenCalledTimes(1);
+    expect(resolveScheduleActorMock).not.toHaveBeenCalledWith(actor, "teacherScope");
+    expect(getTeacherDashboardStudentRosterSummaryMock).not.toHaveBeenCalled();
+    expect((result as { props: { data: { students: unknown[] }; studentRosterSlot: unknown } }).props.data.students).toEqual([]);
+    expect((result as { props: { studentRosterSlot: unknown } }).props.studentRosterSlot).toBeTruthy();
   });
 
   it("renders staff dashboard for manager actor", async () => {
@@ -116,6 +171,48 @@ describe("DashboardPage", () => {
     });
 
     const result = await DashboardPage();
+    expect(result).toBeTruthy();
+  });
+
+  it("passes server-loaded metrics into the admin dashboard", async () => {
+    const metrics = {
+      revenue_month: 123456,
+      new_payments_7d: 7,
+      active_students_7d: 12,
+      active_teachers_7d: 3,
+      avg_check_month: 4567,
+      currency: "RUB"
+    };
+    requireLayoutActorMock.mockResolvedValue({
+      userId: "admin-1",
+      profileRole: "admin",
+      isStudent: false,
+      isTeacher: false,
+      isStaffAdmin: true
+    });
+    getAdminDashboardMetricsMock.mockResolvedValue(metrics);
+
+    const result = await DashboardPage();
+
+    expect(getAdminDashboardMetricsMock).toHaveBeenCalledTimes(1);
+    expect((result as { props: { initialMetrics: unknown } }).props.initialMetrics).toEqual(metrics);
+    expect(result).toBeTruthy();
+  });
+
+  it("keeps rendering the admin dashboard when server metrics fail", async () => {
+    requireLayoutActorMock.mockResolvedValue({
+      userId: "admin-1",
+      profileRole: "admin",
+      isStudent: false,
+      isTeacher: false,
+      isStaffAdmin: true
+    });
+    getAdminDashboardMetricsMock.mockRejectedValue(new Error("Metrics unavailable"));
+
+    const result = await DashboardPage();
+
+    expect(getAdminDashboardMetricsMock).toHaveBeenCalledTimes(1);
+    expect((result as { props: { initialMetrics: unknown } }).props.initialMetrics).toBeNull();
     expect(result).toBeTruthy();
   });
 });

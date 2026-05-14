@@ -1,6 +1,6 @@
-import { MainFooter } from "./main/main-footer";
-import { MainHeader } from "./main/main-header";
-import { sitePrimaryNavItems } from "./main/site-navigation";
+import { MainFooter } from "@/features/marketing/components/main-footer";
+import { MainHeader } from "@/features/marketing/components/main-header";
+import { sitePrimaryNavItems } from "@/features/marketing/model/site-navigation";
 
 export default function NotFound() {
   return (

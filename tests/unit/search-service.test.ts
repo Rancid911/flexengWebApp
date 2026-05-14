@@ -200,6 +200,96 @@ describe("searchSite", () => {
     expect(fetchCandidatesMock).not.toHaveBeenCalled();
   });
 
+  it("does not load student practice access when candidates do not require practice enrollment filtering", async () => {
+    fetchCandidatesMock.mockResolvedValue([
+      {
+        id: "1",
+        entityType: "post",
+        entityId: "public-post",
+        title: "Public post",
+        subtitle: null,
+        body: "body",
+        href: "/articles/public-post",
+        section: "blog",
+        icon: "file-text",
+        badge: null,
+        roleScope: ["all"],
+        visibility: "public",
+        ownerStudentId: null,
+        courseId: null,
+        isPublished: true,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 10
+      },
+      {
+        id: "2",
+        entityType: "module",
+        entityId: "role-practice",
+        title: "Role practice",
+        subtitle: null,
+        body: "body",
+        href: "/practice/topics/role-practice",
+        section: "practice",
+        icon: "graduation-cap",
+        badge: "урок",
+        roleScope: ["student"],
+        visibility: "role",
+        ownerStudentId: null,
+        courseId: null,
+        isPublished: true,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 9
+      },
+      {
+        id: "3",
+        entityType: "homework",
+        entityId: "owned-homework",
+        title: "Owned homework",
+        subtitle: null,
+        body: "body",
+        href: "/homework/owned-homework",
+        section: "homework",
+        icon: "book-open",
+        badge: null,
+        roleScope: ["student"],
+        visibility: "student_owned",
+        ownerStudentId: "student-1",
+        courseId: null,
+        isPublished: true,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 8
+      },
+      {
+        id: "4",
+        entityType: "homework",
+        entityId: "enrollment-homework",
+        title: "Enrollment homework",
+        subtitle: null,
+        body: "body",
+        href: "/homework/enrollment-homework",
+        section: "homework",
+        icon: "book-open",
+        badge: null,
+        roleScope: ["student"],
+        visibility: "enrollment",
+        ownerStudentId: null,
+        courseId: null,
+        isPublished: true,
+        meta: {},
+        updatedAt: "2026-03-26T00:00:00.000Z",
+        rank: 7
+      }
+    ] satisfies SearchDocumentCandidate[]);
+
+    const result = await searchSite({ query: "homework", limit: 10 });
+
+    expect(createClientMock).not.toHaveBeenCalled();
+    expect(result.items.map((item) => item.entityId)).toEqual(["public-post", "role-practice", "owned-homework"]);
+  });
+
   it("filters invisible documents, dedupes results and groups by section", async () => {
     const candidates: SearchDocumentCandidate[] = [
       {
@@ -387,6 +477,7 @@ describe("searchSite", () => {
 
     const result = await searchSite({ query: "test", limit: 10 });
 
+    expect(createClientMock).toHaveBeenCalledTimes(1);
     expect(result.items.map((item) => item.entityId)).toEqual(["test-a1", "placement-test-1"]);
   });
 });

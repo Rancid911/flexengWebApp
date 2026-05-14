@@ -3,9 +3,11 @@ import { NextResponse } from "next/server";
 import { requireStaffAdminApi } from "@/lib/admin/auth";
 import { loadCourseOptions } from "@/lib/admin/course-modules";
 import { withAdminErrorHandling } from "@/lib/admin/http";
+import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async () => {
-  await requireStaffAdminApi();
+  const actor = await requireStaffAdminApi();
+  requirePermission(actor, "learning.content.manage");
   const items = await loadCourseOptions();
   return NextResponse.json(items);
 });

@@ -1,6 +1,6 @@
-import { MainFooter } from "@/app/main/main-footer";
-import { MainHeader } from "@/app/main/main-header";
-import { sitePrimaryNavItems } from "@/app/main/site-navigation";
+import { MainFooter } from "@/features/marketing/components/main-footer";
+import { MainHeader } from "@/features/marketing/components/main-header";
+import { sitePrimaryNavItems } from "@/features/marketing/model/site-navigation";
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (

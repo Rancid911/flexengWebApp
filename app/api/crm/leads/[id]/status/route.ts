@@ -5,9 +5,11 @@ import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { updateCrmLeadStatus } from "@/lib/crm/queries";
 import { isCrmLeadStatus } from "@/lib/crm/stages";
 import { crmLeadStatusUpdateSchema } from "@/lib/crm/validation";
+import { requirePermission } from "@/lib/permissions";
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
+  requirePermission(actor, "crm.leads.update");
   const { id } = await params;
   const body = await request.json();
   const parsed = crmLeadStatusUpdateSchema.safeParse(body);

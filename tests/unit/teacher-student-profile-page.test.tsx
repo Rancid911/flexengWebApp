@@ -42,7 +42,7 @@ vi.mock("@/lib/teacher-workspace/queries", () => ({
   getTeacherStudentBillingSnapshot: (...args: unknown[]) => getTeacherStudentBillingSnapshotMock(...args)
 }));
 
-vi.mock("@/app/(workspace)/(teacher-zone)/students/[studentId]/teacher-student-profile-view", () => ({
+vi.mock("@/features/teacher-workspace/components/teacher-student-profile-view", () => ({
   TeacherStudentProfileView: (props: { sections: unknown; canWriteNotes: boolean; canManageBilling: boolean; canAssignHomework: boolean }) => (
     <div
       data-testid="teacher-student-profile-probe"

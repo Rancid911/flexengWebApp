@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getCurrentNotificationsSnapshot, isNotificationsSnapshotStale } from "@/app/(workspace)/dashboard-notifications.snapshot";
+import { getCurrentNotificationsSnapshot, isNotificationsSnapshotStale } from "@/features/workspace-shell/client/dashboard-notifications.snapshot";
 
 describe("dashboard notifications snapshot helpers", () => {
   it("prefers the existing snapshot for optimistic mutations", () => {

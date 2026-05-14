@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   TeacherWorkFormatCard,
   type TeacherWorkFormatDto
-} from "@/app/(workspace)/(staff-zone)/admin/teachers/[teacherId]/teacher-work-format-card";
+} from "@/features/admin/components/teacher-dossier/teacher-work-format-card";
 
 const initialData: TeacherWorkFormatDto = {
   teacherId: "teacher-1",

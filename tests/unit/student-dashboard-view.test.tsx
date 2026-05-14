@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import StudentDashboardView from "@/app/(workspace)/(shared-zone)/dashboard/student-dashboard-view";
+import StudentDashboardView from "@/features/dashboard/components/student-dashboard-view";
 import type { StudentDashboardData } from "@/lib/dashboard/student-dashboard";
 
 const pushMock = vi.fn();

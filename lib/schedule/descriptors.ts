@@ -5,7 +5,7 @@ export const SCHEDULE_QUERY_ACCESS_MODE: AccessMode = "privileged";
 
 export const SCHEDULE_PAGE_DATA_LOADING = defineDataLoadingDescriptor({
   id: "schedule-page-data",
-  owner: "@/lib/schedule/queries#getSchedulePageData",
+  owner: "@/lib/schedule/queries#getSchedulePageDataInternal",
   accessMode: SCHEDULE_QUERY_ACCESS_MODE,
   loadLevel: "page",
   shape: "aggregate",

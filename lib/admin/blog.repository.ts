@@ -21,16 +21,16 @@ export function createAdminBlogRepository(client: AdminBlogRepositoryClient = cr
       return query;
     },
 
-    loadPostById(id: string, select = "*") {
+    loadPostById(id: string, select = BLOG_POST_SELECT) {
       return client.from("blog_posts").select(select).eq("id", id).maybeSingle();
     },
 
-    loadPostByIdRequired(id: string, select = "*") {
+    loadPostByIdRequired(id: string, select = BLOG_POST_SELECT) {
       return client.from("blog_posts").select(select).eq("id", id).single();
     },
 
     createPost(payload: Record<string, unknown>) {
-      return client.from("blog_posts").insert(payload).select("*").single();
+      return client.from("blog_posts").insert(payload).select(BLOG_POST_SELECT).single();
     },
 
     updatePost(id: string, patch: Record<string, unknown>) {
@@ -49,7 +49,7 @@ export function createAdminBlogRepository(client: AdminBlogRepositoryClient = cr
       return client.from("blog_categories").select(BLOG_CATEGORY_SELECT).in("id", categoryIds);
     },
 
-    loadCategoryById(id: string, select = "*") {
+    loadCategoryById(id: string, select = BLOG_CATEGORY_SELECT) {
       return client.from("blog_categories").select(select).eq("id", id).maybeSingle();
     },
 
@@ -85,7 +85,7 @@ export function createAdminBlogRepository(client: AdminBlogRepositoryClient = cr
       return client.from("blog_tags").select(select).in("slug", slugs);
     },
 
-    loadTagById(id: string, select = "*") {
+    loadTagById(id: string, select = BLOG_TAG_SELECT) {
       return client.from("blog_tags").select(select).eq("id", id).maybeSingle();
     },
 

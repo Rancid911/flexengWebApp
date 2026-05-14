@@ -13,6 +13,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AdminSupabaseClient = ReturnType<typeof createAdminClient>;
 
+export const ADMIN_PROFILE_SELECT = "id, role, first_name, last_name, display_name, email, phone, avatar_url, status, created_at, updated_at";
+
 export function createAdminUserRepositoryClient() {
   return createAdminClient();
 }
@@ -67,11 +69,11 @@ export async function upsertProfileRow(
 }
 
 export async function readProfileById(supabase: AdminSupabaseClient, userId: string) {
-  return await supabase.from("profiles").select("*").eq("id", userId).single();
+  return await supabase.from("profiles").select(ADMIN_PROFILE_SELECT).eq("id", userId).single();
 }
 
 export async function readCreatedProfileById(supabase: AdminSupabaseClient, userId: string) {
-  return await supabase.from("profiles").select("id, role, first_name, last_name, email, phone, created_at").eq("id", userId).single();
+  return await supabase.from("profiles").select(ADMIN_PROFILE_SELECT).eq("id", userId).single();
 }
 
 export async function updateProfileById(supabase: AdminSupabaseClient, userId: string, patch: Record<string, unknown>) {

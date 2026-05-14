@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffAdminApi } from "@/lib/admin/auth";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { loadCrmSettings, updateCrmSettings } from "@/lib/crm/queries";
+import { requirePermission } from "@/lib/permissions";
 
 function normalizeBackgroundImageUrl(value: unknown) {
   if (value === null) return null;
@@ -20,7 +21,8 @@ function normalizeBackgroundImageUrl(value: unknown) {
 }
 
 export const GET = withAdminErrorHandling(async () => {
-  await requireStaffAdminApi();
+  const actor = await requireStaffAdminApi();
+  requirePermission(actor, "crm.settings.read");
   try {
     return NextResponse.json(await loadCrmSettings());
   } catch (error) {
@@ -30,6 +32,7 @@ export const GET = withAdminErrorHandling(async () => {
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
+  requirePermission(actor, "crm.settings.update");
   const body = (await request.json().catch(() => null)) as { background_image_url?: unknown } | null;
   const backgroundImageUrl = normalizeBackgroundImageUrl(body?.background_image_url);
 

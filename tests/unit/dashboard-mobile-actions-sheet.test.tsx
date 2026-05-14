@@ -2,8 +2,8 @@ import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@te
 import { describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 
-import { DashboardMobileActionsSheet, type DashboardMobileActionItem } from "@/app/(workspace)/dashboard-mobile-actions-sheet";
-import { useDashboardShellOverlays } from "@/app/(workspace)/use-dashboard-shell-state";
+import { DashboardMobileActionsSheet, type DashboardMobileActionItem } from "@/features/workspace-shell/components/dashboard-mobile-actions-sheet";
+import { useDashboardShellOverlays } from "@/features/workspace-shell/client/use-dashboard-shell-state";
 
 const items: DashboardMobileActionItem[] = [
   {

@@ -1,50 +1,79 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AuthLayout from "@/app/(auth)/layout";
 import PublicLayout from "@/app/(public)/layout";
+import CrmPage from "@/app/(workspace)/(staff-zone)/crm/page";
 import SearchZoneLayout from "@/app/(workspace)/(search-zone)/layout";
 import SharedZoneLayout from "@/app/(workspace)/(shared-zone)/layout";
 import StaffZoneLayout from "@/app/(workspace)/(staff-zone)/layout";
 import StudentZoneLayout from "@/app/(workspace)/(student-zone)/layout";
 import TeacherZoneLayout from "@/app/(workspace)/(teacher-zone)/layout";
 
-vi.mock("@/app/main/main-header", () => ({
+const crmQueriesMock = vi.hoisted(() => ({
+  loadCrmBoard: vi.fn(async () => ({ stages: [] })),
+  loadCrmSettings: vi.fn(async () => ({
+    background_image_url: null,
+    updated_at: null
+  }))
+}));
+
+const requireStaffAdminPageMock = vi.hoisted(() => vi.fn(async () => undefined));
+
+vi.mock("@/features/marketing/components/main-header", () => ({
   MainHeader: () => <div data-testid="public-header">header</div>
 }));
 
-vi.mock("@/app/main/main-footer", () => ({
+vi.mock("@/features/marketing/components/main-footer", () => ({
   MainFooter: () => <div data-testid="public-footer">footer</div>
 }));
 
-vi.mock("@/app/(workspace)/workspace-shell.server", () => ({
+vi.mock("@/features/workspace-shell/server/workspace-shell.server", () => ({
   WorkspaceShell: ({
     children,
     shellVariant,
-    utilitySlots
+    utilitySlots,
+    crmBackgroundImageUrl
   }: {
     children: React.ReactNode;
     shellVariant: string;
     utilitySlots?: { search?: string; notifications?: string };
+    crmBackgroundImageUrl?: string | null;
   }) => (
     <div
       data-testid="workspace-shell"
       data-variant={shellVariant}
       data-search={utilitySlots?.search ?? "none"}
       data-notifications={utilitySlots?.notifications ?? "none"}
+      data-crm-background={crmBackgroundImageUrl ?? "none"}
     >
       {children}
     </div>
   )
 }));
 
+vi.mock("@/lib/admin/auth", () => ({
+  requireStaffAdminPage: requireStaffAdminPageMock
+}));
+
 vi.mock("@/lib/crm/queries", () => ({
-  loadCrmSettings: async () => ({
-    background_image_url: null
-  })
+  loadCrmBoard: crmQueriesMock.loadCrmBoard,
+  loadCrmSettings: crmQueriesMock.loadCrmSettings
+}));
+
+vi.mock("@/features/crm/components/crm-board-client", () => ({
+  CrmBoardClient: ({ initialSettings }: { initialSettings: { background_image_url: string | null } }) => (
+    <div data-testid="crm-board" data-background={initialSettings.background_image_url ?? "none"} />
+  )
 }));
 
 describe("route layouts", () => {
+  beforeEach(() => {
+    crmQueriesMock.loadCrmBoard.mockClear();
+    crmQueriesMock.loadCrmSettings.mockClear();
+    requireStaffAdminPageMock.mockClear();
+  });
+
   it("renders marketing shell for public layout", () => {
     render(<PublicLayout><div>content</div></PublicLayout>);
 
@@ -85,6 +114,22 @@ describe("route layouts", () => {
     expect(screen.getByTestId("workspace-shell")).toHaveAttribute("data-variant", "staff");
     expect(screen.getByTestId("workspace-shell")).toHaveAttribute("data-search", "lazy");
     expect(screen.getByTestId("workspace-shell")).toHaveAttribute("data-notifications", "lazy");
+    expect(screen.getByTestId("workspace-shell")).toHaveAttribute("data-crm-background", "none");
+    expect(crmQueriesMock.loadCrmSettings).not.toHaveBeenCalled();
+  });
+
+  it("loads CRM settings in the CRM route instead of the staff layout", async () => {
+    crmQueriesMock.loadCrmSettings.mockResolvedValue({
+      background_image_url: "https://example.com/crm-bg.jpg",
+      updated_at: "2026-04-24T12:00:00.000Z"
+    });
+
+    render(await CrmPage());
+
+    expect(requireStaffAdminPageMock).toHaveBeenCalledTimes(1);
+    expect(crmQueriesMock.loadCrmBoard).toHaveBeenCalledTimes(1);
+    expect(crmQueriesMock.loadCrmSettings).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("crm-board")).toHaveAttribute("data-background", "https://example.com/crm-bg.jpg");
   });
 
   it("disables header search for the dedicated search route", async () => {

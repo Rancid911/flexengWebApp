@@ -2,9 +2,9 @@ import { render, screen } from "@testing-library/react";
 import { BriefcaseBusiness, LayoutDashboard } from "lucide-react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DashboardMobileActionsSheet, type DashboardMobileActionItem } from "@/app/(workspace)/dashboard-mobile-actions-sheet";
-import { WorkspaceNavigationView } from "@/app/(workspace)/shell/workspace-navigation-view";
-import type { WorkspaceNavConfig } from "@/app/(workspace)/workspace-shell.types";
+import { DashboardMobileActionsSheet, type DashboardMobileActionItem } from "@/features/workspace-shell/components/dashboard-mobile-actions-sheet";
+import { WorkspaceNavigationView } from "@/features/workspace-shell/components/shell/workspace-navigation-view";
+import type { WorkspaceNavConfig } from "@/features/workspace-shell/model/workspace-shell.types";
 
 const navigationMockState = vi.hoisted(() => ({
   pathname: "/dashboard"

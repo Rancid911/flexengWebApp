@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getWorkspaceBrandStyles } from "@/app/(workspace)/shell/workspace-brand";
+import { getWorkspaceBrandStyles } from "@/features/workspace-shell/components/shell/workspace-brand";
 
 describe("getWorkspaceBrandStyles", () => {
   it("keeps the purple brand contract for students", () => {

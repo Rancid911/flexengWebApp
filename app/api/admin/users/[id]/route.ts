@@ -4,9 +4,11 @@ import { requireStaffAdminApi } from "@/lib/admin/auth";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { deleteAdminUser, updateAdminUser } from "@/lib/admin/user-service";
 import { adminUserUpdateSchema } from "@/lib/admin/validation";
+import { requirePermission } from "@/lib/permissions";
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
+  requirePermission(actor, "admin.users.update");
   const { id } = await params;
 
   const body = await request.json();
@@ -22,6 +24,7 @@ export const PATCH = withAdminErrorHandling(async (request: NextRequest, { param
 
 export const DELETE = withAdminErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
+  requirePermission(actor, "admin.users.delete");
   const { id } = await params;
 
   await deleteAdminUser(actor, id);

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { StudentNotesPanel } from "@/app/(workspace)/_components/student-profile/student-notes-panel";
+import { StudentNotesPanel } from "@/features/students/components/student-notes-panel";
 import type { UserRole } from "@/lib/auth/get-user-role";
 import type { TeacherStudentNoteDto } from "@/lib/teacher-workspace/types";
 

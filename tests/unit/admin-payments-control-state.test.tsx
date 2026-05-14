@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useAdminPaymentsControlState } from "@/app/(workspace)/(staff-zone)/admin/payments/use-admin-payments-control-state";
+import { useAdminPaymentsControlState } from "@/features/billing/client/use-admin-payments-control-state";
 import type { AdminPaymentControlResponse, AdminPaymentReminderSettingsDto } from "@/lib/admin/types";
 
 const fetchMock = vi.fn();

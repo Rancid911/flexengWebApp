@@ -14,14 +14,18 @@ export class WordsHttpError extends Error {
 }
 
 export function toWordsErrorResponse(error: unknown) {
-  if (error instanceof WordsHttpError) {
+  if (
+    error instanceof WordsHttpError ||
+    (typeof error === "object" && error !== null && "status" in error && "code" in error && "message" in error)
+  ) {
+    const typedError = error as { status: number; code: string; message: string; details?: unknown; exposeDetails?: boolean };
     return NextResponse.json(
       {
-        code: error.code,
-        message: error.message,
-        ...(error.details !== undefined ? { details: error.details } : {})
+        code: typedError.code,
+        message: typedError.message,
+        ...((typedError.exposeDetails ?? typedError.status < 500) && typedError.details !== undefined ? { details: typedError.details } : {})
       },
-      { status: error.status }
+      { status: typedError.status }
     );
   }
 

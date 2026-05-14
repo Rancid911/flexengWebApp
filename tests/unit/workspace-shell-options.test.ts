@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveWorkspaceShellOptions } from "@/app/(workspace)/workspace-shell-options";
+import { resolveWorkspaceShellOptions } from "@/features/workspace-shell/server/workspace-shell-options";
 
 describe("resolveWorkspaceShellOptions", () => {
   it("returns lazy search and notifications for shared and staff shells", () => {

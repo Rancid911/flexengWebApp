@@ -5,6 +5,12 @@ import PracticePage from "@/app/(workspace)/(shared-zone)/practice/page";
 import WordsMyPage from "@/app/(workspace)/(shared-zone)/words/my/page";
 import WordTopicPage from "@/app/(workspace)/(shared-zone)/words/topics/[topicSlug]/page";
 
+const navigationMocks = vi.hoisted(() => ({
+  notFound: vi.fn(() => {
+    throw new Error("NEXT_NOT_FOUND");
+  })
+}));
+
 const getHomeworkOverviewSummaryMock = vi.fn();
 const getHomeworkAssignmentsMock = vi.fn();
 const getPracticeOverviewSummaryMock = vi.fn();
@@ -22,14 +28,31 @@ vi.mock("@/lib/homework/queries", () => ({
   getHomeworkAssignments: (...args: unknown[]) => getHomeworkAssignmentsMock(...args)
 }));
 
-vi.mock("@/app/(workspace)/(shared-zone)/homework/render-homework-list", () => ({
-  renderHomeworkList: (items: unknown) => <div data-testid="homework-list">{JSON.stringify(items)}</div>
+vi.mock("@/features/homework/components/homework-overview", () => ({
+  HomeworkOverview: ({ summary, items }: { summary: unknown; items: unknown }) => (
+    <div data-testid="homework-overview">
+      {JSON.stringify({ summary, items })}
+    </div>
+  ),
+  HomeworkFilteredListPage: ({ items }: { items: unknown }) => <div data-testid="homework-filtered-list">{JSON.stringify(items)}</div>
 }));
 
 vi.mock("@/lib/practice/queries", () => ({
   getPracticeOverviewSummary: (...args: unknown[]) => getPracticeOverviewSummaryMock(...args),
   getPracticeRecommended: (...args: unknown[]) => getPracticeRecommendedMock(...args),
   getPracticeTopics: (...args: unknown[]) => getPracticeTopicsMock(...args)
+}));
+
+vi.mock("next/navigation", () => ({
+  notFound: navigationMocks.notFound
+}));
+
+vi.mock("@/features/words/components/words-overview", () => ({
+  WordsOverview: (props: unknown) => <div data-testid="words-overview-probe">{JSON.stringify(props)}</div>
+}));
+
+vi.mock("@/features/words/components/word-topic-detail", () => ({
+  WordTopicDetail: (props: unknown) => <div data-testid="word-topic-detail-probe">{JSON.stringify(props)}</div>
 }));
 
 vi.mock("@/lib/words/queries", () => ({
@@ -54,6 +77,7 @@ describe("student route loading", () => {
     getNewWordsMock.mockReset();
     getWordTopicSummariesMock.mockReset();
     getWordTopicDetailMock.mockReset();
+    navigationMocks.notFound.mockClear();
   });
 
   it("assembles homework page from summary and list loaders", async () => {
@@ -109,7 +133,15 @@ describe("student route loading", () => {
 
     expect(getWordsOverviewSummaryMock).toHaveBeenCalledTimes(1);
     expect(getWordTopicSummariesMock).toHaveBeenCalledTimes(1);
-    expect(result).toBeTruthy();
+    expect(result.props.summary).toEqual({
+      totalWords: 6,
+      reviewCount: 2,
+      newCount: 1,
+      activeCount: 4,
+      difficultCount: 1,
+      masteredCount: 2
+    });
+    expect(result.props.topics).toEqual([{ slug: "travel", title: "Путешествия", description: "Travel", availableCount: 3, difficultCount: 1 }]);
   });
 
   it("assembles word topic page from topic detail loader", async () => {
@@ -135,6 +167,16 @@ describe("student route loading", () => {
     const result = await WordTopicPage({ params: Promise.resolve({ topicSlug: "food" }) });
 
     expect(getWordTopicDetailMock).toHaveBeenCalledWith("food");
-    expect(result).toBeTruthy();
+    expect(result.props.detail.topic.slug).toBe("food");
+    expect(navigationMocks.notFound).not.toHaveBeenCalled();
+  });
+
+  it("renders not found when the word topic detail is missing", async () => {
+    getWordTopicDetailMock.mockResolvedValue(null);
+
+    await expect(WordTopicPage({ params: Promise.resolve({ topicSlug: "missing" }) })).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(getWordTopicDetailMock).toHaveBeenCalledWith("missing");
+    expect(navigationMocks.notFound).toHaveBeenCalledTimes(1);
   });
 });

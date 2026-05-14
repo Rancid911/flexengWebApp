@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { requirePermission } from "@/lib/permissions";
 import { requireScheduleApi } from "@/lib/schedule/server";
 import { ScheduleHttpError, withScheduleErrorHandling } from "@/lib/schedule/http";
 import { createTeacherStudentNote } from "@/lib/teacher-workspace/queries";
@@ -8,6 +9,8 @@ import { teacherNoteMutationSchema } from "@/lib/teacher-workspace/validation";
 export const POST = withScheduleErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
   const { id } = await params;
+  requirePermission(actor, "students.notes.write", { studentId: id });
+
   const body = await request.json();
   const parsed = teacherNoteMutationSchema.safeParse(body);
 

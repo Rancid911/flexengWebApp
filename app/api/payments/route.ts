@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getAppActor } from "@/lib/auth/request-context";
 import { getCurrentStudentBillingSummary } from "@/lib/billing/server";
 import { getStudentPayments } from "@/lib/payments/queries";
+import { requirePermission } from "@/lib/permissions";
+import { HttpError, withApiErrorHandling } from "@/lib/server/http";
 
-export async function GET(request: NextRequest) {
+export const GET = withApiErrorHandling(async (request: NextRequest) => {
+  const actor = await getAppActor();
+  if (!actor) {
+    throw new HttpError(401, "UNAUTHORIZED", "Authentication required");
+  }
+  requirePermission(actor, "payments.history.read");
+
   const url = new URL(request.url);
   const includePayments = url.searchParams.get("includePayments") !== "0";
   const includeBillingSummary = url.searchParams.get("includeBillingSummary") !== "0";
@@ -19,4 +28,4 @@ export async function GET(request: NextRequest) {
   ]);
 
   return NextResponse.json({ payments, billingSummary });
-}
+});

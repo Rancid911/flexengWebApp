@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SearchPageView } from "@/app/search/search-page-view";
+import { SearchPageView } from "@/features/search/components/search-page-view";
 
 const searchSiteMock = vi.fn();
 

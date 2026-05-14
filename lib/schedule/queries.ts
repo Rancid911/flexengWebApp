@@ -130,7 +130,8 @@ async function mapScheduleLessons(rows: ScheduleLessonRow[], options?: ScheduleL
     const studentIds = Array.from(new Set(rows.map((row) => row.student_id)));
     const teacherIds = Array.from(new Set(rows.map((row) => row.teacher_id)));
     const lessonIds = rows.map((row) => row.id);
-    const [studentLabelsById, teacherLabelsById, attendanceByLessonId, outcomeByLessonId] = await Promise.all([
+    const includeFollowup = options?.includeFollowup !== false;
+    const [studentLabelsById, teacherLabelsById] = await Promise.all([
       measureServerTiming("schedule-label-resolution", () =>
         options?.studentLabelsById
           ? Promise.resolve(options.studentLabelsById)
@@ -144,14 +145,18 @@ async function mapScheduleLessons(rows: ScheduleLessonRow[], options?: ScheduleL
           : options?.teacherOptions
             ? Promise.resolve(new Map(options.teacherOptions.map((item) => [item.id, item.label])))
             : repository.loadTeacherLabelsByIds(teacherIds)
-      ),
-      measureServerTiming("schedule-attendance-load", () =>
-        options?.attendanceByLessonId ? Promise.resolve(options.attendanceByLessonId) : repository.loadAttendanceByLessonIds(lessonIds)
-      ),
-      measureServerTiming("schedule-outcomes-load", () =>
-        options?.outcomeByLessonId ? Promise.resolve(options.outcomeByLessonId) : repository.loadOutcomesByLessonIds(lessonIds)
       )
     ]);
+    const [attendanceByLessonId, outcomeByLessonId] = includeFollowup
+      ? await Promise.all([
+          measureServerTiming("schedule-attendance-load", () =>
+            options?.attendanceByLessonId ? Promise.resolve(options.attendanceByLessonId) : repository.loadAttendanceByLessonIds(lessonIds)
+          ),
+          measureServerTiming("schedule-outcomes-load", () =>
+            options?.outcomeByLessonId ? Promise.resolve(options.outcomeByLessonId) : repository.loadOutcomesByLessonIds(lessonIds)
+          )
+        ])
+      : [new Map<string, LessonAttendanceRow>(), new Map<string, LessonOutcomeRow>()];
 
     return mapScheduleLessonRows(rows, {
       studentLabelsById,
@@ -186,22 +191,23 @@ async function listScheduleLessonRows(actor: ScheduleActor, filters: StaffSchedu
   });
 }
 
-export async function getSchedulePageData(actor: ScheduleActor, filters: StaffScheduleFilters = {}): Promise<SchedulePageData> {
+// Staff/teacher list views should opt into lightweight schedule data; follow-up enrichment is only for explicit workflows.
+export async function getSchedulePageDataWithFollowup(actor: ScheduleActor, filters: StaffScheduleFilters = {}): Promise<SchedulePageData> {
   return getSchedulePageDataInternal(actor, filters, { includeFollowup: true });
 }
 
 type GetSchedulePageDataOptions = {
-  includeFollowup?: boolean;
+  includeFollowup: boolean;
 };
 
 export async function getSchedulePageDataInternal(
   actor: ScheduleActor,
   filters: StaffScheduleFilters = {},
-  options: GetSchedulePageDataOptions = {}
+  options: GetSchedulePageDataOptions
 ): Promise<SchedulePageData> {
   return measureServerTiming("schedule-page-data", async () => {
     const repository = createScheduleRepository();
-    const includeFollowup = options.includeFollowup ?? true;
+    const includeFollowup = options.includeFollowup;
 
     if (actor.role === "student") {
       const rows = await measureServerTiming("schedule-list", () => listScheduleLessonRows(actor, filters));
@@ -216,17 +222,16 @@ export async function getSchedulePageDataInternal(
 
     const rows = await measureServerTiming("schedule-list", () => listScheduleLessonRows(actor, filters));
     const lessonIds = rows.map((row) => row.id);
-    const [attendanceByLessonId, outcomeByLessonId] = await Promise.all([
-      measureServerTiming("schedule-shared-attendance", () =>
-        includeFollowup ? repository.loadAttendanceByLessonIds(lessonIds) : Promise.resolve(new Map<string, LessonAttendanceRow>())
-      ),
-      measureServerTiming("schedule-shared-outcomes", () =>
-        includeFollowup ? repository.loadOutcomesByLessonIds(lessonIds) : Promise.resolve(new Map<string, LessonOutcomeRow>())
-      )
-    ]);
+    const [attendanceByLessonId, outcomeByLessonId] = includeFollowup
+      ? await Promise.all([
+          measureServerTiming("schedule-shared-attendance", () => repository.loadAttendanceByLessonIds(lessonIds)),
+          measureServerTiming("schedule-shared-outcomes", () => repository.loadOutcomesByLessonIds(lessonIds))
+        ])
+      : [new Map<string, LessonAttendanceRow>(), new Map<string, LessonOutcomeRow>()];
     const mapped = await mapScheduleLessons(rows, {
       attendanceByLessonId,
-      outcomeByLessonId
+      outcomeByLessonId,
+      includeFollowup
     });
     const { students, teachers } = await measureServerTiming("schedule-filter-catalog-deferred", async () =>
       buildOptionsFromLessons(mapped as StaffScheduleLessonDto[], filters, actor)

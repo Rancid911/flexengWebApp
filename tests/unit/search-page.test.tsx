@@ -9,15 +9,15 @@ vi.mock("@/lib/auth/request-context", () => ({
   getLayoutActor: () => getLayoutActorMock()
 }));
 
-vi.mock("@/app/main/main-header", () => ({
+vi.mock("@/features/marketing/components/main-header", () => ({
   MainHeader: () => <div data-testid="public-header">header</div>
 }));
 
-vi.mock("@/app/main/main-footer", () => ({
+vi.mock("@/features/marketing/components/main-footer", () => ({
   MainFooter: () => <div data-testid="public-footer">footer</div>
 }));
 
-vi.mock("@/app/(workspace)/workspace-shell.server", () => ({
+vi.mock("@/features/workspace-shell/server/workspace-shell.server", () => ({
   WorkspaceShell: ({
     children,
     shellVariant,
@@ -38,7 +38,7 @@ vi.mock("@/app/(workspace)/workspace-shell.server", () => ({
   )
 }));
 
-vi.mock("@/app/search/search-page-view", () => ({
+vi.mock("@/features/search/components/search-page-view", () => ({
   SearchPageView: ({ searchParams }: { searchParams: { q?: string; section?: string } }) => {
     void searchParams;
     return <div data-testid="search-page-view">search-page-view</div>;

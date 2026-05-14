@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useAdminTestsActions } from "@/app/(workspace)/(staff-zone)/admin/ui/admin-console-actions";
-import { createDefaultTestsForm, type TestQuestionForm, type TestsForm } from "@/app/(workspace)/(staff-zone)/admin/ui/admin-console.constants";
+import { useAdminTestsActions } from "@/features/admin/components/admin-console/admin-console-actions";
+import { createDefaultTestsForm, type TestQuestionForm, type TestsForm } from "@/features/admin/components/admin-console/admin-console.constants";
 import type { AdminTestDetailDto, AdminTestDto } from "@/lib/admin/types";
 
 const fetchMock = vi.fn();

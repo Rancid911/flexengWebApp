@@ -12,7 +12,7 @@ vi.mock("@/lib/payments/queries", () => ({
   getStudentPaymentStatusContext: (...args: unknown[]) => getStudentPaymentStatusContextMock(...args)
 }));
 
-vi.mock("@/app/(workspace)/(student-zone)/settings/payments-client", () => ({
+vi.mock("@/features/payments/components/payments-client", () => ({
   PaymentsClient: (props: {
     initialPayments: unknown;
     initialBillingSummary: unknown;

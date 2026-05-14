@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TeacherBasicInfoCard, type TeacherBasicInfoDto } from "@/app/(workspace)/(staff-zone)/admin/teachers/[teacherId]/teacher-basic-info-card";
+import { TeacherBasicInfoCard, type TeacherBasicInfoDto } from "@/features/admin/components/teacher-dossier/teacher-basic-info-card";
 
 const initialData: TeacherBasicInfoDto = {
   teacherId: "teacher-1",

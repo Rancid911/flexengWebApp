@@ -81,6 +81,11 @@ async function getStudentPracticeSearchAccess(
   };
 }
 
+function needsStudentPracticeAccess(candidates: SearchDocumentCandidate[], context: SearchContext) {
+  if (!context.studentId || !context.capabilities.includes("student")) return false;
+  return candidates.some((candidate) => candidate.visibility === "enrollment" && candidate.section === "practice");
+}
+
 function canAccessRoleScopedDocument(candidate: SearchDocumentCandidate, context: SearchContext) {
   if (!context.isAuthenticated || !context.role) return false;
   if (context.capabilities.includes("staff_admin")) return true;
@@ -186,7 +191,10 @@ export async function searchSite(params: {
 
   const context = await getSearchContext();
   const candidates = await fetchSearchDocumentCandidates({ query, limit, section });
-  const practiceAccess = context.studentId ? await getStudentPracticeSearchAccess(context.studentId, candidates) : null;
+  const practiceAccess =
+    context.studentId && needsStudentPracticeAccess(candidates, context)
+      ? await getStudentPracticeSearchAccess(context.studentId, candidates)
+      : null;
   const dedupe = new Set<string>();
   const items: SearchResultDto[] = [];
 

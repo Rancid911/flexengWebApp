@@ -3,15 +3,18 @@ import { NextRequest } from "next/server";
 
 const assignTeacherStudentPlacementTestMock = vi.fn();
 const cancelTeacherStudentPlacementTestMock = vi.fn();
-
-vi.mock("@/lib/schedule/server", () => ({
-  requireScheduleApi: vi.fn(async () => ({
+const requireScheduleApiMock = vi.hoisted(() =>
+  vi.fn(async () => ({
     userId: "teacher-profile",
     role: "teacher",
     studentId: null,
     teacherId: "teacher-1",
     accessibleStudentIds: ["student-1"]
   }))
+);
+
+vi.mock("@/lib/schedule/server", () => ({
+  requireScheduleApi: () => requireScheduleApiMock()
 }));
 
 vi.mock("@/lib/teacher-workspace/queries", () => ({
@@ -21,6 +24,14 @@ vi.mock("@/lib/teacher-workspace/queries", () => ({
 
 describe("/api/students/[id]/placement-assignment", () => {
   beforeEach(() => {
+    requireScheduleApiMock.mockReset();
+    requireScheduleApiMock.mockResolvedValue({
+      userId: "teacher-profile",
+      role: "teacher",
+      studentId: null,
+      teacherId: "teacher-1",
+      accessibleStudentIds: ["student-1"]
+    });
     assignTeacherStudentPlacementTestMock.mockReset();
     cancelTeacherStudentPlacementTestMock.mockReset();
   });
@@ -51,6 +62,26 @@ describe("/api/students/[id]/placement-assignment", () => {
     expect(response.status).toBe(201);
   });
 
+  it("denies placement assignment for student actor", async () => {
+    requireScheduleApiMock.mockResolvedValue({
+      userId: "student-profile",
+      role: "student",
+      studentId: "student-1",
+      teacherId: null,
+      accessibleStudentIds: null
+    });
+
+    const { POST } = await import("@/app/api/students/[id]/placement-assignment/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/students/student-1/placement-assignment", { method: "POST" }),
+      { params: Promise.resolve({ id: "student-1" }) }
+    );
+
+    expect(response.status).toBe(403);
+    expect(assignTeacherStudentPlacementTestMock).not.toHaveBeenCalled();
+    expect(cancelTeacherStudentPlacementTestMock).not.toHaveBeenCalled();
+  });
+
   it("cancels placement test assignment for a student", async () => {
     cancelTeacherStudentPlacementTestMock.mockResolvedValue({
       assignmentId: null,
@@ -77,5 +108,25 @@ describe("/api/students/[id]/placement-assignment", () => {
     );
     expect(response.status).toBe(200);
     expect(payload.status).toBe("not_assigned");
+  });
+
+  it("denies placement cancellation for student actor", async () => {
+    requireScheduleApiMock.mockResolvedValue({
+      userId: "student-profile",
+      role: "student",
+      studentId: "student-1",
+      teacherId: null,
+      accessibleStudentIds: null
+    });
+
+    const { DELETE } = await import("@/app/api/students/[id]/placement-assignment/route");
+    const response = await DELETE(
+      new NextRequest("http://localhost/api/students/student-1/placement-assignment", { method: "DELETE" }),
+      { params: Promise.resolve({ id: "student-1" }) }
+    );
+
+    expect(response.status).toBe(403);
+    expect(assignTeacherStudentPlacementTestMock).not.toHaveBeenCalled();
+    expect(cancelTeacherStudentPlacementTestMock).not.toHaveBeenCalled();
   });
 });

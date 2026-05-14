@@ -95,6 +95,21 @@ describe("PATCH /api/admin/teachers/[teacherId]/dossier/professional-info", () =
     requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
   });
 
+  it("rejects teacher actors before touching Supabase or audit", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-profile-1", role: "teacher" });
+
+    const { PATCH } = await import("@/app/api/admin/teachers/[teacherId]/dossier/professional-info/route");
+    const response = await PATCH(createRequest(validPayload), { params: Promise.resolve({ teacherId: "teacher-1" }) });
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      code: "FORBIDDEN",
+      message: "Permission denied"
+    });
+    expect(createAdminClientMock).not.toHaveBeenCalled();
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
   it("upserts professional info for valid staff payload and returns DTO", async () => {
     const mocks = createSupabaseMock();
     createAdminClientMock.mockReturnValue(mocks.supabase);

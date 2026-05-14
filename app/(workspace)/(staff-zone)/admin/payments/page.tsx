@@ -1,7 +1,6 @@
 import { requireStaffAdminPage } from "@/lib/admin/auth";
 import { listAdminPaymentControl, getAdminPaymentReminderSettings } from "@/lib/admin/payments-control";
-
-import { AdminPaymentsControlClient } from "./payments-control-client";
+import { AdminPaymentsControlClient } from "@/features/billing/components/admin-payments-control-client";
 
 export default async function AdminPaymentsPage() {
   await requireStaffAdminPage();

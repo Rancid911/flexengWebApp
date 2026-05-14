@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { useDashboardNotificationsReadLifecycle } from "@/app/(workspace)/use-dashboard-notifications-read-lifecycle";
+import { useDashboardNotificationsReadLifecycle } from "@/features/workspace-shell/client/use-dashboard-notifications-read-lifecycle";
 
 describe("useDashboardNotificationsReadLifecycle", () => {
   it("does not auto-refresh notifications during initial load", async () => {

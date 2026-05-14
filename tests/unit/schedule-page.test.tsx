@@ -14,7 +14,7 @@ vi.mock("@/lib/schedule/server", () => ({
   requireSchedulePage: () => requireSchedulePageMock()
 }));
 
-vi.mock("@/app/(workspace)/(shared-zone)/schedule/schedule-client", () => ({
+vi.mock("@/features/schedule/components/schedule-client", () => ({
   ScheduleClient: (props: { initialData: unknown }) => scheduleClientMock(props)
 }));
 

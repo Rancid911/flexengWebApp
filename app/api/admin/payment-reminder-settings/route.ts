@@ -3,15 +3,18 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { requireStaffAdminApi } from "@/lib/admin/auth";
 import { getAdminPaymentReminderSettings, syncAutomaticPaymentReminders, updateAdminPaymentReminderSettings } from "@/lib/admin/payments-control";
+import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async () => {
-  await requireStaffAdminApi();
+  const actor = await requireStaffAdminApi();
+  requirePermission(actor, "billing.admin.read");
   const settings = await getAdminPaymentReminderSettings();
   return NextResponse.json(settings);
 });
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
+  requirePermission(actor, "billing.reminders.manage");
   const body = (await request.json().catch(() => null)) as { enabled?: unknown; threshold_lessons?: unknown } | null;
   const enabled = typeof body?.enabled === "boolean" ? body.enabled : null;
   const thresholdLessons =

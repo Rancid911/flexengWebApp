@@ -22,7 +22,7 @@ vi.mock("@/lib/teacher-workspace/profile-page", () => ({
   loadTeacherStudentProfileSections: (...args: unknown[]) => loadTeacherStudentProfileSectionsMock(...args)
 }));
 
-vi.mock("@/app/(workspace)/_components/student-profile/student-profile-view", () => ({
+vi.mock("@/features/students/components/student-profile-view", () => ({
   StudentProfileView: (props: unknown) => <div data-testid="student-profile-probe">{JSON.stringify(props)}</div>
 }));
 

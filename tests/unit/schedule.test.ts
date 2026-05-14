@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { canSubmitLessonForm } from "@/app/(workspace)/(shared-zone)/schedule/use-staff-schedule-state";
-import { hasExplicitPastDateSelection, resolveStudentOptionIds } from "@/lib/schedule/queries";
+import { canSubmitLessonForm } from "@/features/schedule/client/use-staff-schedule-state";
+import { getSchedulePageDataInternal, hasExplicitPastDateSelection, resolveStudentOptionIds } from "@/lib/schedule/queries";
 import { buildStudentSchedulePreview, formatScheduleDateLabel, getScheduleStatusLabel, getStudentVisibleLessons } from "@/lib/schedule/utils";
 import { scheduleLessonMutationSchema } from "@/lib/schedule/validation";
 import { getStudentSchedulePreviewByStudentId } from "@/lib/schedule/queries";
@@ -89,6 +89,110 @@ function makeLesson(index: number, overrides: Partial<StudentScheduleLessonDto> 
     hasOutcome: false,
     studentVisibleOutcome: null,
     ...overrides
+  };
+}
+
+function makeQueryResult(data: unknown) {
+  const result = { data, error: null };
+  const builder = {
+    select: () => builder,
+    eq: () => builder,
+    neq: () => builder,
+    gt: () => builder,
+    gte: () => builder,
+    lte: () => builder,
+    in: () => builder,
+    order: () => builder,
+    limit: () => builder,
+    then: (resolve: (value: typeof result) => unknown) => Promise.resolve(result).then(resolve),
+    catch: (reject: (reason: unknown) => unknown) => Promise.resolve(result).catch(reject),
+    finally: (callback: () => void) => Promise.resolve(result).finally(callback)
+  };
+  return builder;
+}
+
+function makeSchedulePageDataClient(tableCalls: string[]) {
+  return {
+    from: (table: string) => {
+      tableCalls.push(table);
+      switch (table) {
+        case "student_schedule_lessons":
+          return makeQueryResult([
+            {
+              id: "lesson-1",
+              student_id: "student-1",
+              teacher_id: "teacher-1",
+              title: "Speaking club",
+              starts_at: "2099-03-28T10:00:00.000Z",
+              ends_at: "2099-03-28T11:00:00.000Z",
+              meeting_url: null,
+              comment: null,
+              status: "scheduled",
+              created_at: null,
+              updated_at: null
+            }
+          ]);
+        case "students":
+          return makeQueryResult([
+            {
+              id: "student-1",
+              profile_id: "profile-student-1",
+              profiles: {
+                id: "profile-student-1",
+                display_name: "Анна Иванова",
+                first_name: "Анна",
+                last_name: "Иванова",
+                email: "student@example.com"
+              }
+            }
+          ]);
+        case "teachers":
+          return makeQueryResult([
+            {
+              id: "teacher-1",
+              profile_id: "profile-teacher-1",
+              profiles: {
+                id: "profile-teacher-1",
+                display_name: "Мария Петрова",
+                first_name: "Мария",
+                last_name: "Петрова",
+                email: "teacher@example.com"
+              }
+            }
+          ]);
+        case "lesson_attendance":
+          return makeQueryResult([
+            {
+              id: "attendance-1",
+              schedule_lesson_id: "lesson-1",
+              student_id: "student-1",
+              teacher_id: "teacher-1",
+              status: "completed",
+              marked_at: "2099-03-28T11:05:00.000Z",
+              created_at: null,
+              updated_at: null
+            }
+          ]);
+        case "lesson_outcomes":
+          return makeQueryResult([
+            {
+              id: "outcome-1",
+              schedule_lesson_id: "lesson-1",
+              student_id: "student-1",
+              teacher_id: "teacher-1",
+              summary: "Good speaking practice",
+              covered_topics: null,
+              mistakes_summary: null,
+              next_steps: "Review vocabulary",
+              visible_to_student: true,
+              created_at: null,
+              updated_at: null
+            }
+          ]);
+        default:
+          throw new Error(`Unexpected table: ${table}`);
+      }
+    }
   };
 }
 
@@ -307,6 +411,86 @@ describe("schedule helpers", () => {
     expect(preview.nextLesson?.teacherName).toBe("Мария Петрова");
     expect(preview.nextLesson?.attendanceStatus).toBeNull();
     expect(preview.nextLesson?.hasOutcome).toBe(false);
+  });
+
+  it("keeps staff schedule page data lightweight when follow-up enrichment is disabled", async () => {
+    const tableCalls: string[] = [];
+    activeAdminClientMock = makeSchedulePageDataClient(tableCalls);
+
+    const data = await getSchedulePageDataInternal(
+      {
+        role: "teacher",
+        userId: "teacher-profile-1",
+        teacherId: "teacher-1",
+        studentId: null,
+        accessibleStudentIds: ["student-1"]
+      },
+      {},
+      { includeFollowup: false }
+    );
+
+    expect(data.role).toBe("teacher");
+    expect(data.lessons[0]).toMatchObject({
+      attendanceStatus: null,
+      hasOutcome: false,
+      studentVisibleOutcome: null
+    });
+    expect(tableCalls).not.toContain("lesson_attendance");
+    expect(tableCalls).not.toContain("lesson_outcomes");
+  });
+
+  it("loads staff schedule follow-up data when enrichment is explicitly enabled", async () => {
+    const tableCalls: string[] = [];
+    activeAdminClientMock = makeSchedulePageDataClient(tableCalls);
+
+    const data = await getSchedulePageDataInternal(
+      {
+        role: "teacher",
+        userId: "teacher-profile-1",
+        teacherId: "teacher-1",
+        studentId: null,
+        accessibleStudentIds: ["student-1"]
+      },
+      {},
+      { includeFollowup: true }
+    );
+
+    expect(data.role).toBe("teacher");
+    expect(data.lessons[0]).toMatchObject({
+      attendanceStatus: "completed",
+      hasOutcome: true,
+      studentVisibleOutcome: {
+        summary: "Good speaking practice",
+        nextSteps: "Review vocabulary"
+      }
+    });
+    expect(tableCalls).toContain("lesson_attendance");
+    expect(tableCalls).toContain("lesson_outcomes");
+  });
+
+  it("keeps student schedule page data enriched with visible outcomes", async () => {
+    const tableCalls: string[] = [];
+    activeAdminClientMock = makeSchedulePageDataClient(tableCalls);
+
+    const data = await getSchedulePageDataInternal({
+      role: "student",
+      userId: "student-profile-1",
+      studentId: "student-1",
+      teacherId: null,
+      accessibleStudentIds: null
+    }, {}, { includeFollowup: true });
+
+    expect(data.role).toBe("student");
+    expect(data.lessons[0]).toMatchObject({
+      attendanceStatus: "completed",
+      hasOutcome: true,
+      studentVisibleOutcome: {
+        summary: "Good speaking practice",
+        nextSteps: "Review vocabulary"
+      }
+    });
+    expect(tableCalls).toContain("lesson_attendance");
+    expect(tableCalls).toContain("lesson_outcomes");
   });
 
   it("treats past lessons as hidden by default unless a past date was explicitly selected", () => {

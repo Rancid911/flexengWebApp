@@ -4,7 +4,7 @@ import {
   renderStudentHomeworkDetailPage,
   renderStudentNotesDetailPage,
   renderStudentScheduleDetailPage
-} from "@/app/(workspace)/_components/student-profile/student-detail-route";
+} from "@/features/students/server/student-detail-route";
 
 const requireSchedulePageMock = vi.fn();
 const getTeacherStudentHeaderSummaryMock = vi.fn();

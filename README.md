@@ -56,14 +56,24 @@ git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboar
 
 ## Структура
 
-- `app/page.tsx` — основной экран дашборда (защищён сессией)
-- `app/login/page.tsx` — вход по email и паролю
-- `app/register/page.tsx` — регистрация по email и паролю
-- `app/forgot-password/page.tsx` — запрос ссылки восстановления
-- `app/reset-password/page.tsx` — установка нового пароля
+- `app/(public)` — публичные route pages, layout и metadata
+- `app/(auth)` — auth route pages, loading/error boundaries
+- `app/(workspace)` — workspace route groups и тонкие route entrypoints
+- `app/api` — API route handlers как transport boundary
 - `app/auth/confirm/route.ts` — подтверждение токена из email-ссылки
+- `features/*` — доменные UI/client/server модули
+- `shared/*` — cross-domain primitives, shared UI and client helpers
+- `lib/*` — auth, permissions, Supabase infrastructure, services, queries, repositories and DTO mapping
 - `components/ui/*` — базовые UI-компоненты в стиле shadcn
 - `app/globals.css` — токены темы из `.pen`
+
+## Architecture baseline
+
+- `app` остаётся routing-only: новые feature/client/server implementation files идут в `features/*`, `shared/*` или `lib/*`.
+- Protected API routes должны вызывать `requirePermission()`; public/provider/internal exceptions явно перечислены в `scripts/check-architecture.mjs`.
+- Direct Supabase в UI разрешён только для explicit browser auth/logout flows.
+- Storage and persistence writes go through API/service boundaries.
+- Актуальные правила описаны в `ARCHITECTURE.md`, `docs/architecture.md` и `ARCHITECTURE_MIGRATION.md`.
 
 ## Product docs
 
@@ -83,6 +93,8 @@ git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboar
 
 ```bash
 npm run lint
-npm run build
+npm run check:architecture
 npx tsc --noEmit
+npm run build
+npm run test:unit
 ```

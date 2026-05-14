@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
+const getAppActorMock = vi.fn();
 const submitPracticeTestAttemptMock = vi.fn();
+
+vi.mock("@/lib/auth/request-context", () => ({
+  getAppActor: () => getAppActorMock()
+}));
 
 vi.mock("@/lib/practice/attempts", () => ({
   submitPracticeTestAttempt: (...args: unknown[]) => submitPracticeTestAttemptMock(...args)
@@ -9,6 +14,8 @@ vi.mock("@/lib/practice/attempts", () => ({
 
 describe("/api/practice/attempts POST", () => {
   beforeEach(() => {
+    getAppActorMock.mockReset();
+    getAppActorMock.mockResolvedValue({ userId: "student-profile-1", role: "student", isStudent: true });
     submitPracticeTestAttemptMock.mockReset();
   });
 
@@ -51,6 +58,41 @@ describe("/api/practice/attempts POST", () => {
       timeSpentSeconds: 42
     });
     expect(response.status).toBe(201);
+  });
+
+  it("rejects unauthenticated attempts before submit", async () => {
+    getAppActorMock.mockResolvedValue(null);
+
+    const { POST } = await import("@/app/api/practice/attempts/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/practice/attempts", {
+        method: "POST",
+        body: JSON.stringify({
+          activityId: "test_11111111-1111-1111-1111-111111111111",
+          answers: []
+        })
+      })
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(submitPracticeTestAttemptMock).not.toHaveBeenCalled();
+  });
+
+  it("denies non-student attempts before parsing invalid JSON", async () => {
+    getAppActorMock.mockResolvedValue({ userId: "teacher-profile-1", role: "teacher", isTeacher: true });
+
+    const { POST } = await import("@/app/api/practice/attempts/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/practice/attempts", {
+        method: "POST",
+        body: "not-json"
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Permission denied" });
+    expect(submitPracticeTestAttemptMock).not.toHaveBeenCalled();
   });
 
   it("rejects invalid payloads before submit", async () => {

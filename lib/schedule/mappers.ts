@@ -75,6 +75,7 @@ export type ScheduleLessonEnrichmentOptions = {
   teacherLabelsById?: Map<string, string>;
   attendanceByLessonId?: Map<string, LessonAttendanceRow>;
   outcomeByLessonId?: Map<string, LessonOutcomeRow>;
+  includeFollowup?: boolean;
 };
 
 export function buildDisplayName(
