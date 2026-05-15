@@ -1,5 +1,6 @@
 import type { AppActor } from "@/lib/auth/request-context";
 import { profileCacheKey, readDashboardCache } from "@/lib/dashboard-cache";
+import { buildAvatarMediaUrl, toAvatarMediaUrl } from "@/lib/media/urls";
 import { HttpError } from "@/lib/server/http";
 import { runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
 import { createClient } from "@/lib/supabase/server";
@@ -102,12 +103,12 @@ function toProfileDto(params: {
     userId: params.userId,
     email: params.email,
     pendingEmail: params.pendingEmail,
-    cachedAvatarUrl: params.cachedAvatarUrl,
+    cachedAvatarUrl: toAvatarMediaUrl(params.userId, params.cachedAvatarUrl),
     profile: {
       firstName: params.profile?.first_name ?? "",
       lastName: params.profile?.last_name ?? "",
       phone: params.profile?.phone ?? "",
-      avatarUrl: params.profile?.avatar_url ?? null,
+      avatarUrl: toAvatarMediaUrl(params.userId, params.profile?.avatar_url ?? null),
       role: params.profile?.role ?? null,
       email: normalizeEmailValue(params.profile?.email ?? "")
     },
@@ -190,8 +191,7 @@ async function updateAvatar(
     });
     if (uploadError) throw new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", `avatar:${uploadError.message}`);
 
-    const { data: publicData } = supabase.storage.from("avatars").getPublicUrl(path);
-    const updatedAvatarUrl = `${publicData.publicUrl}?v=${Date.now()}`;
+    const updatedAvatarUrl = buildAvatarMediaUrl(userId, Date.now());
     const { error: profileAvatarUpdateError } = await supabase.from("profiles").update({ avatar_url: updatedAvatarUrl }).eq("id", userId);
     if (profileAvatarUpdateError) throw new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", `avatar:${profileAvatarUpdateError.message}`);
     return { avatarUrl: updatedAvatarUrl, message: "Аватар обновлён" };

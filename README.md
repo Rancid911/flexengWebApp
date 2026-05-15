@@ -52,7 +52,7 @@ git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboar
 - Tailwind CSS
 - shadcn/ui (локальные компоненты)
 - Lucide Icons
-- Supabase Auth (`@supabase/supabase-js`, `@supabase/ssr`)
+- Supabase Auth/Postgres (`@supabase/supabase-js`, `@supabase/ssr`)
 
 ## Структура
 
@@ -71,8 +71,8 @@ git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboar
 
 - `app` остаётся routing-only: новые feature/client/server implementation files идут в `features/*`, `shared/*` или `lib/*`.
 - Protected API routes должны вызывать `requirePermission()`; public/provider/internal exceptions явно перечислены в `scripts/check-architecture.mjs`.
-- Direct Supabase в UI разрешён только для explicit browser auth/logout flows.
-- Storage and persistence writes go through API/service boundaries.
+- UI не обращается к Supabase напрямую; auth, storage and persistence flows go through same-origin API/server boundaries.
+- Browser Supabase clients are blocked by `npm run check:architecture`.
 - Актуальные правила описаны в `ARCHITECTURE.md`, `docs/architecture.md` и `ARCHITECTURE_MIGRATION.md`.
 
 ## Product docs

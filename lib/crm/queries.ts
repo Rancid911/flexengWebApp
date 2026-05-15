@@ -15,6 +15,7 @@ import {
   updateCrmLeadStatusRow
 } from "@/lib/crm/leads.repository";
 import { loadCrmSettingsRow, upsertCrmSettingsRow } from "@/lib/crm/settings.repository";
+import { buildCrmBackgroundMediaUrl, toCrmBackgroundMediaUrl } from "@/lib/media/urls";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   CrmBackgroundUploadResponse,
@@ -136,7 +137,7 @@ export async function loadCrmSettings(): Promise<CrmSettingsDto> {
   if (!data) return DEFAULT_CRM_SETTINGS;
 
   return {
-    background_image_url: data.background_image_url ?? null,
+    background_image_url: toCrmBackgroundMediaUrl(data.background_image_url ?? null, data.updated_at ?? null),
     updated_at: data.updated_at ?? null
   };
 }
@@ -150,7 +151,7 @@ export async function updateCrmSettings(actor: AdminActor, payload: { background
   if (error) throw error;
 
   return {
-    background_image_url: data.background_image_url ?? null,
+    background_image_url: toCrmBackgroundMediaUrl(data.background_image_url ?? null, data.updated_at ?? null),
     updated_at: data.updated_at ?? null
   };
 }
@@ -170,9 +171,8 @@ export async function uploadCrmBackgroundImage(file: Blob & { name?: string; typ
   });
   if (uploadError) throw uploadError;
 
-  const { data } = supabase.storage.from(CRM_ASSETS_BUCKET).getPublicUrl(path);
   return {
-    publicUrl: `${data.publicUrl}?v=${Date.now()}`
+    publicUrl: buildCrmBackgroundMediaUrl(path, Date.now())
   };
 }
 

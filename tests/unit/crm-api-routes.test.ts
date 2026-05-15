@@ -71,7 +71,7 @@ describe("CRM protected API routes", () => {
     const actor = { userId: "manager-1", role: "manager" };
     requireStaffAdminApiMock.mockResolvedValue(actor);
     updateCrmSettingsMock.mockResolvedValue({
-      background_image_url: "https://example.com/crm-bg.jpg",
+      background_image_url: "/api/media/crm-background?p=background%2Fcrm-bg.jpg&v=1",
       updated_at: "2026-04-24T12:00:00.000Z"
     });
 
@@ -79,12 +79,12 @@ describe("CRM protected API routes", () => {
     const response = await PATCH(
       new NextRequest("http://localhost/api/crm/settings", {
         method: "PATCH",
-        body: JSON.stringify({ background_image_url: "https://example.com/crm-bg.jpg" })
+        body: JSON.stringify({ background_image_url: "/api/media/crm-background?p=background%2Fcrm-bg.jpg&v=1" })
       })
     );
 
     expect(response.status).toBe(200);
-    expect(updateCrmSettingsMock).toHaveBeenCalledWith(actor, { background_image_url: "https://example.com/crm-bg.jpg" });
+    expect(updateCrmSettingsMock).toHaveBeenCalledWith(actor, { background_image_url: "/api/media/crm-background?p=background%2Fcrm-bg.jpg&v=1" });
   });
 
   it("clears CRM background setting", async () => {
@@ -121,7 +121,7 @@ describe("CRM protected API routes", () => {
 
   it("uploads CRM background image after settings update permission check", async () => {
     requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
-    uploadCrmBackgroundImageMock.mockResolvedValue({ publicUrl: "https://example.com/crm-bg.jpg?v=123" });
+    uploadCrmBackgroundImageMock.mockResolvedValue({ publicUrl: "/api/media/crm-background?p=background%2Fcrm-bg.jpg&v=123" });
     const formData = new URLSearchParams();
     formData.set("file", "image");
 
@@ -134,7 +134,7 @@ describe("CRM protected API routes", () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ publicUrl: "https://example.com/crm-bg.jpg?v=123" });
+    await expect(response.json()).resolves.toEqual({ publicUrl: "/api/media/crm-background?p=background%2Fcrm-bg.jpg&v=123" });
     expect(uploadCrmBackgroundImageMock).toHaveBeenCalledWith(expect.objectContaining({ type: "image/jpeg" }));
   });
 

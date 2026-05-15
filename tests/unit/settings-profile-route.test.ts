@@ -100,7 +100,7 @@ describe("/api/settings/profile", () => {
           firstName: "Ann",
           lastName: "Lee",
           phone: "+79990000000",
-          avatarUrl: "https://example.com/avatar.png?v=1",
+          avatarUrl: "/api/media/avatar/profile-1?v=1",
           role: "teacher",
           email: "ann@example.com"
         },

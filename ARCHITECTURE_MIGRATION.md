@@ -12,7 +12,7 @@ The active mass-migration backlog is complete. Future cleanup should be driven b
 
 | domain | app thin | API thin | permissions migrated | in features | tests/smoke checked | status | notes |
 |---|---|---|---|---|---|---|---|
-| auth | yes | n/a | intentional partial | yes | yes | complete | Auth UI/forms live in `features/auth`; auth route pages are thin and `/auth/confirm` remains a Next callback route. Browser Supabase usage is intentionally limited to auth flows. |
+| auth | yes | yes | intentional auth/session endpoints | yes | yes | complete | Auth UI/forms live in `features/auth`; auth route pages are thin, `/auth/confirm` remains a Next callback route, and login/signup/logout/password flows go through `/api/auth/*` + `lib/auth/auth-api.service.ts` instead of browser Supabase. |
 | workspace shell | yes | n/a | n/a | yes | yes | complete | Workspace layouts remain as route conventions in `app`; shell/navigation/notification implementation lives in `features/workspace-shell`; shared student page primitives live in `shared/ui`. |
 | dashboard | yes | n/a | n/a | yes | yes | complete | Shared route assembly, role views and payment reminder UI/hooks live in `features/dashboard`; server loaders remain unchanged. |
 | admin | yes | yes | yes | yes | yes | complete | Admin console, teacher dossier, directory adapters and directory route assembly live in `features/admin`; protected admin APIs use permissions and delegate to service/query/repository boundaries. |
@@ -31,7 +31,7 @@ The active mass-migration backlog is complete. Future cleanup should be driven b
 | blog | yes | yes | yes | yes | yes | complete | Public blog UI and route assembly live in `features/blog`; public route pages keep metadata/revalidate and admin blog API uses `content.posts.manage`. |
 | public website | yes | intentional public | intentional public | yes | yes | complete | Public marketing UI and home page render/content live in `features/marketing`; `/api/leads` remains an explicit public lead-intake exception. |
 | search | yes | intentional public | intentional public | yes | yes | complete | Search UI/client and public/workspace shell route assembly live in `features/search`; `/api/search` remains an explicit public/workspace read-model exception. |
-| settings | yes | yes | yes | yes | yes | complete | Settings route delegates to `features/settings`; profile persistence/auth mutations go through `/api/settings/profile`, and direct client Supabase usage was removed. |
+| settings | yes | yes | yes | yes | yes | complete | Settings route delegates to `features/settings`; profile persistence/auth mutations go through `/api/settings/profile`, and direct client Supabase usage was removed. Browser Supabase Auth usage is also removed from auth/logout UI. |
 
 ## Shared Zone Inventory
 

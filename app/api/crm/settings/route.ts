@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffAdminApi } from "@/lib/admin/auth";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { loadCrmSettings, updateCrmSettings } from "@/lib/crm/queries";
+import { CRM_ASSETS_BUCKET, extractStoragePathFromPublicUrl, isInternalCrmBackgroundMediaUrl } from "@/lib/media/urls";
 import { requirePermission } from "@/lib/permissions";
 
 function normalizeBackgroundImageUrl(value: unknown) {
@@ -11,13 +12,10 @@ function normalizeBackgroundImageUrl(value: unknown) {
   const trimmed = value.trim();
   if (!trimmed) return null;
   if (trimmed.length > 2000) return undefined;
+  if (isInternalCrmBackgroundMediaUrl(trimmed)) return trimmed;
+  if (extractStoragePathFromPublicUrl(trimmed, CRM_ASSETS_BUCKET)) return trimmed;
 
-  try {
-    const url = new URL(trimmed);
-    return url.protocol === "http:" || url.protocol === "https:" ? trimmed : undefined;
-  } catch {
-    return undefined;
-  }
+  return undefined;
 }
 
 export const GET = withAdminErrorHandling(async () => {

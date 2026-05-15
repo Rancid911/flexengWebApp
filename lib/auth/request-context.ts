@@ -3,6 +3,7 @@ import { revalidateTag, unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
 
 import type { UserRole } from "@/lib/auth/get-user-role";
+import { toAvatarMediaUrl } from "@/lib/media/urls";
 import { measureServerTiming } from "@/lib/server/timing";
 import { REQUEST_CONTEXT_ACCESS_POLICIES, type AccessMode } from "@/lib/supabase/access";
 import { runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
@@ -236,7 +237,7 @@ async function loadProfileIdentityContext(context: MinimalRequestContext): Promi
     role: profileRole,
     profileRole,
     displayName: buildDisplayName(profileResponse.data as RequestProfileRow | null, email),
-    avatarUrl: profileResponse.data?.avatar_url ?? null
+    avatarUrl: toAvatarMediaUrl(context.userId, profileResponse.data?.avatar_url ?? null)
   };
 }
 

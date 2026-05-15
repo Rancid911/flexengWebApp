@@ -1,3 +1,4 @@
+import { toAvatarMediaUrl } from "@/lib/media/urls";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AdminTeacherProfileRelation = {
@@ -47,7 +48,12 @@ export type AdminTeacherDossierRow = {
 };
 
 export function readAdminTeacherProfileRelation(row: AdminTeacherProfileRow) {
-  return Array.isArray(row.profiles) ? row.profiles[0] ?? null : row.profiles;
+  const profile = Array.isArray(row.profiles) ? row.profiles[0] ?? null : row.profiles;
+  if (!profile) return null;
+  return {
+    ...profile,
+    avatar_url: toAvatarMediaUrl(profile.id, profile.avatar_url)
+  };
 }
 
 export function getAdminTeacherDisplayName(profile: AdminTeacherProfileRelation | null, fallback: string) {

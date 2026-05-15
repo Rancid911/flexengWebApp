@@ -17,6 +17,7 @@ None. New cleanup work should be added here only when a concrete pain point is i
 - Large client components cleanup: admin console, admin test drawer, teacher student profile components, student payments client and settings profile UI are split into focused hooks/helpers/sections while preserving behavior.
 - Settings profile API/service boundary: settings profile UI uses focused presentational sections and `use-settings-form-state.ts` keeps the public hook contract, while profile persistence, avatar storage, email update and password update go through `/api/settings/profile` and `lib/settings/profile.service.ts`.
 - CRM background upload boundary: CRM settings background upload now goes through protected `/api/crm/settings/background`; the CRM client no longer calls Supabase Storage directly.
+- BFF auth boundary: login, signup, logout and password recovery/update now go through `/api/auth/*` and `lib/auth/auth-api.service.ts`; browser Supabase Auth/logout usage and the legacy browser Supabase client were removed.
 - Admin blog API cleanup: `app/api/admin/blog/*` routes are transport-only; blog persistence and orchestration live in `lib/admin/blog.repository.ts` and `lib/admin/blog.service.ts`.
 - Admin notifications API cleanup: admin and user notification routes delegate to notification service/repository boundaries instead of owning direct Supabase access.
 - API error handling: generic `lib/server/http.ts` exists; public search/blog/leads and YooKassa payment API routes use the generic wrapper where appropriate.

@@ -43,6 +43,7 @@ const trackedFiles = gitFiles();
 const existingTrackedFiles = trackedFiles.filter((file) => existsSync(join(root, file)));
 const untrackedFiles = gitFiles(["--others", "--exclude-standard"]);
 const projectFiles = Array.from(new Set([...existingTrackedFiles, ...untrackedFiles]));
+const forbiddenBrowserSupabaseClientPattern = new RegExp(`\\bcreate${"Browser"}Client\\b`);
 const appRouteConventionFiles = new Set([
   "page.tsx",
   "layout.tsx",
@@ -89,6 +90,13 @@ for (const file of projectFiles.filter((item) => /^(app|features|lib|tests)\//.t
   }
 }
 
+for (const file of projectFiles.filter((item) => /^(app|components|features|hooks|lib|shared)\//.test(item) && /\.(ts|tsx|js|jsx)$/.test(item))) {
+  const source = read(file);
+  if (forbiddenBrowserSupabaseClientPattern.test(source)) {
+    fail(file, "browser Supabase clients are not allowed; use same-origin API/service boundaries instead");
+  }
+}
+
 for (const file of projectFiles.filter((item) => item.startsWith("app/api/") && item.endsWith("/route.ts"))) {
   const source = read(file);
   if (hasRawDbAccess(source)) {
@@ -122,13 +130,11 @@ for (const file of projectFiles.filter((item) => item.startsWith("lib/") && item
   }
 }
 
-const clientSupabaseAllowlist = new Set([]);
-
 for (const file of projectFiles.filter((item) => /^(app|components|features|hooks)\//.test(item) && /\.(ts|tsx)$/.test(item))) {
   const source = read(file);
   if (!source.includes("use client")) continue;
   const usesSupabaseClient = /@\/lib\/supabase\/(client|browser)/.test(source) || /\bcreateClient\s*\(/.test(source) || /(?<!Array)\.from\s*\(/.test(source) || /storage\.from\s*\(/.test(source);
-  if (usesSupabaseClient && !clientSupabaseAllowlist.has(file)) {
+  if (usesSupabaseClient) {
     fail(file, "client UI uses Supabase/raw DB access; use same-origin API/service boundaries instead");
   }
 }
