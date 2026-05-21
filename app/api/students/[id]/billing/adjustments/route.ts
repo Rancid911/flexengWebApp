@@ -9,7 +9,7 @@ import { requireScheduleApi } from "@/lib/schedule/server";
 export const POST = withScheduleErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
   const { id } = await params;
-  requirePermission(actor, "billing.adjustments.create", { studentId: id });
+  requirePermission(actor, "billing.adjust", { studentId: id });
   const body = await request.json();
   const parsed = studentBillingAdjustmentSchema.safeParse(body);
 

@@ -4,15 +4,15 @@ import { buildCrmBoard, deleteCrmLead, getCrmUnreadNewRequestsCount, markCrmLead
 import { CRM_STAGES } from "@/lib/crm/stages";
 import { crmLeadStatusUpdateSchema, publicLeadCreateSchema } from "@/lib/crm/validation";
 
-const createAdminClientMock = vi.fn();
+const createClientMock = vi.fn();
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => createAdminClientMock()
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: () => createClientMock()
 }));
 
 describe("CRM helpers", () => {
   beforeEach(() => {
-    createAdminClientMock.mockReset();
+    createClientMock.mockReset();
   });
 
   it("validates public lead payloads", () => {
@@ -97,7 +97,7 @@ describe("CRM helpers", () => {
 
   it("deletes CRM leads by id", async () => {
     const deleteEqMock = vi.fn().mockResolvedValue({ error: null });
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table !== "crm_leads") throw new Error(`Unexpected table: ${table}`);
         return {
@@ -120,7 +120,7 @@ describe("CRM helpers", () => {
   it("counts unread leads only in the new request stage", async () => {
     const eqMock = vi.fn(() => ({ is: isMock }));
     const isMock = vi.fn().mockResolvedValue({ count: 3, error: null });
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table !== "crm_leads") throw new Error(`Unexpected table: ${table}`);
         return {
@@ -139,7 +139,7 @@ describe("CRM helpers", () => {
   it("marks a lead viewed only when it was not viewed before", async () => {
     const updateEqMock = vi.fn().mockResolvedValue({ error: null });
     const updateMock = vi.fn(() => ({ eq: updateEqMock }));
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table !== "crm_leads") throw new Error(`Unexpected table: ${table}`);
         return {

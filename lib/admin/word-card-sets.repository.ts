@@ -1,9 +1,9 @@
 import { WORD_CARD_SET_BASE_SELECT, WORD_CARD_SET_DETAIL_SELECT } from "@/lib/admin/word-card-sets";
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
-export type AdminWordCardSetRepositoryClient = ReturnType<typeof createAdminClient>;
+export type AdminWordCardSetRepositoryClient = Awaited<ReturnType<typeof createClient>>;
 
-export function createAdminWordCardSetRepository(client: AdminWordCardSetRepositoryClient = createAdminClient()) {
+export function createAdminWordCardSetRepository(client: AdminWordCardSetRepositoryClient) {
   return {
     async loadNextSortOrder() {
       return await client.from("word_card_sets").select("sort_order").order("sort_order", { ascending: false }).limit(1);

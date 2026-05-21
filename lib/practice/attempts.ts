@@ -1,8 +1,8 @@
 import { revalidatePath } from "next/cache";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { syncHomeworkProgressForCompletedTest } from "@/lib/homework/assignments.service";
-import { getCurrentStudentProfile } from "@/lib/students/current-student";
+import { getCurrentRealStudentWriteContext } from "@/lib/students/current-student";
 import { getPracticeActivityDetail, type PracticeQuestion, type PracticeTestActivityDetail } from "@/lib/practice/queries";
 import { PracticeHttpError } from "@/lib/practice/http";
 import { DEFAULT_PLACEMENT_SCORING_PROFILE, buildPlacementSummary, parsePlacementScoringProfile } from "@/lib/practice/placement";
@@ -41,10 +41,7 @@ function buildQuestionMap(detail: PracticeTestActivityDetail) {
 
 
 export async function submitPracticeTestAttempt(input: PracticeTestAttemptPayload): Promise<PracticeAttemptResult> {
-  const studentProfile = await getCurrentStudentProfile();
-  if (!studentProfile?.studentId) {
-    throw new PracticeHttpError(401, "UNAUTHORIZED", "Student authentication required");
-  }
+  const studentContext = await getCurrentRealStudentWriteContext("practice.attempts.submit");
 
   const detail = await getPracticeActivityDetail(input.activityId);
   if (!detail || detail.sourceType !== "test") {
@@ -83,8 +80,8 @@ export async function submitPracticeTestAttempt(input: PracticeTestAttemptPayloa
     }
   }
 
-  const admin = createAdminClient();
-  const testResponse = await admin
+  const supabase = await createClient();
+  const testResponse = await supabase
     .from("tests")
     .select("module_id, assessment_kind, scoring_profile, test_questions(id, prompt, explanation, question_type, placement_band, sort_order, test_question_options(id, option_text, is_correct, sort_order))")
     .eq("id", testId)
@@ -96,7 +93,7 @@ export async function submitPracticeTestAttempt(input: PracticeTestAttemptPayloa
   const moduleId = testResponse.data.module_id ? String(testResponse.data.module_id) : null;
   let courseId: string | null = null;
   if (moduleId) {
-    const moduleResponse = await admin.from("course_modules").select("course_id").eq("id", moduleId).maybeSingle();
+    const moduleResponse = await supabase.from("course_modules").select("course_id").eq("id", moduleId).maybeSingle();
     if (!moduleResponse.error) {
       courseId = moduleResponse.data?.course_id ? String(moduleResponse.data.course_id) : null;
     }
@@ -156,10 +153,10 @@ export async function submitPracticeTestAttempt(input: PracticeTestAttemptPayloa
   const startedAt = new Date(submittedAt.getTime() - timeSpentSeconds * 1000).toISOString();
   const submittedAtIso = submittedAt.toISOString();
 
-  const attemptResponse = await admin
+  const attemptResponse = await supabase
     .from("student_test_attempts")
     .insert({
-      student_id: studentProfile.studentId,
+      student_id: studentContext.studentId,
       test_id: testId,
       score,
       correct_answers: correctAnswers,
@@ -179,7 +176,7 @@ export async function submitPracticeTestAttempt(input: PracticeTestAttemptPayloa
   }
   const attemptId = String(attemptResponse.data.id);
 
-  const answersResponse = await admin.from("student_test_answers").insert(
+  const answersResponse = await supabase.from("student_test_answers").insert(
     reviewQuestions.map((question) => ({
       attempt_id: attemptId,
       question_id: question.questionId,
@@ -194,10 +191,10 @@ export async function submitPracticeTestAttempt(input: PracticeTestAttemptPayloa
 
   const wrongQuestions = reviewQuestions.filter((question) => !question.isCorrect);
   if (wrongQuestions.length > 0) {
-    const existingMistakesResponse = await admin
+    const existingMistakesResponse = await supabase
       .from("student_mistakes")
       .select("id, question_id, mistake_count")
-      .eq("student_id", studentProfile.studentId)
+      .eq("student_id", studentContext.studentId)
       .in(
         "question_id",
         wrongQuestions.map((question) => question.questionId)
@@ -212,7 +209,7 @@ export async function submitPracticeTestAttempt(input: PracticeTestAttemptPayloa
     for (const question of wrongQuestions) {
       const existing = existingMistakes.get(question.questionId);
       if (existing) {
-        await admin
+        await supabase
           .from("student_mistakes")
           .update({
             attempt_id: attemptId,
@@ -225,8 +222,8 @@ export async function submitPracticeTestAttempt(input: PracticeTestAttemptPayloa
           })
           .eq("id", existing.id);
       } else {
-        await admin.from("student_mistakes").insert({
-          student_id: studentProfile.studentId,
+        await supabase.from("student_mistakes").insert({
+          student_id: studentContext.studentId,
           attempt_id: attemptId,
           test_id: testId,
           question_id: question.questionId,
@@ -242,14 +239,14 @@ export async function submitPracticeTestAttempt(input: PracticeTestAttemptPayloa
 
   const resolvedQuestionIds = reviewQuestions.filter((question) => question.isCorrect).map((question) => question.questionId);
   if (resolvedQuestionIds.length > 0) {
-    await admin
+    await supabase
       .from("student_mistakes")
       .update({ resolved_at: submittedAtIso, attempt_id: attemptId, test_id: testId })
-      .eq("student_id", studentProfile.studentId)
+      .eq("student_id", studentContext.studentId)
       .in("question_id", resolvedQuestionIds);
   }
 
-  await syncHomeworkProgressForCompletedTest(studentProfile.studentId, testId, submittedAtIso, startedAt);
+  await syncHomeworkProgressForCompletedTest(studentContext.studentId, testId, submittedAtIso, startedAt, supabase);
 
   revalidatePath("/dashboard");
   revalidatePath("/practice");
@@ -257,7 +254,7 @@ export async function submitPracticeTestAttempt(input: PracticeTestAttemptPayloa
   revalidatePath("/homework");
   revalidatePath("/progress/overview");
   revalidatePath("/schedule");
-  revalidatePath(`/students/${studentProfile.studentId}`);
+  revalidatePath(`/students/${studentContext.studentId}`);
   revalidatePath(input.activityId.startsWith("test_") ? `/practice/activity/${input.activityId}` : "/practice");
 
   return {

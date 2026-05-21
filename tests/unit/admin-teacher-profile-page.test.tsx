@@ -3,18 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AdminTeacherProfilePage from "@/app/(workspace)/(staff-zone)/admin/teachers/[teacherId]/page";
 
-const requireStaffAdminPageMock = vi.fn();
-const createAdminClientMock = vi.fn();
+const requireAdminPagePermissionMock = vi.fn();
+const createClientMock = vi.fn();
 const notFoundMock = vi.fn(() => {
   throw new Error("NEXT_NOT_FOUND");
 });
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminPage: () => requireStaffAdminPageMock()
+  requireAdminPagePermission: (permission: string) => requireAdminPagePermissionMock(permission)
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => createAdminClientMock()
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: () => createClientMock()
 }));
 
 vi.mock("next/navigation", () => ({
@@ -88,16 +88,16 @@ function createDossierQueryMock(data: Record<string, unknown> | null = {
 
 describe("AdminTeacherProfilePage", () => {
   beforeEach(() => {
-    requireStaffAdminPageMock.mockReset();
-    createAdminClientMock.mockReset();
+    requireAdminPagePermissionMock.mockReset();
+    createClientMock.mockReset();
     notFoundMock.mockClear();
-    requireStaffAdminPageMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminPagePermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
   });
 
   it("renders a read-only teacher dossier for staff users", async () => {
     const teacherQuery = createTeacherQueryMock();
     const dossierQuery = createDossierQueryMock();
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "teachers") return teacherQuery;
         if (table === "teacher_dossiers") return dossierQuery;
@@ -107,7 +107,8 @@ describe("AdminTeacherProfilePage", () => {
 
     render(await AdminTeacherProfilePage({ params: Promise.resolve({ teacherId: "teacher-1" }) }));
 
-    expect(requireStaffAdminPageMock).toHaveBeenCalledTimes(1);
+    expect(createClientMock).toHaveBeenCalledTimes(1);
+    expect(requireAdminPagePermissionMock).toHaveBeenCalledWith("teachers.view");
     expect(teacherQuery.select).toHaveBeenCalledWith(
       "id, profile_id, profiles!inner(id, display_name, first_name, last_name, email, phone, avatar_url, created_at)"
     );
@@ -183,16 +184,17 @@ describe("AdminTeacherProfilePage", () => {
     expect(screen.getAllByText("Будет заполнено").length).toBeGreaterThan(4);
   });
 
-  it("delegates non-staff access to staff auth guard", async () => {
-    requireStaffAdminPageMock.mockRejectedValue(new Error("NEXT_REDIRECT:/"));
-    createAdminClientMock.mockReturnValue({ from: vi.fn(() => createTeacherQueryMock()) });
+  it("delegates non-staff access to staff auth guard before loading data", async () => {
+    requireAdminPagePermissionMock.mockRejectedValue(new Error("NEXT_REDIRECT:/"));
+    createClientMock.mockResolvedValue({ from: vi.fn(() => createTeacherQueryMock()) });
 
     await expect(AdminTeacherProfilePage({ params: Promise.resolve({ teacherId: "teacher-1" }) })).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(createClientMock).not.toHaveBeenCalled();
   });
 
   it("returns not found when teacher record is missing", async () => {
     const teacherQuery = createTeacherQueryMock(null);
-    createAdminClientMock.mockReturnValue({ from: vi.fn(() => teacherQuery) });
+    createClientMock.mockResolvedValue({ from: vi.fn(() => teacherQuery) });
 
     await expect(AdminTeacherProfilePage({ params: Promise.resolve({ teacherId: "missing" }) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
@@ -204,7 +206,7 @@ describe("AdminTeacherProfilePage", () => {
       data: null,
       error: { message: "Could not find the table 'teacher_dossiers'" }
     });
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "teachers") return teacherQuery;
         if (table === "teacher_dossiers") return dossierQuery;
@@ -235,7 +237,7 @@ describe("AdminTeacherProfilePage", () => {
       }
     });
     const dossierQuery = createDossierQueryMock();
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "teachers") return teacherQuery;
         if (table === "teacher_dossiers") return dossierQuery;

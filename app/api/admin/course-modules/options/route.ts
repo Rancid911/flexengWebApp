@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async () => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "learning.content.manage");
+  requirePermission(actor, "content.manage");
   const items = await loadCourseModuleOptions();
   return NextResponse.json(items);
 });

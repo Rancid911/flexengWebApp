@@ -38,7 +38,7 @@ async function readCrmBackgroundFormData(request: NextRequest) {
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "crm.settings.update");
+  requirePermission(actor, "crm.leads.manage");
 
   const formData = await readCrmBackgroundFormData(request);
   let file = formData.get("file");

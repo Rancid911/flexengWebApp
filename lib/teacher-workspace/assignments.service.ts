@@ -12,6 +12,7 @@ import {
   type ScheduleActor
 } from "@/lib/schedule/server";
 import { ScheduleHttpError } from "@/lib/schedule/http";
+import { createClient } from "@/lib/supabase/server";
 import { assertTeacherWorkspaceWriteAccess } from "@/lib/teacher-workspace/access";
 import { listTeacherAssignableTests } from "@/lib/teacher-workspace/lesson-followup.service";
 import {
@@ -22,6 +23,7 @@ import {
 } from "@/lib/teacher-workspace/student-profile.mappers";
 import { loadTeacherStudentCore } from "@/lib/teacher-workspace/student-profile.queries";
 import { createTeacherStudentProfileRepository } from "@/lib/teacher-workspace/student-profile.repository";
+import type { TeacherStudentProfileRepositoryClient } from "@/lib/teacher-workspace/student-profile.repository";
 import type {
   TeacherStandaloneHomeworkCreatePayload,
   TeacherStudentHomeworkDto,
@@ -37,7 +39,7 @@ function isTeacherScopedActor(actor: ScheduleActor) {
 async function enrichTeacherHomeworkAssignments(
   studentId: string,
   assignments: HomeworkAssignmentRow[],
-  repository = createTeacherStudentProfileRepository()
+  repository: ReturnType<typeof createTeacherStudentProfileRepository>
 ): Promise<TeacherStudentHomeworkDto[]> {
   const allItems = assignments.flatMap((assignment) => assignment.homework_items ?? []);
   const itemIds = allItems.map((item) => String(item.id));
@@ -73,7 +75,11 @@ async function enrichTeacherHomeworkAssignments(
   });
 }
 
-async function resolveCanonicalPlacementTest(repository = createTeacherStudentProfileRepository()) {
+async function createStudentProfileRepository(client?: TeacherStudentProfileRepositoryClient) {
+  return createTeacherStudentProfileRepository(client ?? (await createClient()));
+}
+
+async function resolveCanonicalPlacementTest(repository: ReturnType<typeof createTeacherStudentProfileRepository>) {
   const response = await repository.resolveCanonicalPlacementTest();
   if (response.error) {
     throw new ScheduleHttpError(500, "PLACEMENT_TEST_LOOKUP_FAILED", "Failed to load placement test", response.error.message);
@@ -88,8 +94,8 @@ export async function assignTeacherStudentPlacementTest(actor: ScheduleActor, st
     assertTeacherScope(actor, { studentId });
   }
 
-  await loadTeacherStudentCore(actor, studentId);
-  const repository = createTeacherStudentProfileRepository();
+  const repository = await createStudentProfileRepository();
+  await loadTeacherStudentCore(actor, studentId, repository);
   const canonicalPlacement = await resolveCanonicalPlacementTest(repository);
   if (!canonicalPlacement) {
     throw new ScheduleHttpError(409, "PLACEMENT_TEST_NOT_CONFIGURED", "Placement test is not configured");
@@ -161,8 +167,8 @@ export async function cancelTeacherStudentPlacementTest(actor: ScheduleActor, st
     assertTeacherScope(actor, { studentId });
   }
 
-  await loadTeacherStudentCore(actor, studentId);
-  const repository = createTeacherStudentProfileRepository();
+  const repository = await createStudentProfileRepository();
+  await loadTeacherStudentCore(actor, studentId, repository);
   const canonicalPlacement = await resolveCanonicalPlacementTest(repository);
   if (!canonicalPlacement) {
     return {
@@ -216,7 +222,8 @@ export async function createTeacherStudentStandaloneHomework(
     assertTeacherScope(actor, { studentId });
   }
 
-  await loadTeacherStudentCore(actor, studentId);
+  const repository = await createStudentProfileRepository();
+  await loadTeacherStudentCore(actor, studentId, repository);
 
   const normalizedActivityIds = Array.from(new Set(payload.activityIds.filter(Boolean)));
   if (normalizedActivityIds.length === 0) {
@@ -238,7 +245,6 @@ export async function createTeacherStudentStandaloneHomework(
       ? assignableById.get(normalizedActivityIds[0])?.title ?? "Домашнее задание"
       : `Домашнее задание · ${normalizedActivityIds.length} задания`);
 
-  const repository = createTeacherStudentProfileRepository();
   const createdAssignment = await createStandaloneHomeworkAssignment(
     {
       studentId,

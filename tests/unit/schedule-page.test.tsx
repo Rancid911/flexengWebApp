@@ -1,10 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SchedulePage from "@/app/(workspace)/(shared-zone)/schedule/page";
 
 const getSchedulePageDataInternalMock = vi.fn();
+const requireLayoutActorMock = vi.fn();
 const requireSchedulePageMock = vi.fn();
 const scheduleClientMock = vi.fn(({ initialData }: { initialData: unknown }) => <div data-testid="schedule-page-probe">{JSON.stringify(initialData)}</div>);
+
+vi.mock("@/lib/auth/request-context", () => ({
+  requireLayoutActor: () => requireLayoutActorMock()
+}));
 
 vi.mock("@/lib/schedule/queries", () => ({
   getSchedulePageDataInternal: (...args: unknown[]) => getSchedulePageDataInternalMock(...args)
@@ -19,6 +24,14 @@ vi.mock("@/features/schedule/components/schedule-client", () => ({
 }));
 
 describe("SchedulePage", () => {
+  beforeEach(() => {
+    requireLayoutActorMock.mockReset();
+    requireLayoutActorMock.mockResolvedValue({ rbacRoles: [], rbacPermissions: [], rbacPermissionScopes: {} });
+    requireSchedulePageMock.mockReset();
+    getSchedulePageDataInternalMock.mockReset();
+    scheduleClientMock.mockClear();
+  });
+
   it("forwards validated search params into schedule page data query", async () => {
     const actor = { role: "teacher", userId: "user-1" };
     requireSchedulePageMock.mockResolvedValue(actor);

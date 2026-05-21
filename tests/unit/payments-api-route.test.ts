@@ -84,7 +84,26 @@ describe("/api/payments GET", () => {
   });
 
   it("returns 403 for non-student actors before loading payments", async () => {
-    getAppActorMock.mockResolvedValue({ userId: "manager-1", role: "manager", isStaffAdmin: true });
+    getAppActorMock.mockResolvedValue({ userId: "teacher-profile-1", role: "teacher", isTeacher: true });
+
+    const { GET } = await import("@/app/api/payments/route");
+    const response = await GET(new NextRequest("http://localhost/api/payments"));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN" });
+    expect(getStudentPaymentsMock).not.toHaveBeenCalled();
+    expect(getCurrentStudentBillingSummaryMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 for teacher preview actors before loading payments", async () => {
+    getAppActorMock.mockResolvedValue({
+      userId: "teacher-profile-1",
+      role: "teacher",
+      profileRole: "teacher",
+      isTeacher: true,
+      isStudent: false,
+      studentId: "student-preview-1"
+    });
 
     const { GET } = await import("@/app/api/payments/route");
     const response = await GET(new NextRequest("http://localhost/api/payments"));

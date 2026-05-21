@@ -57,7 +57,7 @@ export const GET = withApiErrorHandling(async () => {
   if (!actor) {
     throw new HttpError(401, "UNAUTHORIZED", "Authentication required");
   }
-  requirePermission(actor, "settings.profile.read", { ownerUserId: actor.userId });
+  requirePermission(actor, "profile.view", { ownerUserId: actor.userId });
 
   const profile = await loadSettingsProfile(actor);
   return NextResponse.json(profile);
@@ -68,7 +68,7 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest) => {
   if (!actor) {
     throw new HttpError(401, "UNAUTHORIZED", "Authentication required");
   }
-  requirePermission(actor, "settings.profile.update", { ownerUserId: actor.userId });
+  requirePermission(actor, "profile.update", { ownerUserId: actor.userId });
 
   const formData = await readSettingsProfileFormData(request);
   const result = await updateSettingsProfile(actor, parseUpdateInput(formData));

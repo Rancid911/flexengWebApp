@@ -5,6 +5,7 @@ const requireStaffAdminApiMock = vi.fn();
 const writeAuditMock = vi.fn();
 const invalidateFullAppActorCacheMock = vi.fn();
 const createAdminClientMock = vi.fn();
+const createServerClientMock = vi.fn();
 const hydrateUsersWithStudentDetailsMock = vi.fn();
 const toUserDtoMock = vi.fn();
 
@@ -24,6 +25,10 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => createAdminClientMock()
 }));
 
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => createServerClientMock()
+}));
+
 vi.mock("@/lib/admin/users", async () => {
   const actual = await vi.importActual<typeof import("@/lib/admin/users")>("@/lib/admin/users");
   return {
@@ -40,6 +45,7 @@ describe("/api/admin/users POST", () => {
     writeAuditMock.mockReset();
     invalidateFullAppActorCacheMock.mockReset();
     createAdminClientMock.mockReset();
+    createServerClientMock.mockReset();
     hydrateUsersWithStudentDetailsMock.mockReset();
     toUserDtoMock.mockReset();
   });
@@ -63,7 +69,7 @@ describe("/api/admin/users POST", () => {
     const teachersUpsertMock = vi.fn().mockResolvedValue({ error: null });
     const profilesUpsertMock = vi.fn().mockResolvedValue({ error: null });
 
-    const supabase = {
+    const authSupabase = {
       auth: {
         admin: {
           createUser: vi.fn().mockResolvedValue({
@@ -73,7 +79,10 @@ describe("/api/admin/users POST", () => {
           deleteUser: vi.fn(),
           updateUserById: vi.fn()
         }
-      },
+      }
+    };
+
+    const tableSupabase = {
       from: vi.fn((table: string) => {
         if (table === "profiles") {
           return {
@@ -96,7 +105,8 @@ describe("/api/admin/users POST", () => {
       })
     };
 
-    createAdminClientMock.mockReturnValue(supabase);
+    createAdminClientMock.mockReturnValue(authSupabase);
+    createServerClientMock.mockReturnValue(tableSupabase);
     hydrateUsersWithStudentDetailsMock.mockResolvedValue([
       {
         id: "teacher-profile-1",
@@ -159,8 +169,35 @@ describe("/api/admin/users POST", () => {
     );
 
     expect(response.status).toBe(201);
+    expect(createServerClientMock).toHaveBeenCalledTimes(1);
+    expect(createAdminClientMock).toHaveBeenCalledTimes(1);
     expect(teachersUpsertMock).toHaveBeenCalledWith({ profile_id: "teacher-profile-1" }, { onConflict: "profile_id" });
     expect(invalidateFullAppActorCacheMock).toHaveBeenCalledWith("teacher-profile-1");
+  });
+
+  it("denies manager user creation before touching Supabase clients", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+
+    const { POST } = await import("@/app/api/admin/users/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/admin/users", {
+        method: "POST",
+        body: "{",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "FORBIDDEN",
+      message: "Permission denied"
+    });
+    expect(createServerClientMock).not.toHaveBeenCalled();
+    expect(createAdminClientMock).not.toHaveBeenCalled();
+    expect(writeAuditMock).not.toHaveBeenCalled();
+    expect(invalidateFullAppActorCacheMock).not.toHaveBeenCalled();
   });
 });
 

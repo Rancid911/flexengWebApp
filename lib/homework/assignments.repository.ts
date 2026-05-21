@@ -1,13 +1,14 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
-export type HomeworkAssignmentsRepositoryClient = ReturnType<typeof createAdminClient>;
+export type HomeworkAssignmentsRepositoryClient = ReturnType<typeof createAdminClient> | Awaited<ReturnType<typeof createClient>>;
 
 const HOMEWORK_ASSIGNMENT_SELECT = "id, title, description, status, due_at, completed_at, created_at, schedule_lesson_id";
 const HOMEWORK_ASSIGNMENT_WITH_ITEMS_SELECT = `${HOMEWORK_ASSIGNMENT_SELECT}, homework_items(id, source_type, source_id, sort_order, required)`;
 const HOMEWORK_ASSIGNMENT_WITH_INNER_ITEMS_SELECT = `${HOMEWORK_ASSIGNMENT_SELECT}, homework_items!inner(id, source_type, source_id, sort_order, required)`;
 const ACTIVE_HOMEWORK_STATUSES = ["not_started", "in_progress", "overdue"];
 
-export function createHomeworkAssignmentsRepository(client: HomeworkAssignmentsRepositoryClient = createAdminClient()) {
+export function createHomeworkAssignmentsRepository(client: HomeworkAssignmentsRepositoryClient) {
   return {
     async listAssignmentsByStudent(studentId: string, status?: "active" | "completed" | "overdue") {
       let query = client

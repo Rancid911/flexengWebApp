@@ -1,4 +1,4 @@
-import { createStudentPaymentReminderPopup, getPaymentReminderSettings, resolveStudentPaymentReminderForDashboard } from "@/lib/billing/reminders";
+import { createStudentPaymentReminderPopup, resolveStudentPaymentReminderForDashboardRpc } from "@/lib/billing/reminders";
 import type { StudentPaymentReminderPopup } from "@/lib/billing/types";
 import {
   STUDENT_DASHBOARD_CORE_ACCESS_MODE,
@@ -40,10 +40,16 @@ import type {
 import { getStudentSchedulePreviewByStudentId } from "@/lib/schedule/queries";
 import { measureServerTiming } from "@/lib/server/timing";
 import { getCurrentStudentProfile } from "@/lib/students/current-student";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 type StudentDashboardRepository = ReturnType<typeof createStudentDashboardRepository>;
+type StudentDashboardRecentPracticeHero = {
+  module: DashboardRecentPracticeModuleSummary;
+  totalDrills: number | null;
+  completedDrills: number | null;
+  progressPercent: number | null;
+  drillStatsLoaded: boolean;
+};
 
 export {
   STUDENT_DASHBOARD_CORE_ACCESS_MODE,
@@ -205,27 +211,30 @@ async function loadRecentPracticeRecommendationCards(
 async function loadRecentPracticeHero(
   studentId: string,
   repository?: StudentDashboardRepository
-): Promise<{
-  module: DashboardRecentPracticeModuleSummary;
-  totalDrills: number;
-  completedDrills: number;
-  progressPercent: number;
-} | null> {
+): Promise<StudentDashboardRecentPracticeHero | null> {
   const dashboardRepository = repository ?? createStudentDashboardRepository(await createClient());
   const moduleSummary = (await loadRecentPracticeModuleSummaries(studentId, dashboardRepository))[0] ?? null;
   return loadRecentPracticeHeroFromModuleSummary(studentId, moduleSummary, dashboardRepository);
+}
+
+function buildRecentPracticeHeroPreviewFromModuleSummary(
+  moduleSummary: DashboardRecentPracticeModuleSummary | null
+): StudentDashboardRecentPracticeHero | null {
+  if (!moduleSummary) return null;
+  return {
+    module: moduleSummary,
+    totalDrills: null,
+    completedDrills: null,
+    progressPercent: null,
+    drillStatsLoaded: false
+  };
 }
 
 async function loadRecentPracticeHeroFromModuleSummary(
   studentId: string,
   moduleSummary: DashboardRecentPracticeModuleSummary | null,
   repository: StudentDashboardRepository
-): Promise<{
-  module: DashboardRecentPracticeModuleSummary;
-  totalDrills: number;
-  completedDrills: number;
-  progressPercent: number;
-} | null> {
+): Promise<StudentDashboardRecentPracticeHero | null> {
   if (!moduleSummary) return null;
 
   const drillsResponse = await repository.loadPublishedTrainerDrills(moduleSummary.moduleId);
@@ -234,7 +243,8 @@ async function loadRecentPracticeHeroFromModuleSummary(
       module: moduleSummary,
       totalDrills: 0,
       completedDrills: 0,
-      progressPercent: 0
+      progressPercent: 0,
+      drillStatsLoaded: true
     };
   }
 
@@ -244,7 +254,8 @@ async function loadRecentPracticeHeroFromModuleSummary(
       module: moduleSummary,
       totalDrills: 0,
       completedDrills: 0,
-      progressPercent: 0
+      progressPercent: 0,
+      drillStatsLoaded: true
     };
   }
 
@@ -259,7 +270,8 @@ async function loadRecentPracticeHeroFromModuleSummary(
     module: moduleSummary,
     totalDrills: drillIds.length,
     completedDrills: completedDrillIds.size,
-    progressPercent: safePercent((completedDrillIds.size / drillIds.length) * 100)
+    progressPercent: safePercent((completedDrillIds.size / drillIds.length) * 100),
+    drillStatsLoaded: true
   };
 }
 
@@ -286,7 +298,7 @@ function buildCoreDashboardPayload(input: {
   submittedTests7d: number;
   schedulePreview: Pick<StudentDashboardCoreData, "nextScheduledLesson" | "upcomingScheduleLessons">;
   placementTest: StudentDashboardCoreData["placementTest"];
-  recentPracticeHero: Awaited<ReturnType<typeof loadRecentPracticeHero>>;
+  recentPracticeHero: StudentDashboardRecentPracticeHero | null;
 }): StudentDashboardCoreData {
   const latestProgress = input.progressRows.find((row) => row.status === "in_progress") ?? input.progressRows[0] ?? null;
   const progressValues = input.progressRows.map((row) => Number(row.progress_percent ?? 0));
@@ -336,6 +348,17 @@ function buildCoreDashboardPayload(input: {
   const lessonDuration = Number(typeof latestLesson?.duration_minutes === "number" ? latestLesson.duration_minutes : 0);
   const heroProgressValue = input.recentPracticeHero?.progressPercent ?? averageProgress;
   const heroSectionsCount = input.recentPracticeHero?.totalDrills ?? input.activeCourses.length;
+  const hasLoadedDrillStats = Boolean(input.recentPracticeHero?.drillStatsLoaded);
+  const progressLabel =
+    input.recentPracticeHero != null
+      ? hasLoadedDrillStats && input.recentPracticeHero.totalDrills != null && input.recentPracticeHero.completedDrills != null
+        ? input.recentPracticeHero.totalDrills > 0
+          ? `Пройдено ${input.recentPracticeHero.completedDrills} из ${input.recentPracticeHero.totalDrills} дриллов`
+          : "В этой подтеме пока нет опубликованных дриллов"
+        : "Последняя активность сохранена. Можно продолжить практику"
+      : latestProgress != null
+        ? "Прогресс собран по последним активностям и завершённым урокам"
+        : "Как только появятся попытки и пройденные активности, здесь появится прогресс";
 
   return {
     lessonOfTheDay: {
@@ -349,18 +372,11 @@ function buildCoreDashboardPayload(input: {
       duration: `${Math.max(input.recentPracticeHero?.totalDrills ? input.recentPracticeHero.totalDrills * 5 : lessonDuration, 5)} минут`,
       progress: heroProgressValue,
       sectionsCount: heroSectionsCount,
-      sectionsLabel: input.recentPracticeHero ? `${formatDrillCount(heroSectionsCount)} в теме` : undefined
+      sectionsLabel: input.recentPracticeHero && input.recentPracticeHero.totalDrills != null ? `${formatDrillCount(heroSectionsCount)} в теме` : undefined
     },
     progress: {
       value: heroProgressValue,
-      label:
-        input.recentPracticeHero != null
-          ? input.recentPracticeHero.totalDrills > 0
-            ? `Пройдено ${input.recentPracticeHero.completedDrills} из ${input.recentPracticeHero.totalDrills} дриллов`
-            : "В этой подтеме пока нет опубликованных дриллов"
-          : latestProgress != null
-          ? "Прогресс собран по последним активностям и завершённым урокам"
-          : "Как только появятся попытки и пройденные активности, здесь появится прогресс"
+      label: progressLabel
     },
     heroStats: [
       { label: "Точность", value: `${averageScore}%` },
@@ -484,8 +500,8 @@ export async function getStudentDashboardRouteData(): Promise<{
   });
 
   const initialData = await measureServerTiming("student-dashboard-core", async () => {
-    const recentPracticeHeroPromise = recentPracticeModuleSummariesPromise.then((moduleSummaries) =>
-      loadRecentPracticeHeroFromModuleSummary(studentId, moduleSummaries[0] ?? null, repository)
+    const recentPracticeHeroPreviewPromise = recentPracticeModuleSummariesPromise.then((moduleSummaries) =>
+      buildRecentPracticeHeroPreviewFromModuleSummary(moduleSummaries[0] ?? null)
     );
     const [progressResponse, attemptsResponse, enrollmentsResponse, homeworkResponse, wordCounts, placementTest, recentPracticeHero] = await Promise.all([
       repository.loadLessonProgress(studentId),
@@ -494,7 +510,7 @@ export async function getStudentDashboardRouteData(): Promise<{
       repository.loadActiveHomework(studentId),
       wordCountsPromise,
       loadStudentPlacementSummary(studentId, repository),
-      recentPracticeHeroPromise
+      recentPracticeHeroPreviewPromise
     ]);
 
     return buildCoreDashboardPayload({
@@ -599,13 +615,10 @@ export async function getStudentDashboardPaymentReminder(): Promise<StudentPayme
     const studentId = profile.studentId;
 
     try {
-      const adminClient = createAdminClient();
-      const reminderSettings = await getPaymentReminderSettings(adminClient);
-      if (!reminderSettings.enabled) return null;
+      const client = await createClient();
+      const resolution = await resolveStudentPaymentReminderForDashboardRpc(client, studentId);
 
-      const resolution = await resolveStudentPaymentReminderForDashboard(adminClient, studentId, reminderSettings.thresholdLessons);
-
-      if (!resolution.shouldShowPopup) {
+      if (!resolution?.shouldShowPopup) {
         return null;
       }
 

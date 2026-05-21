@@ -9,7 +9,7 @@ import { requirePermission } from "@/lib/permissions";
 export const GET = withScheduleErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
   const { id } = await params;
-  requirePermission(actor, "billing.summary.read", { studentId: id });
+  requirePermission(actor, "billing.view", { studentId: id });
   const summary = await getBillingSummaryForActor(actor, id, 10);
   return NextResponse.json(summary);
 });
@@ -17,7 +17,7 @@ export const GET = withScheduleErrorHandling(async (_request: NextRequest, { par
 export const PATCH = withScheduleErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
   const { id } = await params;
-  requirePermission(actor, "billing.settings.update", { studentId: id });
+  requirePermission(actor, "billing.adjust", { studentId: id });
   const body = await request.json();
   const parsed = studentBillingSettingsSchema.safeParse(body);
 

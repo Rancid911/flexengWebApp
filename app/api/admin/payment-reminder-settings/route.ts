@@ -7,14 +7,14 @@ import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async () => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "billing.admin.read");
+  requirePermission(actor, "payments.manage");
   const settings = await getAdminPaymentReminderSettings();
   return NextResponse.json(settings);
 });
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "billing.reminders.manage");
+  requirePermission(actor, "payments.manage");
   const body = (await request.json().catch(() => null)) as { enabled?: unknown; threshold_lessons?: unknown } | null;
   const enabled = typeof body?.enabled === "boolean" ? body.enabled : null;
   const thresholdLessons =

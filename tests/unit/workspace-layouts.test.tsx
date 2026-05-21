@@ -18,7 +18,7 @@ const crmQueriesMock = vi.hoisted(() => ({
   }))
 }));
 
-const requireStaffAdminPageMock = vi.hoisted(() => vi.fn(async () => undefined));
+const requireAdminPagePermissionMock = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock("@/features/marketing/components/main-header", () => ({
   MainHeader: () => <div data-testid="public-header">header</div>
@@ -53,7 +53,7 @@ vi.mock("@/features/workspace-shell/server/workspace-shell.server", () => ({
 }));
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminPage: requireStaffAdminPageMock
+  requireAdminPagePermission: requireAdminPagePermissionMock
 }));
 
 vi.mock("@/lib/crm/queries", () => ({
@@ -71,7 +71,7 @@ describe("route layouts", () => {
   beforeEach(() => {
     crmQueriesMock.loadCrmBoard.mockClear();
     crmQueriesMock.loadCrmSettings.mockClear();
-    requireStaffAdminPageMock.mockClear();
+    requireAdminPagePermissionMock.mockClear();
   });
 
   it("renders marketing shell for public layout", () => {
@@ -126,7 +126,7 @@ describe("route layouts", () => {
 
     render(await CrmPage());
 
-    expect(requireStaffAdminPageMock).toHaveBeenCalledTimes(1);
+    expect(requireAdminPagePermissionMock).toHaveBeenCalledWith("crm.leads.view");
     expect(crmQueriesMock.loadCrmBoard).toHaveBeenCalledTimes(1);
     expect(crmQueriesMock.loadCrmSettings).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("crm-board")).toHaveAttribute("data-background", "https://example.com/crm-bg.jpg");

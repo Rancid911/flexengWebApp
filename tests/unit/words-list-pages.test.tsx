@@ -7,6 +7,7 @@ import WordsReviewPage from "@/app/(workspace)/(shared-zone)/words/review/page";
 const getDifficultWordsMock = vi.fn();
 const getNewWordsMock = vi.fn();
 const getWordsForReviewMock = vi.fn();
+const requireLayoutActorMock = vi.fn();
 
 vi.mock("@/lib/words/queries", () => ({
   getDifficultWords: (...args: unknown[]) => getDifficultWordsMock(...args),
@@ -18,11 +19,17 @@ vi.mock("@/features/words/components/words-list-page", () => ({
   WordsListPage: (props: unknown) => <div data-testid="words-list-page-probe">{JSON.stringify(props)}</div>
 }));
 
+vi.mock("@/lib/auth/request-context", () => ({
+  requireLayoutActor: () => requireLayoutActorMock()
+}));
+
 describe("words list pages", () => {
   beforeEach(() => {
     getDifficultWordsMock.mockReset();
     getNewWordsMock.mockReset();
     getWordsForReviewMock.mockReset();
+    requireLayoutActorMock.mockReset();
+    requireLayoutActorMock.mockResolvedValue({ rbacRoles: [], rbacPermissions: [], rbacPermissionScopes: {} });
   });
 
   it("assembles the review page with current copy and conditional action", async () => {

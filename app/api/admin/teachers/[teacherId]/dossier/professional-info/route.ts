@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/permissions";
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ teacherId: string }> }) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "admin.teachers.update");
+  requirePermission(actor, "teachers.manage");
   const { teacherId } = await params;
   const body = await request.json();
   const parsed = teacherProfessionalInfoUpdateSchema.safeParse(body);

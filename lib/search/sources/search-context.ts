@@ -12,8 +12,12 @@ export async function getSearchContext(): Promise<SearchContext> {
       userId: null,
       role: null,
       capabilities: [],
+      rbacRoles: null,
+      rbacPermissions: null,
+      rbacPermissionScopes: null,
       studentId: null,
       teacherId: null,
+      accessibleStudentIds: null,
       isAuthenticated: false
     };
   }
@@ -22,8 +26,12 @@ export async function getSearchContext(): Promise<SearchContext> {
     userId: actor.userId,
     role: resolveDefaultWorkspace(actor),
     capabilities: actor.capabilities,
+    rbacRoles: actor.rbacRoles,
+    rbacPermissions: actor.rbacPermissions,
+    rbacPermissionScopes: actor.rbacPermissionScopes,
     studentId: actor.studentId,
     teacherId: actor.teacherId,
+    accessibleStudentIds: actor.accessibleStudentIds,
     isAuthenticated: true
   };
 }

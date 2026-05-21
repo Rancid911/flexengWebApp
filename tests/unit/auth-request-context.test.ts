@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAppActor, resolveDefaultWorkspace } from "@/lib/auth/request-context";
+import { buildAppActor, normalizeRbacActorData, resolveDefaultWorkspace } from "@/lib/auth/request-context";
 import { resolveScheduleActor } from "@/lib/schedule/server";
 
 describe("app actor resolution", () => {
@@ -25,6 +25,72 @@ describe("app actor resolution", () => {
     expect(actor.isStudent).toBe(true);
     expect(actor.isTeacher).toBe(false);
     expect(actor.isStaffAdmin).toBe(false);
+    expect(actor.rbacRoles).toEqual([]);
+    expect(actor.rbacPermissions).toEqual([]);
+    expect(actor.rbacPermissionScopes).toEqual({});
+  });
+
+  it("keeps RBAC metadata separate from legacy capabilities", () => {
+    const actor = buildAppActor(
+      {
+        userId: "user-rbac",
+        email: "teacher@example.com",
+        displayName: "Teacher",
+        avatarUrl: null,
+        role: "teacher",
+        profileRole: "teacher"
+      },
+      {
+        studentId: null,
+        teacherId: "teacher-1",
+        accessibleStudentIds: ["student-1"]
+      },
+      {
+        rbacRoles: ["teacher"],
+        rbacPermissions: ["students.view"],
+        rbacPermissionScopes: {
+          "students.view": ["assigned"]
+        }
+      }
+    );
+
+    expect(actor.capabilities).toEqual(["teacher"]);
+    expect(actor.rbacRoles).toEqual(["teacher"]);
+    expect(actor.rbacPermissions).toEqual(["students.view"]);
+    expect(actor.rbacPermissionScopes).toEqual({
+      "students.view": ["assigned"]
+    });
+  });
+
+  it("normalizes RBAC role permission rows into stable metadata", () => {
+    expect(
+      normalizeRbacActorData([
+        {
+          roles: {
+            key: "teacher",
+            role_permissions: [
+              { scope: "assigned", permissions: { key: "students.view" } },
+              { scope: "assigned", permissions: { key: "students.view" } },
+              { scope: "own_demo", permissions: { key: "learning.preview_as_student" } }
+            ]
+          }
+        },
+        {
+          roles: {
+            key: "student",
+            role_permissions: [{ scope: "own", permissions: { key: "profile.view" } }]
+          }
+        }
+      ])
+    ).toEqual({
+      rbacRoles: ["teacher", "student"],
+      rbacPermissions: ["learning.preview_as_student", "profile.view", "students.view"],
+      rbacPermissionScopes: {
+        "learning.preview_as_student": ["own_demo"],
+        "profile.view": ["own"],
+        "students.view": ["assigned"]
+      }
+    });
   });
 
   it("builds dual-role capability from linked teacher and student rows", () => {

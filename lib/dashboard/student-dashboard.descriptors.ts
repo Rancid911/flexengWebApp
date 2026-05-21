@@ -2,7 +2,7 @@ import type { AccessMode } from "@/lib/supabase/access";
 import { defineDataLoadingDescriptor } from "@/lib/data-loading/contracts";
 
 export const STUDENT_DASHBOARD_CORE_ACCESS_MODE: AccessMode = "user_scoped";
-export const STUDENT_DASHBOARD_PAYMENT_REMINDER_ACCESS_MODE: AccessMode = "privileged";
+export const STUDENT_DASHBOARD_PAYMENT_REMINDER_ACCESS_MODE: AccessMode = "user_scoped";
 
 export const STUDENT_DASHBOARD_CORE_DATA_LOADING = defineDataLoadingDescriptor({
   id: "student-dashboard-core",
@@ -23,6 +23,6 @@ export const STUDENT_DASHBOARD_PAYMENT_REMINDER_DATA_LOADING = defineDataLoading
   issues: [],
   notes: [
     "Intentionally isolated from the core dashboard payload.",
-    "Temporary privileged exception until billing reminder state can be backed by a user-scoped summary path."
+    "Loads via an actor-scoped payment reminder RPC instead of direct billing table access."
   ]
 });

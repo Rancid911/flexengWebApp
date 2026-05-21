@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { StudentBillingSummary } from "@/lib/billing/types";
 import {
   createStudentPaymentReminderPopup,
+  resolveStudentPaymentReminderForDashboardRpc,
   resolveStudentPaymentReminderStatus,
   resolveStudentPaymentReminderForDashboard,
   shouldSendReminderNotificationToday,
@@ -121,6 +122,19 @@ function makeReminderAdminClient(summary: StudentBillingSummary, nextScheduledLe
   };
 }
 
+function makeReminderRpcClient(row: unknown, error: { message: string } | null = null) {
+  return {
+    rpc: async (name: string, params: Record<string, unknown>) => {
+      expect(name).toBe("get_student_dashboard_payment_reminder_inputs");
+      expect(params).toEqual({ p_student_id: "student-1" });
+      return {
+        data: row == null ? [] : [row],
+        error
+      };
+    }
+  };
+}
+
 describe("payment reminders", () => {
   it("resolves debt before low balance", () => {
     expect(resolveStudentPaymentReminderStatus(makeSummary({ isNegative: true, availableLessonCount: 0, debtLessonCount: 1 }), 1)).toBe("debt");
@@ -215,5 +229,47 @@ describe("payment reminders", () => {
     );
     expect(noScheduleResult.status).toBe("low_balance");
     expect(noScheduleResult.shouldShowPopup).toBe(false);
+  });
+
+  it("resolves dashboard reminder through scoped RPC inputs", async () => {
+    const result = await resolveStudentPaymentReminderForDashboardRpc(
+      makeReminderRpcClient({
+        settings_enabled: true,
+        threshold_lessons: 1,
+        billing_account: {
+          id: "account-1",
+          student_id: "student-1",
+          billing_mode: "package_lessons",
+          lesson_price_amount: null,
+          currency: "RUB",
+          created_at: null,
+          updated_at: null
+        },
+        billing_ledger: [],
+        next_scheduled_lesson_at: "2026-03-29T10:00:00.000Z"
+      }) as never,
+      "student-1"
+    );
+
+    expect(result).toMatchObject({
+      status: "low_balance",
+      shouldShowPopup: true,
+      nextScheduledLessonAt: "2026-03-29T10:00:00.000Z"
+    });
+  });
+
+  it("returns null when dashboard reminder settings are disabled by RPC", async () => {
+    const result = await resolveStudentPaymentReminderForDashboardRpc(
+      makeReminderRpcClient({
+        settings_enabled: false,
+        threshold_lessons: 1,
+        billing_account: null,
+        billing_ledger: [],
+        next_scheduled_lesson_at: null
+      }) as never,
+      "student-1"
+    );
+
+    expect(result).toBeNull();
   });
 });

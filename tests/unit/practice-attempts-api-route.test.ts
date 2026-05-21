@@ -15,7 +15,13 @@ vi.mock("@/lib/practice/attempts", () => ({
 describe("/api/practice/attempts POST", () => {
   beforeEach(() => {
     getAppActorMock.mockReset();
-    getAppActorMock.mockResolvedValue({ userId: "student-profile-1", role: "student", isStudent: true });
+    getAppActorMock.mockResolvedValue({
+      userId: "student-profile-1",
+      role: "student",
+      profileRole: "student",
+      isStudent: true,
+      studentId: "student-1"
+    });
     submitPracticeTestAttemptMock.mockReset();
   });
 
@@ -91,7 +97,39 @@ describe("/api/practice/attempts POST", () => {
     );
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Permission denied" });
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Real student write context required" });
+    expect(submitPracticeTestAttemptMock).not.toHaveBeenCalled();
+  });
+
+  it("denies teacher-primary actors with linked student rows before submit", async () => {
+    getAppActorMock.mockResolvedValue({
+      userId: "teacher-profile-1",
+      role: "teacher",
+      profileRole: "teacher",
+      isStudent: true,
+      isTeacher: true,
+      studentId: "student-preview-1"
+    });
+
+    const { POST } = await import("@/app/api/practice/attempts/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/practice/attempts", {
+        method: "POST",
+        body: JSON.stringify({
+          activityId: "test_11111111-1111-1111-1111-111111111111",
+          answers: [
+            {
+              questionId: "22222222-2222-2222-2222-222222222222",
+              optionId: "33333333-3333-3333-3333-333333333333"
+            }
+          ],
+          timeSpentSeconds: 42
+        })
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Real student write context required" });
     expect(submitPracticeTestAttemptMock).not.toHaveBeenCalled();
   });
 

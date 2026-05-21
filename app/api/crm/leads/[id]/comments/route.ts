@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/permissions";
 
 export const POST = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "crm.leads.update");
+  requirePermission(actor, "crm.leads.manage");
   const { id } = await params;
   const body = await request.json();
   const parsed = crmLeadCommentCreateSchema.safeParse(body);

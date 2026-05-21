@@ -8,14 +8,14 @@ import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "learning.tests.manage");
+  requirePermission(actor, "content.manage");
   const result = await listAdminTestMaterials(parsePagination(new URL(request.url)));
   return NextResponse.json(result);
 });
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "learning.tests.manage");
+  requirePermission(actor, "content.manage");
   const body = await request.json();
   const parsed = adminTestCreateSchema.safeParse(body);
   if (!parsed.success) throw new AdminHttpError(400, "VALIDATION_ERROR", "Invalid test payload", parsed.error.flatten());

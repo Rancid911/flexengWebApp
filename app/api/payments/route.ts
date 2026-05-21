@@ -11,7 +11,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
   if (!actor) {
     throw new HttpError(401, "UNAUTHORIZED", "Authentication required");
   }
-  requirePermission(actor, "payments.history.read");
+  requirePermission(actor, "payments.view");
 
   const url = new URL(request.url);
   const includePayments = url.searchParams.get("includePayments") !== "0";

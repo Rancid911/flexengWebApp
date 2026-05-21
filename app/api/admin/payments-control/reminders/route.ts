@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/permissions";
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "billing.reminders.manage");
+  requirePermission(actor, "payments.manage");
   const body = (await request.json().catch(() => null)) as { studentId?: unknown } | null;
   const studentId = typeof body?.studentId === "string" ? body.studentId.trim() : "";
   if (!studentId) {

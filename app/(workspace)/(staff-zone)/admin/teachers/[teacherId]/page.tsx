@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 
 import { AdminTeacherProfileView } from "@/features/admin/components/teacher-dossier/admin-teacher-profile-view";
-import { requireStaffAdminPage } from "@/lib/admin/auth";
+import { requireAdminPagePermission } from "@/lib/admin/auth";
 import { loadAdminTeacherProfilePageData } from "@/lib/admin/teacher-profile";
 
 export default async function AdminTeacherProfilePage({ params }: { params: Promise<{ teacherId: string }> }) {
-  await requireStaffAdminPage();
+  await requireAdminPagePermission("teachers.view");
   const { teacherId } = await params;
   const pageData = await loadAdminTeacherProfilePageData(teacherId);
   if (!pageData) {

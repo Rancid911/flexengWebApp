@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/permissions";
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "learning.content.manage");
+  requirePermission(actor, "content.manage");
   const body = await request.json();
   const parsed = adminCourseModuleCreateSchema.safeParse(body);
   if (!parsed.success) {

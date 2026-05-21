@@ -1,5 +1,5 @@
 import type { StudentBillingMode, StudentBillingSummary } from "@/lib/billing/types";
-import { buildStudentBillingSummary, buildStudentBillingSummaryFromAggregates } from "@/lib/billing/utils";
+import { buildStudentBillingSummaryFromAggregates } from "@/lib/billing/utils";
 import { createBillingLedgerRepository, type BillingLedgerRepositoryClient } from "@/lib/billing/ledger.repository";
 import {
   normalizeAccount,
@@ -7,7 +7,6 @@ import {
   readPlanRelation,
   type BillingAccountRow,
   type BillingLedgerRow,
-  type BillingSummaryAggregateRow,
   type LessonRow,
   type PaymentPlanBillingRow,
   type PaymentTransactionWithPlanRow
@@ -24,14 +23,21 @@ import {
   isTeacherScheduleActor
 } from "@/lib/schedule/server";
 import type { AccessMode } from "@/lib/supabase/access";
+import { createClient } from "@/lib/supabase/server";
 
-// Temporary infrastructure exception: student-facing billing summary still depends on
-// privileged aggregate reads until a user-scoped summary RPC/view exists.
-export const BILLING_SUMMARY_ACCESS_MODE: AccessMode = "privileged";
-export const BILLING_MANAGE_ACCESS_MODE: AccessMode = "privileged";
+export const BILLING_SUMMARY_ACCESS_MODE: AccessMode = "user_scoped";
+export const BILLING_MANAGE_ACCESS_MODE: AccessMode = "user_scoped";
 export const BILLING_TRANSACTION_SYNC_ACCESS_MODE: AccessMode = "privileged";
 
 type BillingRepository = ReturnType<typeof createBillingLedgerRepository>;
+type AccessibleBillingSummaryRow = {
+  account: BillingAccountRow | null;
+  remaining_lesson_units: number | string | null;
+  remaining_money_amount: number | string | null;
+  effective_lesson_price_amount: number | string | null;
+  effective_lesson_price_currency: string | null;
+  recent_entries: BillingLedgerRow[] | null;
+};
 
 async function loadBillingAccount(repository: BillingRepository, studentId: string) {
   const response = await repository.loadBillingAccount(studentId);
@@ -40,54 +46,6 @@ async function loadBillingAccount(repository: BillingRepository, studentId: stri
   }
 
   return normalizeAccount((response.data ?? null) as BillingAccountRow | null);
-}
-
-async function loadBillingSummaryLedger(repository: BillingRepository, studentId: string) {
-  const response = await repository.loadBillingSummaryAggregates(studentId);
-  if (response.error) {
-    throw new BillingHttpError(500, "BILLING_SUMMARY_RPC_UNAVAILABLE", "Failed to load billing summary ledger", response.error.message);
-  }
-
-  const aggregate = ((response.data ?? []) as BillingSummaryAggregateRow[])[0] ?? null;
-  return {
-    remainingLessonUnits: aggregate?.remaining_lesson_units == null ? 0 : Number(aggregate.remaining_lesson_units),
-    remainingMoneyAmount: aggregate?.remaining_money_amount == null ? 0 : Number(aggregate.remaining_money_amount),
-    effectiveLessonPriceAmount:
-      aggregate?.effective_lesson_price_amount == null ? null : Number(aggregate.effective_lesson_price_amount),
-    effectiveLessonPriceCurrency: aggregate?.effective_lesson_price_currency ?? null
-  };
-}
-
-function isBillingSummaryAggregateRpcUnavailable(error: unknown) {
-  if (!(error instanceof BillingHttpError)) return false;
-  if (error.code !== "BILLING_SUMMARY_RPC_UNAVAILABLE") return false;
-
-  const details = String(error.details ?? "").toLowerCase();
-  return (
-    details.includes("does not exist") ||
-    details.includes("undefined function") ||
-    details.includes("function public.get_student_billing_summary_aggregates") ||
-    details.includes("schema cache") ||
-    details.includes("could not find")
-  );
-}
-
-async function loadFullBillingLedger(repository: BillingRepository, studentId: string) {
-  const response = await repository.loadFullBillingLedger(studentId);
-  if (response.error) {
-    throw new BillingHttpError(500, "BILLING_SUMMARY_FALLBACK_FETCH_FAILED", "Failed to load billing summary fallback ledger", response.error.message);
-  }
-
-  return normalizeLedger((response.data ?? []) as BillingLedgerRow[]);
-}
-
-async function loadRecentBillingLedger(repository: BillingRepository, studentId: string, recentEntriesLimit: number) {
-  const response = await repository.loadRecentBillingLedger(studentId, recentEntriesLimit);
-  if (response.error) {
-    throw new BillingHttpError(500, "BILLING_LEDGER_FETCH_FAILED", "Failed to load recent billing ledger", response.error.message);
-  }
-
-  return normalizeLedger((response.data ?? []) as BillingLedgerRow[]);
 }
 
 async function loadLatestEffectiveLessonPrice(repository: BillingRepository, studentId: string) {
@@ -138,36 +96,34 @@ function assertBillingManageAccess(actor: ScheduleActor) {
 export async function getBillingSummaryByStudentId(studentId: string, recentEntriesLimit = 8): Promise<StudentBillingSummary> {
   return measureServerTiming("billing-summary-data", async () => {
     void BILLING_SUMMARY_ACCESS_MODE;
-    const repository = createBillingLedgerRepository();
-    const accountPromise = measureServerTiming("billing-account-load", () => loadBillingAccount(repository, studentId));
-    const recentEntriesPromise = measureServerTiming("billing-recent-ledger", () => loadRecentBillingLedger(repository, studentId, recentEntriesLimit));
+    const supabase = await createClient();
+    const response = await measureServerTiming("billing-summary-rpc", async () =>
+      await supabase.rpc("get_accessible_student_billing_summary", {
+        p_student_id: studentId,
+        p_recent_entries_limit: recentEntriesLimit
+      })
+    );
 
-    try {
-      const [account, summaryAggregates, recentEntries] = await Promise.all([
-        accountPromise,
-        measureServerTiming("billing-summary-aggregates", () => loadBillingSummaryLedger(repository, studentId)),
-        recentEntriesPromise
-      ]);
-
-      return buildStudentBillingSummaryFromAggregates(studentId, account, summaryAggregates, recentEntries);
-    } catch (error) {
-      if (!isBillingSummaryAggregateRpcUnavailable(error)) {
-        throw error;
-      }
-
-      console.warn("BILLING_SUMMARY_RPC_UNAVAILABLE", {
-        studentId,
-        message: error instanceof Error ? error.message : String(error),
-        details: error instanceof BillingHttpError ? error.details : null
-      });
-
-      const [account, fullLedger] = await Promise.all([
-        accountPromise,
-        measureServerTiming("billing-summary-fallback-ledger", () => loadFullBillingLedger(repository, studentId))
-      ]);
-
-      return buildStudentBillingSummary(studentId, account, fullLedger, recentEntriesLimit);
+    if (response.error) {
+      throw new BillingHttpError(500, "BILLING_SUMMARY_FETCH_FAILED", "Failed to load billing summary", response.error.message);
     }
+
+    const row = ((response.data ?? []) as AccessibleBillingSummaryRow[])[0] ?? null;
+    if (!row) {
+      throw new BillingHttpError(403, "FORBIDDEN", "Billing access denied");
+    }
+
+    return buildStudentBillingSummaryFromAggregates(
+      studentId,
+      normalizeAccount(row.account),
+      {
+        remainingLessonUnits: row.remaining_lesson_units == null ? 0 : Number(row.remaining_lesson_units),
+        remainingMoneyAmount: row.remaining_money_amount == null ? 0 : Number(row.remaining_money_amount),
+        effectiveLessonPriceAmount: row.effective_lesson_price_amount == null ? null : Number(row.effective_lesson_price_amount),
+        effectiveLessonPriceCurrency: row.effective_lesson_price_currency ?? null
+      },
+      normalizeLedger((row.recent_entries ?? []) as BillingLedgerRow[])
+    );
   });
 }
 
@@ -188,7 +144,8 @@ export async function updateStudentBillingSettings(actor: ScheduleActor, student
 }) {
   void BILLING_MANAGE_ACCESS_MODE;
   assertBillingManageAccess(actor);
-  const repository = createBillingLedgerRepository();
+  const supabase = await createClient();
+  const repository = createBillingLedgerRepository(supabase);
 
   if (!payload.billingMode) {
     const response = await repository.deleteBillingAccount(studentId);
@@ -215,7 +172,8 @@ export async function createStudentBillingAdjustment(actor: ScheduleActor, stude
 }) {
   void BILLING_MANAGE_ACCESS_MODE;
   assertBillingManageAccess(actor);
-  const repository = createBillingLedgerRepository();
+  const supabase = await createClient();
+  const repository = createBillingLedgerRepository(supabase);
   let account = await loadBillingAccount(repository, studentId);
   const latestLessonPrice = await loadLatestEffectiveLessonPrice(repository, studentId);
   if (!account) {
@@ -268,9 +226,9 @@ export async function createStudentBillingAdjustment(actor: ScheduleActor, stude
   return getBillingSummaryByStudentId(studentId);
 }
 
-export async function assertPaymentPlanBillingCompatibility(studentId: string, planId: string) {
+export async function assertPaymentPlanBillingCompatibility(studentId: string, planId: string, client: BillingLedgerRepositoryClient) {
   void BILLING_TRANSACTION_SYNC_ACCESS_MODE;
-  const repository = createBillingLedgerRepository();
+  const repository = createBillingLedgerRepository(client);
   const [accountResponse, planResponse] = await repository.loadBillingCompatibility(studentId, planId);
 
   if (accountResponse.error || planResponse.error) {
@@ -304,9 +262,9 @@ export async function assertPaymentPlanBillingCompatibility(studentId: string, p
   }
 }
 
-export async function syncPaymentTransactionBilling(transactionId: string, adminClientArg?: BillingLedgerRepositoryClient) {
+export async function syncPaymentTransactionBilling(transactionId: string, client: BillingLedgerRepositoryClient) {
   void BILLING_TRANSACTION_SYNC_ACCESS_MODE;
-  const repository = createBillingLedgerRepository(adminClientArg);
+  const repository = createBillingLedgerRepository(client);
   const txResponse = await repository.loadPaymentTransactionWithPlan(transactionId);
 
   if (txResponse.error) {
@@ -389,9 +347,9 @@ export async function syncPaymentTransactionBilling(transactionId: string, admin
   }
 }
 
-export async function applyCompletedLessonCharge(lessonId: string, actorUserId: string, adminClientArg?: BillingLedgerRepositoryClient) {
+export async function applyCompletedLessonCharge(lessonId: string, actorUserId: string, client: BillingLedgerRepositoryClient) {
   void BILLING_TRANSACTION_SYNC_ACCESS_MODE;
-  const repository = createBillingLedgerRepository(adminClientArg);
+  const repository = createBillingLedgerRepository(client);
   const [lessonResponse, existingChargeResponse] = await repository.loadLessonChargeInputs(lessonId);
 
   if (lessonResponse.error) {

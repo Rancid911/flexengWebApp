@@ -3,6 +3,10 @@ import type { z } from "zod";
 import { writeAudit } from "@/lib/admin/audit";
 import { AdminHttpError } from "@/lib/admin/http";
 import {
+  createAdminUserRepositoryClient,
+  updateAuthUserById
+} from "@/lib/admin/user.repository";
+import {
   DEFAULT_TEACHER_INTERNAL_ROLE,
   DEFAULT_TEACHER_TIMEZONE,
   getTeacherInternalRoleLabel
@@ -20,6 +24,7 @@ import {
   teacherWorkFormatUpdateSchema
 } from "@/lib/admin/validation";
 import { invalidateFullAppActorCache } from "@/lib/auth/request-context";
+import { createClient } from "@/lib/supabase/server";
 
 type TeacherBasicInfoInput = z.infer<typeof teacherBasicInfoUpdateSchema>;
 type TeacherProfessionalInfoInput = z.infer<typeof teacherProfessionalInfoUpdateSchema>;
@@ -31,6 +36,14 @@ type TeacherRepository = ReturnType<typeof createTeacherDossierRepository>;
 
 function readTeacherProfile(row: TeacherProfileRow) {
   return Array.isArray(row.profiles) ? row.profiles[0] ?? null : row.profiles;
+}
+
+async function createUserScopedTeacherDossierRepository() {
+  return createTeacherDossierRepository(await createClient());
+}
+
+async function updateTeacherAuthEmail(userId: string, email: string) {
+  return await updateAuthUserById(createAdminUserRepositoryClient(), userId, { email });
 }
 
 async function loadTeacher(repository: TeacherRepository, teacherId: string) {
@@ -71,7 +84,7 @@ async function upsertDossier(repository: TeacherRepository, patch: Record<string
 }
 
 export async function updateTeacherBasicInfo(actor: AdminActor, teacherId: string, input: TeacherBasicInfoInput) {
-  const repository = createTeacherDossierRepository();
+  const repository = await createUserScopedTeacherDossierRepository();
   const teacher = await loadTeacherWithProfile(repository, teacherId);
   const profile = readTeacherProfile(teacher);
   if (!profile) {
@@ -93,7 +106,7 @@ export async function updateTeacherBasicInfo(actor: AdminActor, teacherId: strin
   }
 
   if (input.email !== profile.email) {
-    const authUpdate = await repository.updateAuthEmail(teacher.profile_id, input.email);
+    const authUpdate = await updateTeacherAuthEmail(teacher.profile_id, input.email);
     if (authUpdate.error) {
       throw new AdminHttpError(500, "TEACHER_AUTH_UPDATE_FAILED", "Failed to update teacher auth email", authUpdate.error.message);
     }
@@ -134,7 +147,7 @@ export async function updateTeacherBasicInfo(actor: AdminActor, teacherId: strin
 }
 
 export async function updateTeacherProfessionalInfo(actor: AdminActor, teacherId: string, input: TeacherProfessionalInfoInput) {
-  const repository = createTeacherDossierRepository();
+  const repository = await createUserScopedTeacherDossierRepository();
   const teacher = await loadTeacher(repository, teacherId);
   const before = await loadDossierSnapshot(
     repository,
@@ -172,7 +185,7 @@ export async function updateTeacherProfessionalInfo(actor: AdminActor, teacherId
 }
 
 export async function updateTeacherMethodologyStyle(actor: AdminActor, teacherId: string, input: TeacherMethodologyStyleInput) {
-  const repository = createTeacherDossierRepository();
+  const repository = await createUserScopedTeacherDossierRepository();
   const teacher = await loadTeacher(repository, teacherId);
   const before = await loadDossierSnapshot(repository, teacher.id, "teacher_id, teaching_approach, teaching_materials, teaching_features");
 
@@ -196,7 +209,7 @@ export async function updateTeacherMethodologyStyle(actor: AdminActor, teacherId
 }
 
 export async function updateTeacherOperationalInfo(actor: AdminActor, teacherId: string, input: TeacherOperationalInfoInput) {
-  const repository = createTeacherDossierRepository();
+  const repository = await createUserScopedTeacherDossierRepository();
   const teacher = await loadTeacher(repository, teacherId);
   const before = await loadDossierSnapshot(
     repository,
@@ -228,7 +241,7 @@ export async function updateTeacherOperationalInfo(actor: AdminActor, teacherId:
 }
 
 export async function updateTeacherWorkFormat(actor: AdminActor, teacherId: string, input: TeacherWorkFormatInput) {
-  const repository = createTeacherDossierRepository();
+  const repository = await createUserScopedTeacherDossierRepository();
   const teacher = await loadTeacher(repository, teacherId);
   const before = await loadDossierSnapshot(
     repository,

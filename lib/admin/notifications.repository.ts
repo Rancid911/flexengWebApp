@@ -1,11 +1,11 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
-export type AdminNotificationsRepositoryClient = ReturnType<typeof createAdminClient>;
+export type AdminNotificationsRepositoryClient = Awaited<ReturnType<typeof createClient>>;
 
 export const ADMIN_NOTIFICATION_SELECT =
   "id, title, body, type, is_active, target_roles, published_at, expires_at, created_by, created_at, updated_at";
 
-export function createAdminNotificationsRepository(client: AdminNotificationsRepositoryClient = createAdminClient()) {
+export function createAdminNotificationsRepository(client: AdminNotificationsRepositoryClient) {
   return {
     listNotifications(params: { from: number; to: number; q?: string | null }) {
       let query = client

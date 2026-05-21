@@ -25,6 +25,7 @@ None. New cleanup work should be added here only when a concrete pain point is i
 
 ## Future Cleanup Candidates
 
+- RBAC/RLS migration is tracked separately in `docs/rbac-rls-implementation-plan.md`. Keep it split into small PRs: decision/inventory, additive schema, backfill, AppActor compatibility, teacher preview guard, permission pilot, RLS helpers, domain RLS rollouts, then service-role cleanup.
 - Treat future cleanup as opportunistic and tied to concrete feature or bug work.
 - Avoid creating broad refactor epics unless a new audit identifies specific runtime or maintainability risk.
 

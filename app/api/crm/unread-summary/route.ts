@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async () => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "crm.leads.read");
+  requirePermission(actor, "crm.leads.view");
   try {
     return NextResponse.json({ unreadCount: await getCrmUnreadNewRequestsCount() });
   } catch (error) {

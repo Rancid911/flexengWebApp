@@ -19,7 +19,9 @@ const getWorkspaceShellState = cache(async () => {
       displayName: actor.displayName,
       email: actor.email,
       avatarUrl: actor.avatarUrl,
-      role: resolveDefaultWorkspace(actor)
+      role: resolveDefaultWorkspace(actor),
+      rbacPermissions: actor.rbacPermissions,
+      rbacPermissionScopes: actor.rbacPermissionScopes
     }
   };
 });

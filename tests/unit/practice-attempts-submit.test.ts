@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentStudentProfileMock = vi.fn();
+const getCurrentRealStudentWriteContextMock = vi.fn();
 const getPracticeActivityDetailMock = vi.fn();
-const createAdminClientMock = vi.fn();
+const createClientMock = vi.fn();
 const revalidatePathMock = vi.fn();
 
 vi.mock("next/cache", () => ({
@@ -10,27 +11,30 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/students/current-student", () => ({
-  getCurrentStudentProfile: () => getCurrentStudentProfileMock()
+  getCurrentStudentProfile: () => getCurrentStudentProfileMock(),
+  getCurrentRealStudentWriteContext: (...args: unknown[]) => getCurrentRealStudentWriteContextMock(...args)
 }));
 
 vi.mock("@/lib/practice/queries", () => ({
   getPracticeActivityDetail: (...args: unknown[]) => getPracticeActivityDetailMock(...args)
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => createAdminClientMock()
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: () => createClientMock()
 }));
 
 describe("submitPracticeTestAttempt", () => {
   beforeEach(() => {
     getCurrentStudentProfileMock.mockReset();
+    getCurrentRealStudentWriteContextMock.mockReset();
     getPracticeActivityDetailMock.mockReset();
-    createAdminClientMock.mockReset();
+    createClientMock.mockReset();
     revalidatePathMock.mockReset();
   });
 
   it("allows partial placement submission after timeout and grades missing answers as incorrect", async () => {
     getCurrentStudentProfileMock.mockResolvedValue({ studentId: "student-1" });
+    getCurrentRealStudentWriteContextMock.mockResolvedValue({ userId: "student-profile-1", studentId: "student-1" });
     getPracticeActivityDetailMock.mockResolvedValue({
       id: "test_11111111-1111-1111-1111-111111111111",
       sourceType: "test",
@@ -123,7 +127,7 @@ describe("submitPracticeTestAttempt", () => {
       return chain;
     };
 
-    const adminClient = {
+    const userClient = {
       from: vi.fn((table: string) => {
         if (table === "tests") {
           return {
@@ -175,7 +179,7 @@ describe("submitPracticeTestAttempt", () => {
       })
     };
 
-    createAdminClientMock.mockReturnValue(adminClient);
+    createClientMock.mockResolvedValue(userClient);
 
     const { submitPracticeTestAttempt } = await import("@/lib/practice/attempts");
     const result = await submitPracticeTestAttempt({
@@ -195,5 +199,36 @@ describe("submitPracticeTestAttempt", () => {
     expect(result.score).toBe(50);
     expect(result.questions).toHaveLength(2);
     expect(result.questions[1]?.selectedOptionId).toBeNull();
+  });
+
+  it("denies teacher preview context before loading tests or writing attempts", async () => {
+    getCurrentRealStudentWriteContextMock.mockRejectedValue(
+      Object.assign(new Error("Real student write context required"), {
+        status: 403,
+        code: "FORBIDDEN",
+        exposeDetails: true
+      })
+    );
+
+    const { submitPracticeTestAttempt } = await import("@/lib/practice/attempts");
+    await expect(
+      submitPracticeTestAttempt({
+        activityId: "test_11111111-1111-1111-1111-111111111111",
+        answers: [
+          {
+            questionId: "22222222-2222-2222-2222-222222222222",
+            optionId: "33333333-3333-3333-3333-333333333333"
+          }
+        ],
+        timeSpentSeconds: 42
+      })
+    ).rejects.toMatchObject({
+      status: 403,
+      code: "FORBIDDEN"
+    });
+
+    expect(getPracticeActivityDetailMock).not.toHaveBeenCalled();
+    expect(createClientMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 });

@@ -1,15 +1,14 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
-export type TeacherNotesRepositoryClient = ReturnType<typeof createAdminClient>;
+export type TeacherNotesRepositoryClient = Awaited<ReturnType<typeof createClient>>;
 
 const NOTE_SELECT = "id, student_id, teacher_id, body, visibility, created_by_profile_id, created_at, updated_at";
-const PROFILE_SELECT = "id, display_name, first_name, last_name, email, phone, role";
 
-export function createTeacherNotesRepository(client: TeacherNotesRepositoryClient = createAdminClient()) {
+export function createTeacherNotesRepository(client: TeacherNotesRepositoryClient) {
   return {
     async loadProfiles(profileIds: string[]) {
       if (profileIds.length === 0) return { data: [], error: null };
-      return await client.from("profiles").select(PROFILE_SELECT).in("id", profileIds);
+      return await client.rpc("get_accessible_profile_labels", { p_profile_ids: profileIds });
     },
 
     async createNote(input: {

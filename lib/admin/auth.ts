@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 
 import {
   getProfileIdentityContext,
+  requireAppActor,
   requireProfileIdentityContext
 } from "@/lib/auth/request-context";
+import { can, type Permission, type PermissionResource } from "@/lib/permissions";
 import type { UserRole } from "@/lib/auth/get-user-role";
 import { AdminHttpError } from "@/lib/admin/http";
 import type { AdminActor } from "@/lib/admin/types";
@@ -31,6 +33,24 @@ export async function requireStaffAdminPage(): Promise<AdminActor> {
     userId: actor.userId,
     role
   };
+}
+
+export async function requireAdminPagePermission(permission: Permission, resource?: PermissionResource) {
+  const actor = await requireAppActor();
+  if (!can(actor, permission, resource)) {
+    redirect("/");
+  }
+
+  return actor;
+}
+
+export async function requireAdminPageAnyPermission(permissions: Permission[], resource?: PermissionResource) {
+  const actor = await requireAppActor();
+  if (!permissions.some((permission) => can(actor, permission, resource))) {
+    redirect("/");
+  }
+
+  return actor;
 }
 
 export async function requireStaffAdminApi(): Promise<AdminActor> {

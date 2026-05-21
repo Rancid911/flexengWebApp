@@ -92,7 +92,16 @@ Protected API route handlers must call `requirePermission()` after authenticatio
 
 ## Authorization Rules
 
-Roles remain the source of truth for now:
+The access model is migrating from role-only checks toward a minimal RBAC/RLS model:
+
+- role: business context
+- permission: allowed function
+- scope: allowed data boundary
+- RLS: final row-level database guard
+
+`profiles.role` remains a legacy / primary role / compatibility field during the migration, but it must not be treated as the final source of truth for new access-control design.
+
+Current legacy roles:
 
 - `student`
 - `teacher`
@@ -105,7 +114,11 @@ New authorization checks should prefer permissions:
 requirePermission(actor, "crm.leads.read");
 ```
 
-The permissions layer is code-based for now. Do not add database-backed RBAC tables until there is a concrete product need.
+The current permissions layer is code-based. The next database-backed RBAC step must stay minimal and additive: `roles`, `user_roles`, `permissions`, and `role_permissions` with a scope field. Do not add `user_permissions`, deny semantics, permission preset tables, or a role/permission admin UI in the first DB PR.
+
+Teacher preview must not create or mutate real student records. If persistent teacher demo progress becomes a product requirement later, use separate demo tables rather than shared `student_*` tables.
+
+RLS should be rolled out by domain. Do not rewrite all policies in one PR, and do not reduce service-role usage until matching RLS policies and tests are proven.
 
 Feature flags are separate from permissions:
 

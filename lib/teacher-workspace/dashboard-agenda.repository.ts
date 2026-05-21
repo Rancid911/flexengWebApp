@@ -1,7 +1,7 @@
 import type { LessonAttendanceStatus } from "@/lib/schedule/types";
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
-export type TeacherDashboardAgendaRepositoryClient = ReturnType<typeof createAdminClient>;
+export type TeacherDashboardAgendaRepositoryClient = Awaited<ReturnType<typeof createClient>>;
 
 export type TeacherDashboardAgendaLessonRow = {
   id: string;
@@ -51,7 +51,7 @@ export type TeacherDashboardAgendaOutcomeRow = {
 
 const LESSON_SELECT = "id, student_id, teacher_id, title, starts_at, ends_at, meeting_url, comment, status, created_at, updated_at";
 
-export function createTeacherDashboardAgendaRepository(client: TeacherDashboardAgendaRepositoryClient = createAdminClient()) {
+export function createTeacherDashboardAgendaRepository(client: TeacherDashboardAgendaRepositoryClient) {
   return {
     client,
 

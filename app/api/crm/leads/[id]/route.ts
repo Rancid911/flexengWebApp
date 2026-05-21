@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "crm.leads.read");
+  requirePermission(actor, "crm.leads.view");
   const { id } = await params;
   let detail = await loadCrmLeadDetail(id);
   if (!detail) throw new AdminHttpError(404, "CRM_LEAD_NOT_FOUND", "Lead not found");
@@ -21,7 +21,7 @@ export const GET = withAdminErrorHandling(async (_request: NextRequest, { params
 
 export const DELETE = withAdminErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "crm.leads.delete");
+  requirePermission(actor, "crm.leads.manage");
   const { id } = await params;
   const deleted = await deleteCrmLead(id);
   if (!deleted) throw new AdminHttpError(404, "CRM_LEAD_NOT_FOUND", "Lead not found");

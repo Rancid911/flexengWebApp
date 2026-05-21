@@ -2,27 +2,27 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 const requireStaffAdminApiMock = vi.fn();
-const createAdminClientMock = vi.fn();
+const createClientMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
   requireStaffAdminApi: () => requireStaffAdminApiMock()
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => createAdminClientMock()
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: () => createClientMock()
 }));
 
 describe("/api/admin/course-modules/options", () => {
   beforeEach(() => {
     vi.resetModules();
     requireStaffAdminApiMock.mockReset();
-    createAdminClientMock.mockReset();
+    createClientMock.mockReset();
   });
 
   it("returns readable module options sorted by course and module title", async () => {
     requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table !== "course_modules") throw new Error(`Unexpected table: ${table}`);
         return {
@@ -83,7 +83,7 @@ describe("/api/admin/course-modules/options", () => {
       code: "FORBIDDEN",
       message: "Permission denied"
     });
-    expect(createAdminClientMock).not.toHaveBeenCalled();
+    expect(createClientMock).not.toHaveBeenCalled();
   });
 });
 
@@ -91,13 +91,13 @@ describe("/api/admin/courses/options", () => {
   beforeEach(() => {
     vi.resetModules();
     requireStaffAdminApiMock.mockReset();
-    createAdminClientMock.mockReset();
+    createClientMock.mockReset();
   });
 
   it("returns readable course options sorted by title", async () => {
     requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table !== "courses") throw new Error(`Unexpected table: ${table}`);
         return {
@@ -136,7 +136,7 @@ describe("/api/admin/courses/options", () => {
       code: "FORBIDDEN",
       message: "Permission denied"
     });
-    expect(createAdminClientMock).not.toHaveBeenCalled();
+    expect(createClientMock).not.toHaveBeenCalled();
   });
 });
 
@@ -144,7 +144,7 @@ describe("/api/admin/course-modules", () => {
   beforeEach(() => {
     vi.resetModules();
     requireStaffAdminApiMock.mockReset();
-    createAdminClientMock.mockReset();
+    createClientMock.mockReset();
   });
 
   it("creates a module at the end of the selected course", async () => {
@@ -163,7 +163,7 @@ describe("/api/admin/course-modules", () => {
       }))
     }));
 
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "courses") {
           return {
@@ -226,7 +226,7 @@ describe("/api/admin/course-modules", () => {
 
   it("returns validation errors for missing course or title", async () => {
     requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
-    createAdminClientMock.mockReturnValue({});
+    createClientMock.mockResolvedValue({});
 
     const { POST } = await import("@/app/api/admin/course-modules/route");
     const response = await POST(
@@ -263,6 +263,6 @@ describe("/api/admin/course-modules", () => {
       code: "FORBIDDEN",
       message: "Permission denied"
     });
-    expect(createAdminClientMock).not.toHaveBeenCalled();
+    expect(createClientMock).not.toHaveBeenCalled();
   });
 });

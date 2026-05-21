@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import type { UserRole } from "@/lib/auth/get-user-role";
+import { canUseAnyRbacPermission, canUseRbacPermission, type RbacPermissionActor, type RbacPermissionRule } from "@/lib/auth/rbac-compat";
 
 import type { WorkspaceNavConfig, WorkspaceNavItem, WorkspaceShellVariant } from "@/features/workspace-shell/model/workspace-shell.types";
 
@@ -86,33 +87,66 @@ function resolveWorkspaceRole(shellVariant: WorkspaceShellVariant, currentRole: 
   return currentRole;
 }
 
-export function getWorkspaceNavConfig(shellVariant: WorkspaceShellVariant, currentRole: UserRole | null): WorkspaceNavConfig {
+function canShowProfileAccess(access?: RbacPermissionActor | null) {
+  return canUseRbacPermission(access, "profile.view", ["own", "all"]);
+}
+
+function filterProfileNavItems(items: WorkspaceNavItem[], canShowProfile: boolean) {
+  if (canShowProfile) return items;
+  return items.filter((item) => item.id !== "profile");
+}
+
+const navAccessRules: Record<string, RbacPermissionRule[]> = {
+  schedule: [{ permission: "schedule.view", scopes: ["own", "assigned", "all"] }],
+  "teacher-students": [{ permission: "students.view", scopes: ["assigned", "all"] }],
+  homework: [{ permission: "homework.view", scopes: ["own", "assigned", "all"] }],
+  progress: [{ permission: "student_progress.view", scopes: ["own", "assigned", "all"] }],
+  words: [
+    { permission: "word_cards.train", scopes: ["own"] },
+    { permission: "word_cards.demo_train", scopes: ["own_demo"] }
+  ],
+  payments: [{ permission: "billing.view", scopes: ["own", "assigned", "all"] }]
+};
+
+function filterRbacNavItems(items: WorkspaceNavItem[], access?: RbacPermissionActor | null) {
+  return items.filter((item) => {
+    const rules = navAccessRules[item.id];
+    return rules ? canUseAnyRbacPermission(access, rules) : true;
+  });
+}
+
+export function getWorkspaceNavConfig(
+  shellVariant: WorkspaceShellVariant,
+  currentRole: UserRole | null,
+  access?: RbacPermissionActor | null
+): WorkspaceNavConfig {
   const workspaceRole = resolveWorkspaceRole(shellVariant, currentRole);
   const isStaffAdmin = workspaceRole === "admin" || workspaceRole === "manager";
   const isTeacher = workspaceRole === "teacher";
+  const canShowProfile = canShowProfileAccess(access);
 
   if (isStaffAdmin) {
     return {
-      primary: adminPrimaryNavItems,
+      primary: filterRbacNavItems(adminPrimaryNavItems, access),
       secondary: [],
-      mobileMore: [{ id: "profile", label: "Профиль", href: "/settings/profile", match: "exact", icon: Settings }],
-      showBottomProfileLink: true
+      mobileMore: filterProfileNavItems([{ id: "profile", label: "Профиль", href: "/settings/profile", match: "exact", icon: Settings }], canShowProfile),
+      showBottomProfileLink: canShowProfile
     };
   }
 
   if (isTeacher) {
     return {
-      primary: teacherPrimaryNavItems,
+      primary: filterRbacNavItems(teacherPrimaryNavItems, access),
       secondary: [],
-      mobileMore: [{ id: "profile", label: "Профиль", href: "/settings/profile", match: "exact", icon: Settings }],
-      showBottomProfileLink: true
+      mobileMore: filterProfileNavItems([{ id: "profile", label: "Профиль", href: "/settings/profile", match: "exact", icon: Settings }], canShowProfile),
+      showBottomProfileLink: canShowProfile
     };
   }
 
   return {
-    primary: studentPrimaryNavItems,
-    secondary: studentSecondaryNavItems,
-    mobileMore: studentSecondaryNavItems,
+    primary: filterRbacNavItems(studentPrimaryNavItems, access),
+    secondary: filterRbacNavItems(filterProfileNavItems(studentSecondaryNavItems, canShowProfile), access),
+    mobileMore: filterRbacNavItems(filterProfileNavItems(studentSecondaryNavItems, canShowProfile), access),
     showBottomProfileLink: false
   };
 }

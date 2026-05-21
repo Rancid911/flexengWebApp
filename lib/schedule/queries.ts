@@ -1,5 +1,6 @@
 import { measureServerTiming } from "@/lib/server/timing";
 import { ScheduleHttpError } from "@/lib/schedule/http";
+import { createClient } from "@/lib/supabase/server";
 import {
   buildOptionsFromLessons,
   mapScheduleLessonRows,
@@ -10,6 +11,7 @@ import {
   type ScheduleLessonRow
 } from "@/lib/schedule/mappers";
 import { createScheduleRepository } from "@/lib/schedule/schedule.repository";
+import type { ScheduleRepositoryClient } from "@/lib/schedule/schedule.repository";
 import {
   SCHEDULE_FILTER_CATALOG_DATA_LOADING,
   SCHEDULE_PAGE_DATA_LOADING,
@@ -19,8 +21,6 @@ import {
 import type {
   SchedulePageData,
   ScheduleFilterCatalogEntity,
-  ScheduleStudentOptionDto,
-  ScheduleTeacherOptionDto,
   StaffScheduleFilters,
   StaffScheduleLessonDto,
   StaffSchedulePageData,
@@ -123,37 +123,45 @@ function getStaffScheduleWindow(actor: ScheduleActor, filters: StaffScheduleFilt
   };
 }
 
-async function mapScheduleLessons(rows: ScheduleLessonRow[], options?: ScheduleLessonEnrichmentOptions) {
+async function createUserScopedScheduleRepository(client?: ScheduleRepositoryClient) {
+  return createScheduleRepository(client ?? (await createClient()));
+}
+
+async function mapScheduleLessons(
+  rows: ScheduleLessonRow[],
+  options: ScheduleLessonEnrichmentOptions,
+  repository?: ReturnType<typeof createScheduleRepository>
+) {
   return measureServerTiming("schedule-enrichment", async () => {
     if (rows.length === 0) return [];
-    const repository = createScheduleRepository();
+    const effectiveRepository = repository ?? (await createUserScopedScheduleRepository());
     const studentIds = Array.from(new Set(rows.map((row) => row.student_id)));
     const teacherIds = Array.from(new Set(rows.map((row) => row.teacher_id)));
     const lessonIds = rows.map((row) => row.id);
-    const includeFollowup = options?.includeFollowup !== false;
+    const includeFollowup = options.includeFollowup !== false;
     const [studentLabelsById, teacherLabelsById] = await Promise.all([
       measureServerTiming("schedule-label-resolution", () =>
-        options?.studentLabelsById
+        options.studentLabelsById
           ? Promise.resolve(options.studentLabelsById)
-          : options?.studentOptions
+          : options.studentOptions
             ? Promise.resolve(new Map(options.studentOptions.map((item) => [item.id, item.label])))
-            : repository.loadStudentLabelsByIds(studentIds)
+            : effectiveRepository.loadStudentLabelsByIds(studentIds)
       ),
       measureServerTiming("schedule-teacher-label-resolution", () =>
-        options?.teacherLabelsById
+        options.teacherLabelsById
           ? Promise.resolve(options.teacherLabelsById)
-          : options?.teacherOptions
+          : options.teacherOptions
             ? Promise.resolve(new Map(options.teacherOptions.map((item) => [item.id, item.label])))
-            : repository.loadTeacherLabelsByIds(teacherIds)
+            : effectiveRepository.loadTeacherLabelsByIds(teacherIds)
       )
     ]);
     const [attendanceByLessonId, outcomeByLessonId] = includeFollowup
       ? await Promise.all([
           measureServerTiming("schedule-attendance-load", () =>
-            options?.attendanceByLessonId ? Promise.resolve(options.attendanceByLessonId) : repository.loadAttendanceByLessonIds(lessonIds)
+            options.attendanceByLessonId ? Promise.resolve(options.attendanceByLessonId) : effectiveRepository.loadAttendanceByLessonIds(lessonIds)
           ),
           measureServerTiming("schedule-outcomes-load", () =>
-            options?.outcomeByLessonId ? Promise.resolve(options.outcomeByLessonId) : repository.loadOutcomesByLessonIds(lessonIds)
+            options.outcomeByLessonId ? Promise.resolve(options.outcomeByLessonId) : effectiveRepository.loadOutcomesByLessonIds(lessonIds)
           )
         ])
       : [new Map<string, LessonAttendanceRow>(), new Map<string, LessonOutcomeRow>()];
@@ -167,22 +175,33 @@ async function mapScheduleLessons(rows: ScheduleLessonRow[], options?: ScheduleL
   });
 }
 
-export async function mapStaffScheduleLessons(
+type StaffScheduleLessonMapOptions = Omit<ScheduleLessonEnrichmentOptions, "includeFollowup">;
+
+export async function mapStaffScheduleLessonsLightweight(
   rows: ScheduleLessonRow[],
-  options?: {
-    studentOptions?: ScheduleStudentOptionDto[];
-    teacherOptions?: ScheduleTeacherOptionDto[];
-  }
+  options: StaffScheduleLessonMapOptions = {}
 ) {
-  return mapScheduleLessons(rows, options);
+  return mapScheduleLessons(rows, { ...options, includeFollowup: false });
 }
 
-async function listScheduleLessonRows(actor: ScheduleActor, filters: StaffScheduleFilters = {}) {
+export async function mapStaffScheduleLessonsWithFollowup(
+  rows: ScheduleLessonRow[],
+  options: StaffScheduleLessonMapOptions = {}
+) {
+  return mapScheduleLessons(rows, { ...options, includeFollowup: true });
+}
+
+async function listScheduleLessonRows(
+  actor: ScheduleActor,
+  filters: StaffScheduleFilters = {},
+  repository?: ReturnType<typeof createScheduleRepository>
+) {
   const window = getStaffScheduleWindow(actor, filters);
   const explicitPastSelection = hasExplicitPastDateSelection(filters);
   const explicitDateSelection = hasExplicitFutureDateSelection(filters);
   const agendaMode = !explicitPastSelection && !explicitDateSelection;
-  return createScheduleRepository().listScheduleLessonRows({
+  const effectiveRepository = repository ?? (await createUserScopedScheduleRepository());
+  return effectiveRepository.listScheduleLessonRows({
     actor,
     filters,
     startsAt: window.startsAt,
@@ -206,12 +225,12 @@ export async function getSchedulePageDataInternal(
   options: GetSchedulePageDataOptions
 ): Promise<SchedulePageData> {
   return measureServerTiming("schedule-page-data", async () => {
-    const repository = createScheduleRepository();
+    const repository = await createUserScopedScheduleRepository();
     const includeFollowup = options.includeFollowup;
 
     if (actor.role === "student") {
-      const rows = await measureServerTiming("schedule-list", () => listScheduleLessonRows(actor, filters));
-      const mapped = await mapScheduleLessons(rows);
+      const rows = await measureServerTiming("schedule-list", () => listScheduleLessonRows(actor, filters, repository));
+      const mapped = await mapScheduleLessons(rows, { includeFollowup: true }, repository);
       const preview = buildStudentSchedulePreview(mapped as StudentScheduleLessonDto[]);
       return {
         role: "student",
@@ -220,7 +239,7 @@ export async function getSchedulePageDataInternal(
       } satisfies StudentSchedulePageData;
     }
 
-    const rows = await measureServerTiming("schedule-list", () => listScheduleLessonRows(actor, filters));
+    const rows = await measureServerTiming("schedule-list", () => listScheduleLessonRows(actor, filters, repository));
     const lessonIds = rows.map((row) => row.id);
     const [attendanceByLessonId, outcomeByLessonId] = includeFollowup
       ? await Promise.all([
@@ -228,11 +247,15 @@ export async function getSchedulePageDataInternal(
           measureServerTiming("schedule-shared-outcomes", () => repository.loadOutcomesByLessonIds(lessonIds))
         ])
       : [new Map<string, LessonAttendanceRow>(), new Map<string, LessonOutcomeRow>()];
-    const mapped = await mapScheduleLessons(rows, {
-      attendanceByLessonId,
-      outcomeByLessonId,
-      includeFollowup
-    });
+    const mapped = await mapScheduleLessons(
+      rows,
+      {
+        attendanceByLessonId,
+        outcomeByLessonId,
+        includeFollowup
+      },
+      repository
+    );
     const { students, teachers } = await measureServerTiming("schedule-filter-catalog-deferred", async () =>
       buildOptionsFromLessons(mapped as StaffScheduleLessonDto[], filters, actor)
     );
@@ -257,7 +280,7 @@ export async function getScheduleFilterCatalog(
   } = {}
 ) {
   return measureServerTiming("schedule-filter-catalog", async () => {
-    const repository = createScheduleRepository();
+    const repository = await createUserScopedScheduleRepository();
     const entity = options.entity ?? "all";
     const search = options.search ?? null;
     const limit = options.limit ?? SCHEDULE_FILTER_SEARCH_LIMIT;
@@ -272,7 +295,7 @@ export async function getScheduleFilterCatalog(
 
 export async function getStudentSchedulePreviewByStudentId(studentId: string, limit = 3) {
   return measureServerTiming("schedule-preview-load", async () => {
-    const repository = createScheduleRepository();
+    const repository = await createUserScopedScheduleRepository();
     const rows = await repository.loadStudentSchedulePreviewRows(studentId, limit);
     if (rows.length === 0) {
       return {
@@ -298,8 +321,9 @@ export async function createScheduleLesson(actor: ScheduleActor, payload: Schedu
   assertScheduleWriteAccess(actor);
   assertTeacherScope(actor, payload);
 
-  const row = await createScheduleRepository().createScheduleLessonRow(payload, actor);
-  const mapped = await mapScheduleLessons([row]);
+  const repository = await createUserScopedScheduleRepository();
+  const row = await repository.createScheduleLessonRow(payload, actor);
+  const mapped = await mapScheduleLessons([row], { includeFollowup: true }, repository);
   return mapped[0] as StaffScheduleLessonDto;
 }
 
@@ -321,7 +345,7 @@ function assertLessonAccess(actor: ScheduleActor, row: ScheduleLessonRow) {
 
 export async function updateScheduleLesson(actor: ScheduleActor, id: string, payload: Partial<ScheduleLessonMutationPayload>) {
   assertScheduleWriteAccess(actor);
-  const repository = createScheduleRepository();
+  const repository = await createUserScopedScheduleRepository();
   const existing = await repository.getScheduleLessonRowById(id);
   assertLessonAccess(actor, existing);
 
@@ -349,7 +373,7 @@ export async function updateScheduleLesson(actor: ScheduleActor, id: string, pay
   if (payload.status !== undefined) patch.status = payload.status;
 
   const row = await repository.updateScheduleLessonRow(id, patch);
-  const mapped = await mapScheduleLessons([row]);
+  const mapped = await mapScheduleLessons([row], { includeFollowup: true }, repository);
   return mapped[0] as StaffScheduleLessonDto;
 }
 

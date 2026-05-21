@@ -25,6 +25,10 @@ vi.mock("@/lib/schedule/server", () => ({
   isTeacherScheduleActor: (actor: { role: string }) => actor.role === "teacher"
 }));
 
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
+
 vi.mock("@/lib/teacher-workspace/queries", () => ({
   listTeacherStudentsPage: (...args: unknown[]) => listTeacherStudentsPageMock(...args)
 }));

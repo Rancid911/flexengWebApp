@@ -19,6 +19,10 @@ vi.mock("next/navigation", () => ({
   redirect: (href: string) => redirectMock(href)
 }));
 
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
+
 vi.mock("@/lib/schedule/server", () => ({
   requireSchedulePage: () => requireSchedulePageMock(),
   isStudentScheduleActor: (actor: { role: string }) => actor.role === "student",

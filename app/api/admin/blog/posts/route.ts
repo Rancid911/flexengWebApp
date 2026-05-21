@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.posts.manage");
+  requirePermission(actor, "content.manage");
   const { page, pageSize, q } = parsePagination(new URL(request.url));
   const payload = await listAdminBlogPosts({ page, pageSize, q });
   return NextResponse.json(payload);
@@ -16,7 +16,7 @@ export const GET = withAdminErrorHandling(async (request: NextRequest) => {
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.posts.manage");
+  requirePermission(actor, "content.manage");
   const body = await request.json();
   const parsed = blogPostCreateSchema.safeParse(body);
   if (!parsed.success) throw new AdminHttpError(400, "VALIDATION_ERROR", "Invalid blog post payload", parsed.error.flatten());

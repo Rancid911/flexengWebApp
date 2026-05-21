@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const requireStaffAdminApiMock = vi.fn();
-const createAdminClientMock = vi.fn();
+const createClientMock = vi.fn();
 const writeAuditMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
   requireStaffAdminApi: () => requireStaffAdminApiMock()
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => createAdminClientMock()
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: () => createClientMock()
 }));
 
 vi.mock("@/lib/admin/audit", () => ({
@@ -80,7 +80,7 @@ describe("PATCH /api/admin/teachers/[teacherId]/dossier/methodology-style", () =
   beforeEach(() => {
     vi.resetModules();
     requireStaffAdminApiMock.mockReset();
-    createAdminClientMock.mockReset();
+    createClientMock.mockReset();
     writeAuditMock.mockReset();
     requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
   });
@@ -96,13 +96,13 @@ describe("PATCH /api/admin/teachers/[teacherId]/dossier/methodology-style", () =
       code: "FORBIDDEN",
       message: "Permission denied"
     });
-    expect(createAdminClientMock).not.toHaveBeenCalled();
+    expect(createClientMock).not.toHaveBeenCalled();
     expect(writeAuditMock).not.toHaveBeenCalled();
   });
 
   it("upserts methodology style for valid staff payload and returns DTO", async () => {
     const mocks = createSupabaseMock();
-    createAdminClientMock.mockReturnValue(mocks.supabase);
+    createClientMock.mockResolvedValue(mocks.supabase);
 
     const { PATCH } = await import("@/app/api/admin/teachers/[teacherId]/dossier/methodology-style/route");
     const response = await PATCH(createRequest(validPayload), { params: Promise.resolve({ teacherId: "teacher-1" }) });
@@ -138,7 +138,7 @@ describe("PATCH /api/admin/teachers/[teacherId]/dossier/methodology-style", () =
 
   it("returns validation error for invalid methodology values", async () => {
     const mocks = createSupabaseMock();
-    createAdminClientMock.mockReturnValue(mocks.supabase);
+    createClientMock.mockResolvedValue(mocks.supabase);
 
     const { PATCH } = await import("@/app/api/admin/teachers/[teacherId]/dossier/methodology-style/route");
     const response = await PATCH(
@@ -163,7 +163,7 @@ describe("PATCH /api/admin/teachers/[teacherId]/dossier/methodology-style", () =
 
   it("returns 404 when teacher is missing", async () => {
     const mocks = createSupabaseMock(null);
-    createAdminClientMock.mockReturnValue(mocks.supabase);
+    createClientMock.mockResolvedValue(mocks.supabase);
 
     const { PATCH } = await import("@/app/api/admin/teachers/[teacherId]/dossier/methodology-style/route");
     const response = await PATCH(createRequest(validPayload), { params: Promise.resolve({ teacherId: "missing" }) });
@@ -175,7 +175,7 @@ describe("PATCH /api/admin/teachers/[teacherId]/dossier/methodology-style", () =
 
   it("returns update failed when dossier upsert fails", async () => {
     const mocks = createSupabaseMock({ id: "teacher-1" }, { upsertError: { message: "upsert failed" } });
-    createAdminClientMock.mockReturnValue(mocks.supabase);
+    createClientMock.mockResolvedValue(mocks.supabase);
 
     const { PATCH } = await import("@/app/api/admin/teachers/[teacherId]/dossier/methodology-style/route");
     const response = await PATCH(createRequest(validPayload), { params: Promise.resolve({ teacherId: "teacher-1" }) });
@@ -189,7 +189,7 @@ describe("PATCH /api/admin/teachers/[teacherId]/dossier/methodology-style", () =
   it("delegates non-staff access to staff API guard", async () => {
     requireStaffAdminApiMock.mockRejectedValue(new Error("NEXT_REDIRECT:/"));
     const mocks = createSupabaseMock();
-    createAdminClientMock.mockReturnValue(mocks.supabase);
+    createClientMock.mockResolvedValue(mocks.supabase);
 
     const { PATCH } = await import("@/app/api/admin/teachers/[teacherId]/dossier/methodology-style/route");
     const response = await PATCH(createRequest(validPayload), { params: Promise.resolve({ teacherId: "teacher-1" }) });

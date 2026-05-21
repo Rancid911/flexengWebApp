@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getAppActor } from "@/lib/auth/request-context";
 import { requirePermission } from "@/lib/permissions";
+import { requireRealStudentWriteContext } from "@/lib/students/current-student";
 import { WordsHttpError, withWordsErrorHandling } from "@/lib/words/http";
 import { completeWordSession } from "@/lib/words/queries";
 import { wordSessionCompleteSchema } from "@/lib/words/validation";
@@ -11,7 +12,8 @@ export const POST = withWordsErrorHandling(async (request: NextRequest) => {
   if (!actor) {
     throw new WordsHttpError(401, "UNAUTHORIZED", "Authentication required");
   }
-  requirePermission(actor, "words.sessions.complete");
+  requireRealStudentWriteContext(actor, "word_cards.train");
+  requirePermission(actor, "word_cards.train");
 
   const body = await request.json();
   const parsed = wordSessionCompleteSchema.safeParse(body);

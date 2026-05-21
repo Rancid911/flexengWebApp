@@ -21,7 +21,7 @@ function mediaResponse(file: Awaited<ReturnType<typeof loadCrmBackgroundMediaFil
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "crm.settings.read");
+    requirePermission(actor, "crm.leads.view");
 
   const path = request.nextUrl.searchParams.get("p");
   return mediaResponse(await loadCrmBackgroundMediaFile(path));

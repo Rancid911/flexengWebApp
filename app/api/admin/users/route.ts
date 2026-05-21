@@ -10,7 +10,7 @@ import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "admin.users.read");
+  requirePermission(actor, "users.view");
   const requestUrl = new URL(request.url);
   const { page, pageSize, q } = parsePagination(requestUrl);
   const roleParam = (requestUrl.searchParams.get("role") ?? "all").trim().toLowerCase();
@@ -24,7 +24,7 @@ export const GET = withAdminErrorHandling(async (request: NextRequest) => {
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "admin.users.create");
+  requirePermission(actor, "users.manage");
   const body = await request.json();
   const parsed = adminUserCreateSchema.safeParse(body);
   if (!parsed.success) throw new AdminHttpError(400, "VALIDATION_ERROR", "Invalid user payload", parsed.error.flatten());

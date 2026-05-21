@@ -1,6 +1,6 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
-export type TeacherDossierRepositoryClient = ReturnType<typeof createAdminClient>;
+export type TeacherDossierRepositoryClient = Awaited<ReturnType<typeof createClient>>;
 
 export type TeacherProfileRow = {
   id: string;
@@ -25,7 +25,7 @@ export type TeacherProfileRow = {
     | null;
 };
 
-export function createTeacherDossierRepository(client: TeacherDossierRepositoryClient = createAdminClient()) {
+export function createTeacherDossierRepository(client: TeacherDossierRepositoryClient) {
   return {
     async loadTeacher(teacherId: string) {
       return await client.from("teachers").select("id").eq("id", teacherId).maybeSingle();
@@ -45,10 +45,6 @@ export function createTeacherDossierRepository(client: TeacherDossierRepositoryC
 
     async updateProfile(profileId: string, patch: Record<string, unknown>) {
       return await client.from("profiles").update(patch).eq("id", profileId);
-    },
-
-    async updateAuthEmail(userId: string, email: string) {
-      return await client.auth.admin.updateUserById(userId, { email });
     },
 
     async upsertDossier(patch: Record<string, unknown>) {

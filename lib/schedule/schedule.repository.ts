@@ -1,4 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 import { ScheduleHttpError } from "@/lib/schedule/http";
 import type { ScheduleActor } from "@/lib/schedule/server";
 import type { StaffScheduleFilters, ScheduleLessonMutationPayload, ScheduleTeacherOptionDto, ScheduleStudentOptionDto } from "@/lib/schedule/types";
@@ -14,7 +15,7 @@ import {
   type ScheduleOptionLabelRpcRow
 } from "@/lib/schedule/mappers";
 
-export type ScheduleRepositoryClient = ReturnType<typeof createAdminClient>;
+export type ScheduleRepositoryClient = ReturnType<typeof createAdminClient> | Awaited<ReturnType<typeof createClient>>;
 
 const SCHEDULE_LESSON_SELECT = "id, student_id, teacher_id, title, starts_at, ends_at, meeting_url, comment, status, created_at, updated_at";
 const PROFILE_LABEL_SELECT = "id, profile_id, profiles!inner(id, display_name, first_name, last_name, email)";
@@ -28,7 +29,7 @@ function isScheduleOptionRpcUnavailable(message: string) {
   return isSchemaMissing(message);
 }
 
-export function createScheduleRepository(client: ScheduleRepositoryClient = createAdminClient()) {
+export function createScheduleRepository(client: ScheduleRepositoryClient) {
   return {
     async loadStudentLabelsByIds(studentIds: string[], options?: { preferRpc?: boolean }) {
       if (studentIds.length === 0) return new Map<string, string>();

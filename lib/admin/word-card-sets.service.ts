@@ -6,6 +6,7 @@ import type { PaginatedResponse, AdminWordCardSetDetailDto, AdminWordCardSetDto 
 import { adminWordCardSetCreateSchema, adminWordCardSetUpdateSchema } from "@/lib/admin/validation";
 import { toWordCardSetDetailDto, toWordCardSetDto } from "@/lib/admin/word-card-sets";
 import { createAdminWordCardSetRepository } from "@/lib/admin/word-card-sets.repository";
+import { createClient } from "@/lib/supabase/server";
 
 type AdminActor = { userId: string };
 type AdminWordCardSetCreateInput = z.infer<typeof adminWordCardSetCreateSchema>;
@@ -29,7 +30,7 @@ function toItemPayload(setId: string, cards: AdminWordCardSetCreateInput["cards"
 }
 
 export async function listAdminWordCardSets({ page, pageSize, q }: ListInput): Promise<PaginatedResponse<AdminWordCardSetDto>> {
-  const repository = createAdminWordCardSetRepository();
+  const repository = createAdminWordCardSetRepository(await createClient());
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
   const { data, error, count } = await repository.list({ from, to, q });
@@ -39,14 +40,14 @@ export async function listAdminWordCardSets({ page, pageSize, q }: ListInput): P
 }
 
 export async function getAdminWordCardSet(id: string): Promise<AdminWordCardSetDetailDto> {
-  const repository = createAdminWordCardSetRepository();
+  const repository = createAdminWordCardSetRepository(await createClient());
   const { data, error } = await repository.loadDetail(id);
   if (error) throw new AdminHttpError(404, "WORD_CARD_SET_NOT_FOUND", "Word card set not found", error.message);
   return toWordCardSetDetailDto(data as Record<string, unknown>);
 }
 
 export async function createAdminWordCardSet(actor: AdminActor, input: AdminWordCardSetCreateInput): Promise<AdminWordCardSetDetailDto> {
-  const repository = createAdminWordCardSetRepository();
+  const repository = createAdminWordCardSetRepository(await createClient());
   const { cards, ...setPayload } = input;
 
   if (setPayload.sort_order == null) {
@@ -80,7 +81,7 @@ export async function createAdminWordCardSet(actor: AdminActor, input: AdminWord
 }
 
 export async function updateAdminWordCardSet(actor: AdminActor, id: string, input: AdminWordCardSetUpdateInput): Promise<AdminWordCardSetDetailDto> {
-  const repository = createAdminWordCardSetRepository();
+  const repository = createAdminWordCardSetRepository(await createClient());
   const { data: before, error: beforeError } = await repository.loadDetail(id);
   if (beforeError) throw new AdminHttpError(404, "WORD_CARD_SET_NOT_FOUND", "Word card set not found", beforeError.message);
 
@@ -122,7 +123,7 @@ export async function updateAdminWordCardSet(actor: AdminActor, id: string, inpu
 }
 
 export async function deleteAdminWordCardSet(actor: AdminActor, id: string): Promise<{ ok: true }> {
-  const repository = createAdminWordCardSetRepository();
+  const repository = createAdminWordCardSetRepository(await createClient());
   const { data: before, error: beforeError } = await repository.loadRaw(id);
   if (beforeError) throw new AdminHttpError(404, "WORD_CARD_SET_NOT_FOUND", "Word card set not found", beforeError.message);
 

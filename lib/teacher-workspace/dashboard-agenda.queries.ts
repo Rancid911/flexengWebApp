@@ -10,6 +10,7 @@ import {
 import type { StaffScheduleLessonDto } from "@/lib/schedule/types";
 import { measureServerTiming } from "@/lib/server/timing";
 import type { AccessMode } from "@/lib/supabase/access";
+import { createClient } from "@/lib/supabase/server";
 import {
   createTeacherDashboardAgendaRepository,
   type TeacherDashboardAgendaAttendanceRow,
@@ -217,6 +218,10 @@ async function mapTeacherDashboardLessons(
 ) {
   if (rows.length === 0) return [];
 
+  if (!client) {
+    throw new ScheduleHttpError(500, "TEACHER_DASHBOARD_FAILED", "Teacher dashboard repository client is required");
+  }
+
   const repository = createTeacherDashboardAgendaRepository(client);
   const studentIds = Array.from(new Set(rows.map((row) => row.student_id)));
   const teacherIds = Array.from(new Set(rows.map((row) => row.teacher_id)));
@@ -276,7 +281,8 @@ const getTeacherDashboardWeekLessonBundleBase = cache(async (cacheKey: string, n
       };
     }
 
-    const repository = createTeacherDashboardAgendaRepository();
+    const userClient = await createClient();
+    const repository = createTeacherDashboardAgendaRepository(userClient);
     const response = await measureServerTiming("teacher-dashboard-week-rows", async () =>
       repository.loadWeekLessonRows({
         todayStartIso: todayStart.toISOString(),
@@ -315,7 +321,8 @@ const getTeacherDashboardAttentionQueueBase = cache(async (cacheKey: string, now
       return [];
     }
 
-    const repository = createTeacherDashboardAgendaRepository();
+    const userClient = await createClient();
+    const repository = createTeacherDashboardAgendaRepository(userClient);
     const response = await repository.loadCompletedLessonRows({
       todayStartIso: todayStart.toISOString(),
       weekEndIso: weekEnd.toISOString(),

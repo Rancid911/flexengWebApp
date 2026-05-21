@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/permissions";
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "admin.users.update");
+  requirePermission(actor, "users.manage");
   const { id } = await params;
 
   const body = await request.json();
@@ -24,7 +24,7 @@ export const PATCH = withAdminErrorHandling(async (request: NextRequest, { param
 
 export const DELETE = withAdminErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "admin.users.delete");
+  requirePermission(actor, "users.manage");
   const { id } = await params;
 
   await deleteAdminUser(actor, id);

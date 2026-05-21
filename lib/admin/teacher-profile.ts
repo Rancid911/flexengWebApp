@@ -1,5 +1,5 @@
 import { toAvatarMediaUrl } from "@/lib/media/urls";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 export type AdminTeacherProfileRelation = {
   id: string;
@@ -83,7 +83,7 @@ export function toNullableAdminTeacherNumber(value: number | string | null | und
 }
 
 export async function loadAdminTeacherProfilePageData(teacherId: string) {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const response = await supabase
     .from("teachers")
     .select("id, profile_id, profiles!inner(id, display_name, first_name, last_name, email, phone, avatar_url, created_at)")

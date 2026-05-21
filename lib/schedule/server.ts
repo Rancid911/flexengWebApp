@@ -123,7 +123,7 @@ export function assertTeacherScope(
   if (!actor.teacherId) {
     throw new ScheduleHttpError(403, "FORBIDDEN", "Teacher profile is not linked");
   }
-  if (actor.accessibleStudentIds == null) {
+  if (!Array.isArray(actor.accessibleStudentIds)) {
     throw new ScheduleHttpError(403, "FORBIDDEN", "Teacher scope is not loaded");
   }
 

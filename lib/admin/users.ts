@@ -1,10 +1,12 @@
 import { AdminHttpError } from "@/lib/admin/http";
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
 import type { AdminUserDto, AdminUserRole, TeacherOptionDto } from "@/lib/admin/types";
 import type { StudentBillingMode } from "@/lib/billing/types";
 
 export type AdminUserRow = Record<string, unknown>;
+export type AdminUserSupabaseClient = ReturnType<typeof createAdminClient> | Awaited<ReturnType<typeof createClient>>;
 
 export function toUserDto(row: AdminUserRow): AdminUserDto {
   return {
@@ -119,7 +121,7 @@ function buildBillingLabels(input: {
 }
 
 export async function hydrateUsersWithStudentDetails(
-  supabase: ReturnType<typeof createAdminClient>,
+  supabase: AdminUserSupabaseClient,
   profiles: AdminUserRow[],
   errorCode: string
 ) {
@@ -250,7 +252,7 @@ export async function hydrateUsersWithStudentDetails(
   });
 }
 
-export async function loadTeacherOptions(supabase: ReturnType<typeof createAdminClient>): Promise<TeacherOptionDto[]> {
+export async function loadTeacherOptions(supabase: AdminUserSupabaseClient): Promise<TeacherOptionDto[]> {
   const response = await supabase
     .from("teachers")
     .select("id, profiles!inner(display_name, first_name, last_name, email)")

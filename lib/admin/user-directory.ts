@@ -1,7 +1,7 @@
 import { AdminHttpError, paginated } from "@/lib/admin/http";
 import type { AdminUserDto, AdminUserRole, PaginatedResponse, TeacherOptionDto } from "@/lib/admin/types";
 import { hydrateUsersWithStudentDetails, loadTeacherOptions, toUserDto } from "@/lib/admin/users";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 const validUserRoles = new Set<AdminUserRole>(["student", "teacher", "manager", "admin"]);
 
@@ -53,7 +53,7 @@ export async function listAdminUsers(input: {
     throw new AdminHttpError(400, "VALIDATION_ERROR", "Invalid role filter");
   }
 
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const { page, pageSize, from, to } = resolveRange(input.page, input.pageSize);
   let query = supabase
     .from("profiles")
@@ -80,7 +80,7 @@ export async function listAdminStudentsDirectoryPage(input: {
   page: number;
   pageSize: number;
 }) {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const { page, pageSize, from, to } = resolveRange(input.page, input.pageSize);
   let studentsQuery = supabase
     .from("profiles")
@@ -116,7 +116,7 @@ export async function listAdminTeachersDirectoryPage(input: {
   page: number;
   pageSize: number;
 }) {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const { page, pageSize, from, to } = resolveRange(input.page, input.pageSize);
   let profilesQuery = supabase
     .from("profiles")
@@ -172,5 +172,5 @@ export async function listAdminTeachersDirectoryPage(input: {
 }
 
 export async function listAdminTeacherOptions(): Promise<TeacherOptionDto[]> {
-  return await loadTeacherOptions(createAdminClient());
+  return await loadTeacherOptions(await createClient());
 }

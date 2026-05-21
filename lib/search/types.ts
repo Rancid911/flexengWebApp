@@ -7,8 +7,12 @@ export type SearchContext = {
   userId: string | null;
   role: UserRole | null;
   capabilities: AppCapability[];
+  rbacRoles?: string[] | null;
+  rbacPermissions?: string[] | null;
+  rbacPermissionScopes?: Record<string, string[]> | null;
   studentId: string | null;
   teacherId: string | null;
+  accessibleStudentIds: string[] | null;
   isAuthenticated: boolean;
 };
 

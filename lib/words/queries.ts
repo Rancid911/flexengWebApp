@@ -3,7 +3,7 @@ import { cache } from "react";
 import type { WordSet, WordTopic } from "@/lib/words/catalog";
 import { measureServerTiming } from "@/lib/server/timing";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentStudentProfile } from "@/lib/students/current-student";
+import { getCurrentRealStudentWriteContext, getCurrentStudentProfile } from "@/lib/students/current-student";
 import { defineDataLoadingDescriptor } from "@/lib/data-loading/contracts";
 import type { WordSessionAnswer, WordSessionMode, WordSessionParams } from "@/lib/words/validation";
 
@@ -705,13 +705,10 @@ async function loadExistingProgress(studentId: string, answers: WordSessionAnswe
 }
 
 export async function completeWordSession(answers: WordSessionAnswer[]): Promise<WordSessionSubmitResult> {
-  const profile = await getCurrentStudentProfile();
-  if (!profile?.studentId) {
-    throw new Error("Student profile is required");
-  }
+  const studentContext = await getCurrentRealStudentWriteContext("words.sessions.complete");
 
   const uniqueAnswers = aggregateAnswers(answers);
-  const [rows, dbCatalog] = await Promise.all([loadExistingProgress(profile.studentId, uniqueAnswers), loadDbCatalogWordsByAnswerIds(uniqueAnswers)]);
+  const [rows, dbCatalog] = await Promise.all([loadExistingProgress(studentContext.studentId, uniqueAnswers), loadDbCatalogWordsByAnswerIds(uniqueAnswers)]);
   const rowsById = new Map(rows.map((row) => [row.id, row]));
   const rowsByCatalog = new Map(rows.filter((row) => row.catalog_slug).map((row) => [row.catalog_slug as string, row]));
   const supabase = await createClient();
@@ -740,13 +737,13 @@ export async function completeWordSession(answers: WordSessionAnswer[]): Promise
 
     let progressId = row?.id ?? null;
     if (row) {
-      const { error } = await supabase.from("student_words").update(mutation).eq("id", row.id).eq("student_id", profile.studentId);
+      const { error } = await supabase.from("student_words").update(mutation).eq("id", row.id).eq("student_id", studentContext.studentId);
       if (error) throw error;
     } else if (catalogWord) {
       const { data, error } = await supabase
         .from("student_words")
         .insert({
-          student_id: profile.studentId,
+          student_id: studentContext.studentId,
           term: catalogWord.term,
           translation: catalogWord.translation,
           source_type: "manual",
@@ -767,7 +764,7 @@ export async function completeWordSession(answers: WordSessionAnswer[]): Promise
     if (progressId) {
       await supabase.from("student_word_reviews").insert({
         student_word_id: progressId,
-        student_id: profile.studentId,
+        student_id: studentContext.studentId,
         result: answer.result === "known" ? "good" : answer.result === "hard" ? "hard" : "again",
         reviewed_at: nowIso()
       });

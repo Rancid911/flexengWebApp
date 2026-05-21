@@ -8,7 +8,7 @@ import { scheduleLessonUpdateSchema } from "@/lib/schedule/validation";
 
 export const PATCH = withScheduleErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
-  requirePermission(actor, "schedule.lessons.manage");
+  requirePermission(actor, "schedule.manage");
 
   const { id } = await params;
   const body = await request.json();
@@ -24,7 +24,7 @@ export const PATCH = withScheduleErrorHandling(async (request: NextRequest, { pa
 
 export const DELETE = withScheduleErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
-  requirePermission(actor, "schedule.lessons.manage");
+  requirePermission(actor, "schedule.manage");
 
   const { id } = await params;
   const lesson = await cancelScheduleLesson(actor, id);

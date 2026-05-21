@@ -54,6 +54,29 @@ describe("YooKassa student payment routes", () => {
     expect(createCheckoutForCurrentStudentMock).not.toHaveBeenCalled();
   });
 
+  it("denies checkout for teacher preview actors before JSON parsing", async () => {
+    getAppActorMock.mockResolvedValue({
+      userId: "teacher-profile-1",
+      role: "teacher",
+      profileRole: "teacher",
+      isTeacher: true,
+      isStudent: false,
+      studentId: "student-preview-1"
+    });
+
+    const { POST } = await import("@/app/api/payments/yookassa/create/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/payments/yookassa/create", {
+        method: "POST",
+        body: "not-json"
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN" });
+    expect(createCheckoutForCurrentStudentMock).not.toHaveBeenCalled();
+  });
+
   it("returns 401 for unauthenticated checkout before service calls", async () => {
     getAppActorMock.mockResolvedValue(null);
 
@@ -91,6 +114,24 @@ describe("YooKassa student payment routes", () => {
 
   it("denies status sync for non-student actors before service calls", async () => {
     getAppActorMock.mockResolvedValue({ userId: "teacher-profile-1", role: "teacher", isTeacher: true });
+
+    const { GET } = await import("@/app/api/payments/yookassa/status/route");
+    const response = await GET(new NextRequest("http://localhost/api/payments/yookassa/status?transactionId=tx-1"));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN" });
+    expect(syncCurrentStudentTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("denies status sync for teacher preview actors before service calls", async () => {
+    getAppActorMock.mockResolvedValue({
+      userId: "teacher-profile-1",
+      role: "teacher",
+      profileRole: "teacher",
+      isTeacher: true,
+      isStudent: false,
+      studentId: "student-preview-1"
+    });
 
     const { GET } = await import("@/app/api/payments/yookassa/status/route");
     const response = await GET(new NextRequest("http://localhost/api/payments/yookassa/status?transactionId=tx-1"));

@@ -35,6 +35,14 @@ const apiPermissionExceptionReasons = new Map([
   ["app/api/request-context/invalidate/route.ts", "internal self cache utility with minimal auth check"]
 ]);
 
+const serviceRoleAllowlist = new Map([
+  ["lib/admin/audit.ts", { count: 1, classification: "final: audit log writes" }],
+  ["lib/admin/user.repository.ts", { count: 1, classification: "final: Supabase Auth admin operations" }],
+  ["lib/media/service.ts", { count: 2, classification: "final: backend-mediated media proxy/storage access" }],
+  ["lib/payments/server.ts", { count: 1, classification: "provider/system: YooKassa webhook processing" }],
+  ["lib/supabase/admin.ts", { count: 1, classification: "factory: service-role client definition" }],
+]);
+
 function fail(file, message) {
   failures.push(`${file}: ${message}`);
 }
@@ -111,6 +119,28 @@ for (const file of projectFiles.filter((item) => item.startsWith("app/") && item
   const source = read(file);
   if (/\bcreateAdminClient\b/.test(source)) {
     fail(file, "server pages must not create admin clients directly; move reads to focused page queries");
+  }
+}
+
+for (const file of projectFiles.filter((item) => /^(app|features|lib)\//.test(item) && /\.(ts|tsx)$/.test(item))) {
+  const source = read(file);
+  const matches = source.match(/\bcreateAdminClient\s*\(/g) ?? [];
+  if (matches.length === 0) continue;
+
+  const allowed = serviceRoleAllowlist.get(file);
+  if (!allowed) {
+    fail(
+      file,
+      "new createAdminClient() usage is prohibited without a dedicated security/RLS plan; prefer a user-scoped client/RPC, or classify the exception in docs/service-role-inventory.md and serviceRoleAllowlist"
+    );
+    continue;
+  }
+
+  if (matches.length !== allowed.count) {
+    fail(
+      file,
+      `createAdminClient() call count changed from inventory (${allowed.count}) to ${matches.length}; update classification or use a user-scoped client/RPC. Current classification: ${allowed.classification}`
+    );
   }
 }
 

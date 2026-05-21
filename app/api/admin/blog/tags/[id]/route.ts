@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/permissions";
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.posts.manage");
+  requirePermission(actor, "content.manage");
   const { id } = await params;
   const body = await request.json();
   const parsed = blogTagUpdateSchema.safeParse(body);
@@ -20,7 +20,7 @@ export const PATCH = withAdminErrorHandling(async (request: NextRequest, { param
 
 export const DELETE = withAdminErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.posts.manage");
+  requirePermission(actor, "content.manage");
   const { id } = await params;
   const payload = await deleteAdminBlogTag(actor, id);
   return NextResponse.json(payload);

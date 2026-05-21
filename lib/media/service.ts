@@ -16,6 +16,7 @@ export type MediaFileResult = {
 
 const AVATAR_SELECT = "avatar_url, updated_at";
 const CRM_SETTINGS_SELECT = "background_image_url, updated_at";
+type MediaAdminClient = ReturnType<typeof createAdminClient>;
 
 export function canReadProfileAvatar(actor: AppActor, userId: string) {
   if (actor.userId === userId) {
@@ -29,8 +30,13 @@ function readBlobContentType(blob: Blob, fallback: string) {
   return blob.type || fallback;
 }
 
-async function downloadStorageObject(bucket: string, path: string, fallbackContentType: string, etag: string): Promise<MediaFileResult | null> {
-  const supabase = createAdminClient();
+async function downloadStorageObject(
+  supabase: MediaAdminClient,
+  bucket: string,
+  path: string,
+  fallbackContentType: string,
+  etag: string
+): Promise<MediaFileResult | null> {
   const { data, error } = await supabase.storage.from(bucket).download(path);
   if (error || !data) return null;
 
@@ -48,7 +54,7 @@ export async function loadAvatarMediaFile(userId: string): Promise<MediaFileResu
   const path = extractStoragePathFromPublicUrl(storedUrl, AVATAR_BUCKET) ?? `${userId}/avatar`;
   const updatedAt = typeof data?.updated_at === "string" ? data.updated_at : "0";
 
-  return downloadStorageObject(AVATAR_BUCKET, path, "image/png", `avatar-${userId}-${updatedAt}`);
+  return downloadStorageObject(supabase, AVATAR_BUCKET, path, "image/png", `avatar-${userId}-${updatedAt}`);
 }
 
 export async function loadCrmBackgroundMediaFile(explicitPath: string | null = null): Promise<MediaFileResult | null> {
@@ -62,5 +68,5 @@ export async function loadCrmBackgroundMediaFile(explicitPath: string | null = n
   if (!path) return null;
 
   const updatedAt = typeof data?.updated_at === "string" ? data.updated_at : "0";
-  return downloadStorageObject(CRM_ASSETS_BUCKET, path, "image/jpeg", `crm-background-${updatedAt}-${path}`);
+  return downloadStorageObject(supabase, CRM_ASSETS_BUCKET, path, "image/jpeg", `crm-background-${updatedAt}-${path}`);
 }

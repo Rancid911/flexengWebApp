@@ -1,8 +1,6 @@
-import { unstable_cache } from "next/cache";
-
 import { AdminHttpError } from "@/lib/admin/http";
 import type { AdminDashboardMetricsDto } from "@/lib/admin/types";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 type MetricsRow = {
   revenue_month: number | string | null;
@@ -18,8 +16,8 @@ function toNumber(value: number | string | null | undefined) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
-async function loadAdminDashboardMetrics(): Promise<AdminDashboardMetricsDto> {
-  const supabase = createAdminClient();
+export async function getAdminDashboardMetrics(): Promise<AdminDashboardMetricsDto> {
+  const supabase = await createClient();
   const { data, error } = await supabase.rpc("admin_dashboard_metrics", {
     period_anchor: new Date().toISOString()
   });
@@ -36,13 +34,4 @@ async function loadAdminDashboardMetrics(): Promise<AdminDashboardMetricsDto> {
     avg_check_month: toNumber(row?.avg_check_month),
     currency: row?.currency?.trim() ? row.currency : "RUB"
   };
-}
-
-const loadCachedAdminDashboardMetrics = unstable_cache(loadAdminDashboardMetrics, ["admin-dashboard-metrics"], {
-  revalidate: 60,
-  tags: ["admin-dashboard-metrics"]
-});
-
-export async function getAdminDashboardMetrics() {
-  return await loadCachedAdminDashboardMetrics();
 }

@@ -22,6 +22,7 @@ const getWordsForReviewMock = vi.fn();
 const getNewWordsMock = vi.fn();
 const getWordTopicSummariesMock = vi.fn();
 const getWordTopicDetailMock = vi.fn();
+const requireLayoutActorMock = vi.fn();
 
 vi.mock("@/lib/homework/queries", () => ({
   getHomeworkOverviewSummary: (...args: unknown[]) => getHomeworkOverviewSummaryMock(...args),
@@ -45,6 +46,10 @@ vi.mock("@/lib/practice/queries", () => ({
 
 vi.mock("next/navigation", () => ({
   notFound: navigationMocks.notFound
+}));
+
+vi.mock("@/lib/auth/request-context", () => ({
+  requireLayoutActor: () => requireLayoutActorMock()
 }));
 
 vi.mock("@/features/words/components/words-overview", () => ({
@@ -77,6 +82,8 @@ describe("student route loading", () => {
     getNewWordsMock.mockReset();
     getWordTopicSummariesMock.mockReset();
     getWordTopicDetailMock.mockReset();
+    requireLayoutActorMock.mockReset();
+    requireLayoutActorMock.mockResolvedValue({ rbacRoles: [], rbacPermissions: [], rbacPermissionScopes: {} });
     navigationMocks.notFound.mockClear();
   });
 

@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { canSubmitLessonForm } from "@/features/schedule/client/use-staff-schedule-state";
-import { getSchedulePageDataInternal, hasExplicitPastDateSelection, resolveStudentOptionIds } from "@/lib/schedule/queries";
+import {
+  createScheduleLesson,
+  getSchedulePageDataInternal,
+  hasExplicitPastDateSelection,
+  mapStaffScheduleLessonsLightweight,
+  mapStaffScheduleLessonsWithFollowup,
+  resolveStudentOptionIds
+} from "@/lib/schedule/queries";
 import { buildStudentSchedulePreview, formatScheduleDateLabel, getScheduleStatusLabel, getStudentVisibleLessons } from "@/lib/schedule/utils";
 import { scheduleLessonMutationSchema } from "@/lib/schedule/validation";
 import { getStudentSchedulePreviewByStudentId } from "@/lib/schedule/queries";
@@ -64,10 +71,15 @@ const defaultAdminClientMock = {
   }
 };
 
-let activeAdminClientMock: { from: (table: string) => unknown } = defaultAdminClientMock as { from: (table: string) => unknown };
+let activeUserClientMock: { from: (table: string) => unknown; rpc?: (...args: unknown[]) => Promise<{ data: unknown; error: { message: string } | null }> } = defaultAdminClientMock as { from: (table: string) => unknown };
+let activeAdminClientMock: { from: (table: string) => unknown; rpc?: (...args: unknown[]) => Promise<{ data: unknown; error: { message: string } | null }> } = defaultAdminClientMock as { from: (table: string) => unknown };
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => activeAdminClientMock
+}));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: () => activeUserClientMock
 }));
 
 function makeLesson(index: number, overrides: Partial<StudentScheduleLessonDto> = {}): StudentScheduleLessonDto {
@@ -109,6 +121,74 @@ function makeQueryResult(data: unknown) {
     finally: (callback: () => void) => Promise.resolve(result).finally(callback)
   };
   return builder;
+}
+
+function makeScheduleLessonRow() {
+  return {
+    id: "lesson-1",
+    student_id: "student-1",
+    teacher_id: "teacher-1",
+    title: "Speaking club",
+    starts_at: "2099-03-28T10:00:00.000Z",
+    ends_at: "2099-03-28T11:00:00.000Z",
+    meeting_url: null,
+    comment: null,
+    status: "scheduled",
+    created_at: null,
+    updated_at: null
+  };
+}
+
+function makeScheduleMutationUserClient(tableCalls: string[]) {
+  return {
+    from: (table: string) => {
+      tableCalls.push(table);
+      switch (table) {
+        case "student_schedule_lessons": {
+          const result = { data: makeScheduleLessonRow(), error: null };
+          const builder = {
+            insert: () => builder,
+            select: () => builder,
+            single: async () => result
+          };
+          return builder;
+        }
+        case "students":
+          return makeQueryResult([
+            {
+              id: "student-1",
+              profile_id: "profile-student-1",
+              profiles: {
+                id: "profile-student-1",
+                display_name: "Анна Иванова",
+                first_name: "Анна",
+                last_name: "Иванова",
+                email: "student@example.com"
+              }
+            }
+          ]);
+        case "teachers":
+          return makeQueryResult([
+            {
+              id: "teacher-1",
+              profile_id: "profile-teacher-1",
+              profiles: {
+                id: "profile-teacher-1",
+                display_name: "Мария Петрова",
+                first_name: "Мария",
+                last_name: "Петрова",
+                email: "teacher@example.com"
+              }
+            }
+          ]);
+        case "lesson_attendance":
+        case "lesson_outcomes":
+          return makeQueryResult([]);
+        default:
+          throw new Error(`Unexpected table: ${table}`);
+      }
+    }
+  };
 }
 
 function makeSchedulePageDataClient(tableCalls: string[]) {
@@ -313,7 +393,7 @@ describe("schedule helpers", () => {
   });
 
   it("returns empty preview when schedule table is not available yet", async () => {
-    activeAdminClientMock = defaultAdminClientMock;
+    activeUserClientMock = defaultAdminClientMock;
     const preview = await getStudentSchedulePreviewByStudentId("student-1");
 
     expect(preview).toEqual({
@@ -323,7 +403,7 @@ describe("schedule helpers", () => {
   });
 
   it("uses lightweight preview loading without attendance or outcome enrichment", async () => {
-    activeAdminClientMock = {
+    activeUserClientMock = {
       from: (table: string) => {
         if (table === "lesson_attendance" || table === "lesson_outcomes") {
           throw new Error("preview path should stay lightweight");
@@ -415,7 +495,7 @@ describe("schedule helpers", () => {
 
   it("keeps staff schedule page data lightweight when follow-up enrichment is disabled", async () => {
     const tableCalls: string[] = [];
-    activeAdminClientMock = makeSchedulePageDataClient(tableCalls);
+    activeUserClientMock = makeSchedulePageDataClient(tableCalls);
 
     const data = await getSchedulePageDataInternal(
       {
@@ -439,9 +519,38 @@ describe("schedule helpers", () => {
     expect(tableCalls).not.toContain("lesson_outcomes");
   });
 
+  it("maps staff schedule lessons with explicit lightweight enrichment", async () => {
+    const tableCalls: string[] = [];
+    activeUserClientMock = makeSchedulePageDataClient(tableCalls);
+
+    const [lesson] = await mapStaffScheduleLessonsLightweight([makeScheduleLessonRow()]);
+
+    expect(lesson).toMatchObject({
+      attendanceStatus: null,
+      hasOutcome: false,
+      studentVisibleOutcome: null
+    });
+    expect(tableCalls).not.toContain("lesson_attendance");
+    expect(tableCalls).not.toContain("lesson_outcomes");
+  });
+
+  it("maps staff schedule lessons with explicit follow-up enrichment", async () => {
+    const tableCalls: string[] = [];
+    activeUserClientMock = makeSchedulePageDataClient(tableCalls);
+
+    const [lesson] = await mapStaffScheduleLessonsWithFollowup([makeScheduleLessonRow()]);
+
+    expect(lesson).toMatchObject({
+      attendanceStatus: "completed",
+      hasOutcome: true
+    });
+    expect(tableCalls).toContain("lesson_attendance");
+    expect(tableCalls).toContain("lesson_outcomes");
+  });
+
   it("loads staff schedule follow-up data when enrichment is explicitly enabled", async () => {
     const tableCalls: string[] = [];
-    activeAdminClientMock = makeSchedulePageDataClient(tableCalls);
+    activeUserClientMock = makeSchedulePageDataClient(tableCalls);
 
     const data = await getSchedulePageDataInternal(
       {
@@ -468,9 +577,44 @@ describe("schedule helpers", () => {
     expect(tableCalls).toContain("lesson_outcomes");
   });
 
+  it("uses the user-scoped client for schedule create mutations", async () => {
+    const userTableCalls: string[] = [];
+    const adminTableCalls: string[] = [];
+    activeUserClientMock = makeScheduleMutationUserClient(userTableCalls);
+    activeAdminClientMock = makeSchedulePageDataClient(adminTableCalls);
+
+    const lesson = await createScheduleLesson(
+      {
+        role: "manager",
+        userId: "manager-profile-1",
+        studentId: null,
+        teacherId: null,
+        accessibleStudentIds: null
+      },
+      {
+        studentId: "student-1",
+        teacherId: "teacher-1",
+        title: "Speaking club",
+        startsAt: "2099-03-28T10:00:00.000Z",
+        endsAt: "2099-03-28T11:00:00.000Z",
+        status: "scheduled"
+      }
+    );
+
+    expect(adminTableCalls).toEqual([]);
+    expect(userTableCalls).toContain("student_schedule_lessons");
+    expect(userTableCalls).toContain("students");
+    expect(userTableCalls).toContain("teachers");
+    expect(lesson).toMatchObject({
+      id: "lesson-1",
+      studentName: "Анна Иванова",
+      teacherName: "Мария Петрова"
+    });
+  });
+
   it("keeps student schedule page data enriched with visible outcomes", async () => {
     const tableCalls: string[] = [];
-    activeAdminClientMock = makeSchedulePageDataClient(tableCalls);
+    activeUserClientMock = makeSchedulePageDataClient(tableCalls);
 
     const data = await getSchedulePageDataInternal({
       role: "student",

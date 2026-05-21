@@ -8,14 +8,14 @@ import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async () => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.posts.manage");
+  requirePermission(actor, "content.manage");
   const payload = await listAdminBlogTags();
   return NextResponse.json(payload);
 });
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.posts.manage");
+  requirePermission(actor, "content.manage");
   const body = await request.json();
   const parsed = blogTagCreateSchema.safeParse(body);
   if (!parsed.success) throw new AdminHttpError(400, "VALIDATION_ERROR", "Invalid tag payload", parsed.error.flatten());

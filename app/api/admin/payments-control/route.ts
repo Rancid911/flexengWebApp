@@ -8,7 +8,7 @@ import { measureServerTiming } from "@/lib/server/timing";
 
 export const GET = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "billing.admin.read");
+  requirePermission(actor, "payments.view");
   const payload = await measureServerTiming("admin-payments-route", async () => listAdminPaymentControl(new URL(request.url)));
   return NextResponse.json(payload);
 });

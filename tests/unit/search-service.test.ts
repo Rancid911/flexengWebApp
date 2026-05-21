@@ -39,8 +39,33 @@ const studentContext: SearchContext = {
   capabilities: ["student"],
   studentId: "student-1",
   teacherId: null,
+  accessibleStudentIds: null,
   isAuthenticated: true
 };
+
+function makeCandidate(overrides: Partial<SearchDocumentCandidate> = {}): SearchDocumentCandidate {
+  return {
+    id: "candidate-1",
+    entityType: "post",
+    entityId: "candidate-1",
+    title: "Candidate",
+    subtitle: null,
+    body: "body",
+    href: "/articles/candidate-1",
+    section: "blog",
+    icon: "file-text",
+    badge: null,
+    roleScope: ["all"],
+    visibility: "public",
+    ownerStudentId: null,
+    courseId: null,
+    isPublished: true,
+    meta: {},
+    updatedAt: "2026-03-26T00:00:00.000Z",
+    rank: 10,
+    ...overrides
+  };
+}
 
 describe("searchSite", () => {
   beforeEach(() => {
@@ -73,6 +98,7 @@ describe("searchSite", () => {
       capabilities: [],
       studentId: null,
       teacherId: null,
+      accessibleStudentIds: null,
       isAuthenticated: false
     };
     getSearchContextMock.mockResolvedValue(guestContext);
@@ -190,7 +216,23 @@ describe("searchSite", () => {
       })
     ]);
     expect(result.groups).toEqual([{ key: "blog", label: "Блог", count: 1 }]);
+    expect(fetchCandidatesMock).toHaveBeenCalledWith(expect.objectContaining({ context: guestContext }));
     expect(createClientMock).not.toHaveBeenCalled();
+  });
+
+  it("passes actor search context to the search document candidate source", async () => {
+    fetchCandidatesMock.mockResolvedValue([]);
+
+    await searchSite({ query: "public", limit: 10 });
+
+    expect(fetchCandidatesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "public",
+        limit: 10,
+        section: "all",
+        context: studentContext
+      })
+    );
   });
 
   it("returns empty result for short query", async () => {
@@ -479,5 +521,148 @@ describe("searchSite", () => {
 
     expect(createClientMock).toHaveBeenCalledTimes(1);
     expect(result.items.map((item) => item.entityId)).toEqual(["test-a1", "placement-test-1"]);
+  });
+
+  it("allows staff with explicit student visibility RBAC permission to see student-owned results", async () => {
+    const staffContext: SearchContext = {
+      userId: "manager-1",
+      role: "manager",
+      capabilities: ["staff_admin"],
+      rbacPermissions: ["students.view"],
+      rbacPermissionScopes: { "students.view": ["all"] },
+      studentId: null,
+      teacherId: null,
+      accessibleStudentIds: null,
+      isAuthenticated: true
+    };
+    getSearchContextMock.mockResolvedValue(staffContext);
+    fetchCandidatesMock.mockResolvedValue([
+      makeCandidate({
+        entityType: "homework",
+        entityId: "student-homework",
+        title: "Student homework",
+        href: "/homework/student-homework",
+        section: "homework",
+        roleScope: ["student"],
+        visibility: "student_owned",
+        ownerStudentId: "student-1"
+      })
+    ]);
+
+    const result = await searchSite({ query: "homework", limit: 10 });
+
+    expect(result.items.map((item) => item.entityId)).toEqual(["student-homework"]);
+  });
+
+  it("does not allow staff_admin alone to see student-owned results when RBAC permission is missing", async () => {
+    const staffContext: SearchContext = {
+      userId: "manager-1",
+      role: "manager",
+      capabilities: ["staff_admin"],
+      rbacPermissions: ["search.ui"],
+      rbacPermissionScopes: { "search.ui": ["all"] },
+      studentId: null,
+      teacherId: null,
+      accessibleStudentIds: null,
+      isAuthenticated: true
+    };
+    getSearchContextMock.mockResolvedValue(staffContext);
+    fetchCandidatesMock.mockResolvedValue([
+      makeCandidate({
+        entityType: "homework",
+        entityId: "student-homework",
+        title: "Student homework",
+        href: "/homework/student-homework",
+        section: "homework",
+        roleScope: ["student"],
+        visibility: "student_owned",
+        ownerStudentId: "student-1"
+      })
+    ]);
+
+    const result = await searchSite({ query: "homework", limit: 10 });
+
+    expect(result.items).toEqual([]);
+  });
+
+  it("allows assigned teacher student-owned results but denies unassigned student-owned results", async () => {
+    const teacherContext: SearchContext = {
+      userId: "teacher-user-1",
+      role: "teacher",
+      capabilities: ["teacher"],
+      studentId: null,
+      teacherId: "teacher-1",
+      accessibleStudentIds: ["student-1"],
+      isAuthenticated: true
+    };
+    getSearchContextMock.mockResolvedValue(teacherContext);
+    fetchCandidatesMock.mockResolvedValue([
+      makeCandidate({
+        id: "assigned",
+        entityType: "homework",
+        entityId: "assigned-homework",
+        title: "Assigned homework",
+        href: "/homework/assigned-homework",
+        section: "homework",
+        roleScope: ["student"],
+        visibility: "student_owned",
+        ownerStudentId: "student-1",
+        rank: 10
+      }),
+      makeCandidate({
+        id: "unassigned",
+        entityType: "homework",
+        entityId: "unassigned-homework",
+        title: "Unassigned homework",
+        href: "/homework/unassigned-homework",
+        section: "homework",
+        roleScope: ["student"],
+        visibility: "student_owned",
+        ownerStudentId: "student-2",
+        rank: 9
+      })
+    ]);
+
+    const result = await searchSite({ query: "homework", limit: 10 });
+
+    expect(result.items.map((item) => item.entityId)).toEqual(["assigned-homework"]);
+  });
+
+  it("requires explicit content RBAC permission for admin content role documents", async () => {
+    const staffContext: SearchContext = {
+      userId: "manager-1",
+      role: "manager",
+      capabilities: ["staff_admin"],
+      rbacPermissions: ["students.view"],
+      rbacPermissionScopes: { "students.view": ["all"] },
+      studentId: null,
+      teacherId: null,
+      accessibleStudentIds: null,
+      isAuthenticated: true
+    };
+    getSearchContextMock.mockResolvedValue(staffContext);
+    fetchCandidatesMock.mockResolvedValue([
+      makeCandidate({
+        entityType: "test",
+        entityId: "admin-test",
+        title: "Admin test",
+        href: "/admin/tests/admin-test",
+        section: "admin",
+        roleScope: ["admin"],
+        visibility: "role"
+      })
+    ]);
+
+    const denied = await searchSite({ query: "test", limit: 10 });
+    expect(denied.items).toEqual([]);
+
+    getSearchContextMock.mockResolvedValue({
+      ...staffContext,
+      rbacPermissions: ["content.manage"],
+      rbacPermissionScopes: { "content.manage": ["all"] }
+    });
+
+    const allowed = await searchSite({ query: "test", limit: 10 });
+    expect(allowed.items.map((item) => item.entityId)).toEqual(["admin-test"]);
   });
 });

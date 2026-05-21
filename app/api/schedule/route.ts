@@ -8,7 +8,7 @@ import { scheduleFiltersSchema, scheduleLessonMutationSchema } from "@/lib/sched
 
 export const GET = withScheduleErrorHandling(async (request: NextRequest) => {
   const actor = await requireScheduleApi();
-  requirePermission(actor, "schedule.lessons.read");
+  requirePermission(actor, "schedule.view");
 
   const parsed = scheduleFiltersSchema.safeParse({
     studentId: request.nextUrl.searchParams.get("studentId"),
@@ -31,7 +31,7 @@ export const GET = withScheduleErrorHandling(async (request: NextRequest) => {
 
 export const POST = withScheduleErrorHandling(async (request: NextRequest) => {
   const actor = await requireScheduleApi();
-  requirePermission(actor, "schedule.lessons.manage");
+  requirePermission(actor, "schedule.manage");
 
   const body = await request.json();
   const parsed = scheduleLessonMutationSchema.safeParse(body);

@@ -16,7 +16,7 @@ function parseEntity(value: string | null): ScheduleFilterCatalogEntity {
 
 export const GET = withScheduleErrorHandling(async (request: NextRequest) => {
   const actor = await requireScheduleApi();
-  requirePermission(actor, "schedule.lessons.read");
+  requirePermission(actor, "schedule.view");
   const searchParams = request.nextUrl.searchParams;
   const entity = parseEntity(searchParams.get("entity"));
   const search = searchParams.get("q");

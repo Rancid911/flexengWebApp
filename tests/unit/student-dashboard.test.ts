@@ -14,8 +14,7 @@ const createClientMock = vi.fn();
 const createAdminClientMock = vi.fn();
 const getCurrentStudentProfileMock = vi.fn();
 const getStudentSchedulePreviewByStudentIdMock = vi.fn();
-const getPaymentReminderSettingsMock = vi.fn();
-const resolveStudentPaymentReminderForDashboardMock = vi.fn();
+const resolveStudentPaymentReminderForDashboardRpcMock = vi.fn();
 const createStudentPaymentReminderPopupMock = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -35,8 +34,7 @@ vi.mock("@/lib/schedule/queries", () => ({
 }));
 
 vi.mock("@/lib/billing/reminders", () => ({
-  getPaymentReminderSettings: (...args: unknown[]) => getPaymentReminderSettingsMock(...args),
-  resolveStudentPaymentReminderForDashboard: (...args: unknown[]) => resolveStudentPaymentReminderForDashboardMock(...args),
+  resolveStudentPaymentReminderForDashboardRpc: (...args: unknown[]) => resolveStudentPaymentReminderForDashboardRpcMock(...args),
   createStudentPaymentReminderPopup: (...args: unknown[]) => createStudentPaymentReminderPopupMock(...args)
 }));
 
@@ -408,12 +406,10 @@ describe("getStudentDashboardData", () => {
     createAdminClientMock.mockReset();
     getCurrentStudentProfileMock.mockReset();
     getStudentSchedulePreviewByStudentIdMock.mockReset();
-    getPaymentReminderSettingsMock.mockReset();
-    resolveStudentPaymentReminderForDashboardMock.mockReset();
+    resolveStudentPaymentReminderForDashboardRpcMock.mockReset();
     createStudentPaymentReminderPopupMock.mockReset();
     createAdminClientMock.mockReturnValue({});
-    getPaymentReminderSettingsMock.mockResolvedValue({ enabled: false, thresholdLessons: 1 });
-    resolveStudentPaymentReminderForDashboardMock.mockResolvedValue(null);
+    resolveStudentPaymentReminderForDashboardRpcMock.mockResolvedValue(null);
     createStudentPaymentReminderPopupMock.mockReturnValue(null);
   });
 
@@ -446,8 +442,7 @@ describe("getStudentDashboardData", () => {
 
     await getStudentDashboardCoreData();
 
-    expect(getPaymentReminderSettingsMock).not.toHaveBeenCalled();
-    expect(resolveStudentPaymentReminderForDashboardMock).not.toHaveBeenCalled();
+    expect(resolveStudentPaymentReminderForDashboardRpcMock).not.toHaveBeenCalled();
   });
 
   it("builds dashboard data from student progress sources", async () => {
@@ -797,8 +792,9 @@ describe("getStudentDashboardData", () => {
 
   it("loads payment reminder separately when requested", async () => {
     getCurrentStudentProfileMock.mockResolvedValue({ studentId: "student-1" });
-    getPaymentReminderSettingsMock.mockResolvedValue({ enabled: true, thresholdLessons: 2 });
-    resolveStudentPaymentReminderForDashboardMock.mockResolvedValue({
+    const rpcClient = { from: vi.fn(), rpc: vi.fn() };
+    createClientMock.mockReturnValue(rpcClient);
+    resolveStudentPaymentReminderForDashboardRpcMock.mockResolvedValue({
       shouldShowPopup: true,
       status: "debt"
     });
@@ -814,6 +810,8 @@ describe("getStudentDashboardData", () => {
 
     const result = await getStudentDashboardPaymentReminder();
 
+    expect(createAdminClientMock).not.toHaveBeenCalled();
+    expect(resolveStudentPaymentReminderForDashboardRpcMock).toHaveBeenCalledWith(rpcClient, "student-1");
     expect(result).toMatchObject({
       status: "debt",
       debtLessonCount: 1
@@ -822,8 +820,8 @@ describe("getStudentDashboardData", () => {
 
   it("does not create a dashboard popup when there is no scheduled unpaid lesson and no debt", async () => {
     getCurrentStudentProfileMock.mockResolvedValue({ studentId: "student-1" });
-    getPaymentReminderSettingsMock.mockResolvedValue({ enabled: true, thresholdLessons: 2 });
-    resolveStudentPaymentReminderForDashboardMock.mockResolvedValue({
+    createClientMock.mockReturnValue({ from: vi.fn(), rpc: vi.fn() });
+    resolveStudentPaymentReminderForDashboardRpcMock.mockResolvedValue({
       shouldShowPopup: false,
       status: "low_balance"
     });
@@ -831,6 +829,7 @@ describe("getStudentDashboardData", () => {
     const result = await getStudentDashboardPaymentReminder();
 
     expect(result).toBeNull();
+    expect(createAdminClientMock).not.toHaveBeenCalled();
     expect(createStudentPaymentReminderPopupMock).not.toHaveBeenCalled();
   });
 });
@@ -929,6 +928,8 @@ describe("getStudentDashboardRouteData", () => {
     expect(
       selectCalls.filter((call) => call.table === "student_test_attempts" && call.columns === "created_at, tests(title, module_id, assessment_kind)")
     ).toHaveLength(1);
+    expect(selectCalls.filter((call) => call.table === "tests" && call.columns === "id")).toHaveLength(0);
+    expect(selectCalls.filter((call) => call.table === "student_test_attempts" && call.columns === "test_id, status")).toHaveLength(0);
   });
 
   it("returns fallback route data without Supabase when the student profile is unavailable", async () => {

@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const requireStaffAdminApiMock = vi.fn();
-const createAdminClientMock = vi.fn();
+const createClientMock = vi.fn();
 const writeAuditMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
   requireStaffAdminApi: () => requireStaffAdminApiMock()
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => createAdminClientMock()
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: () => createClientMock()
 }));
 
 vi.mock("@/lib/admin/audit", () => ({
@@ -96,7 +96,7 @@ async function expectForbidden(response: Response) {
     code: "FORBIDDEN",
     message: "Permission denied"
   });
-  expect(createAdminClientMock).not.toHaveBeenCalled();
+  expect(createClientMock).not.toHaveBeenCalled();
   expect(writeAuditMock).not.toHaveBeenCalled();
 }
 
@@ -104,13 +104,13 @@ describe("/api/admin/tests", () => {
   beforeEach(() => {
     vi.resetModules();
     requireStaffAdminApiMock.mockReset();
-    createAdminClientMock.mockReset();
+    createClientMock.mockReset();
     writeAuditMock.mockReset();
   });
 
   it("returns a field validation error when a trainer is missing module_id", async () => {
     requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
-    createAdminClientMock.mockReturnValue({});
+    createClientMock.mockResolvedValue({});
 
     const { POST } = await import("@/app/api/admin/tests/route");
     const response = await POST(
@@ -152,7 +152,7 @@ describe("/api/admin/tests", () => {
 
   it("returns a field validation error when a final test is missing module_id", async () => {
     requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
-    createAdminClientMock.mockReturnValue({});
+    createClientMock.mockResolvedValue({});
 
     const { POST } = await import("@/app/api/admin/tests/route");
     const response = await POST(
@@ -204,7 +204,7 @@ describe("/api/admin/tests", () => {
     }));
     const optionInsertMock = vi.fn().mockResolvedValue({ error: null });
 
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "tests") return testsFromMock;
         if (table === "test_questions") return { insert: questionInsertMock };
@@ -262,7 +262,7 @@ describe("/api/admin/tests", () => {
     }));
     const optionInsertMock = vi.fn().mockResolvedValue({ error: null });
 
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "tests") return testsFromMock;
         if (table === "test_questions") return { insert: questionInsertMock };
@@ -310,7 +310,7 @@ describe("/api/admin/tests/[id]", () => {
   beforeEach(() => {
     vi.resetModules();
     requireStaffAdminApiMock.mockReset();
-    createAdminClientMock.mockReset();
+    createClientMock.mockReset();
     writeAuditMock.mockReset();
   });
 
@@ -322,7 +322,7 @@ describe("/api/admin/tests/[id]", () => {
     const attemptsEqMock = vi.fn().mockResolvedValue({ count: 2, error: null });
     const attemptsSelectMock = vi.fn(() => ({ eq: attemptsEqMock }));
 
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "tests") {
           return {
@@ -402,7 +402,7 @@ describe("/api/admin/tests/[id]", () => {
     const attemptsEqMock = vi.fn().mockResolvedValue({ count: 1, error: null });
     const attemptsSelectMock = vi.fn(() => ({ eq: attemptsEqMock }));
 
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "tests") {
           return {
@@ -465,7 +465,7 @@ describe("/api/admin/tests/[id]", () => {
     const attemptsEqMock = vi.fn().mockResolvedValue({ count: 0, error: null });
     const attemptsSelectMock = vi.fn(() => ({ eq: attemptsEqMock }));
 
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "tests") {
           return {
@@ -517,7 +517,7 @@ describe("/api/admin/tests/[id]", () => {
     const testsUpdateMock = vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) }));
     const attemptsSelectMock = vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ count: 0, error: null }) }));
 
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "tests") {
           return {

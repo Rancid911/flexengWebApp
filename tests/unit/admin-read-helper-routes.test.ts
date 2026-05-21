@@ -43,7 +43,7 @@ describe("admin read helper API routes", () => {
   });
 
   it("loads dashboard metrics after admin dashboard read permission check", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     getAdminDashboardMetricsMock.mockResolvedValue({
       revenue_month: 120000,
       new_payments_7d: 4,
@@ -58,6 +58,15 @@ describe("admin read helper API routes", () => {
 
     expect(response.status).toBe(200);
     expect(getAdminDashboardMetricsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not load dashboard metrics for managers", async () => {
+    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+
+    const { GET } = await import("@/app/api/admin/dashboard/metrics/route");
+    const response = await GET();
+
+    await expectForbidden(response);
   });
 
   it("does not load dashboard metrics without admin dashboard read permission", async () => {

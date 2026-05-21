@@ -15,6 +15,7 @@ import {
 import type { LessonAttendanceDto, LessonOutcomeDto } from "@/lib/schedule/types";
 import { hasLessonEnded } from "@/lib/schedule/utils";
 import type { AccessMode } from "@/lib/supabase/access";
+import { createClient } from "@/lib/supabase/server";
 import { assertTeacherWorkspaceWriteAccess } from "@/lib/teacher-workspace/access";
 import {
   createTeacherLessonFollowupRepository,
@@ -74,7 +75,11 @@ function assertLessonScope(actor: ScheduleActor, lesson: TeacherLessonFollowupLe
   }
 }
 
-async function getLessonById(id: string, repository = createTeacherLessonFollowupRepository()) {
+async function createUserScopedFollowupRepository() {
+  return createTeacherLessonFollowupRepository(await createClient());
+}
+
+async function getLessonById(id: string, repository: ReturnType<typeof createTeacherLessonFollowupRepository>) {
   const response = await repository.loadLessonById(id);
 
   if (response.error) {
@@ -91,7 +96,7 @@ async function getLessonById(id: string, repository = createTeacherLessonFollowu
 async function enrichTeacherHomeworkAssignments(
   studentId: string,
   assignments: HomeworkAssignmentRow[],
-  repository = createTeacherLessonFollowupRepository()
+  repository: ReturnType<typeof createTeacherLessonFollowupRepository>
 ): Promise<TeacherStudentHomeworkDto[]> {
   const allItems = assignments.flatMap((assignment) => assignment.homework_items ?? []);
   const itemIds = allItems.map((item) => String(item.id));
@@ -129,7 +134,7 @@ async function enrichTeacherHomeworkAssignments(
 }
 
 export async function getTeacherLessonFollowup(actor: ScheduleActor, lessonId: string): Promise<TeacherLessonFollowupDto> {
-  const repository = createTeacherLessonFollowupRepository();
+  const repository = await createUserScopedFollowupRepository();
   const lesson = await getLessonById(lessonId, repository);
   assertLessonScope(actor, lesson);
 
@@ -207,7 +212,7 @@ export async function listTeacherAssignableTests(
     assertTeacherScope(actor, { studentId });
   }
 
-  const repository = createTeacherLessonFollowupRepository();
+  const repository = await createUserScopedFollowupRepository();
   const studentResponse = await repository.loadStudentLevel(studentId);
   if (studentResponse.error) {
     throw new ScheduleHttpError(500, "TEACHER_ASSIGNABLE_TESTS_FAILED", "Failed to load student level", studentResponse.error.message);
@@ -241,7 +246,7 @@ export async function listTeacherAssignableTests(
 export async function upsertTeacherLessonFollowup(actor: ScheduleActor, lessonId: string, payload: TeacherLessonFollowupPayload) {
   assertScheduleWriteAccess(actor);
   assertTeacherWorkspaceWriteAccess(actor);
-  const repository = createTeacherLessonFollowupRepository();
+  const repository = await createUserScopedFollowupRepository();
   const lesson = await getLessonById(lessonId, repository);
   assertLessonScope(actor, lesson);
 

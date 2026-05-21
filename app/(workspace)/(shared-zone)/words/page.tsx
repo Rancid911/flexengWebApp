@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
 
-export default function WordsPage() {
+import { requireWorkspaceRouteAccess } from "@/lib/auth/rbac-route-guard";
+
+export default async function WordsPage() {
+  await requireWorkspaceRouteAccess("words");
   redirect("/words/my");
 }

@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
 export const TEST_BASE_SELECT =
   "id, lesson_id, module_id, activity_type, assessment_kind, title, description, cefr_level, drill_topic_key, drill_kind, scoring_profile, lesson_reinforcement, sort_order, passing_score, time_limit_minutes, is_published, created_at, updated_at";
@@ -6,9 +6,9 @@ export const TEST_BASE_SELECT =
 export const TEST_DETAIL_SELECT =
   `${TEST_BASE_SELECT}, test_questions(id, prompt, explanation, question_type, placement_band, sort_order, test_question_options(id, option_text, is_correct, sort_order))`;
 
-export type AdminTestRepositoryClient = ReturnType<typeof createAdminClient>;
+export type AdminTestRepositoryClient = Awaited<ReturnType<typeof createClient>>;
 
-export function createAdminTestRepository(client: AdminTestRepositoryClient = createAdminClient()) {
+export function createAdminTestRepository(client: AdminTestRepositoryClient) {
   return {
     async list(q?: string) {
       let query = client

@@ -15,7 +15,13 @@ vi.mock("@/lib/words/queries", () => ({
 describe("/api/words/sessions/complete POST", () => {
   beforeEach(() => {
     getAppActorMock.mockReset();
-    getAppActorMock.mockResolvedValue({ userId: "student-profile-1", role: "student", isStudent: true });
+    getAppActorMock.mockResolvedValue({
+      userId: "student-profile-1",
+      role: "student",
+      profileRole: "student",
+      isStudent: true,
+      studentId: "student-1"
+    });
     completeWordSessionMock.mockReset();
   });
 
@@ -71,7 +77,32 @@ describe("/api/words/sessions/complete POST", () => {
     );
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Permission denied" });
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Real student write context required" });
+    expect(completeWordSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("denies teacher-primary actors with linked student rows before completing the session", async () => {
+    getAppActorMock.mockResolvedValue({
+      userId: "teacher-profile-1",
+      role: "teacher",
+      profileRole: "teacher",
+      isStudent: true,
+      isTeacher: true,
+      studentId: "student-preview-1"
+    });
+
+    const { POST } = await import("@/app/api/words/sessions/complete/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/words/sessions/complete", {
+        method: "POST",
+        body: JSON.stringify({
+          answers: [{ wordId: "word-1", result: "known" }]
+        })
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Real student write context required" });
     expect(completeWordSessionMock).not.toHaveBeenCalled();
   });
 

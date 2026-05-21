@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTeacherStudentNote, deleteTeacherStudentNote, getTeacherStudentNotesFeed, updateTeacherStudentNote } from "@/lib/teacher-workspace/queries";
 
-const { assertTeacherScopeMock, insertMock, updateMock, deleteMock, state } = vi.hoisted(() => ({
+const { assertTeacherScopeMock, createClientMock, insertMock, updateMock, deleteMock, profileLabelsRpcMock, state } = vi.hoisted(() => ({
   assertTeacherScopeMock: vi.fn(),
+  createClientMock: vi.fn(),
   insertMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
+  profileLabelsRpcMock: vi.fn(),
   state: {
     studentPrimaryTeacherId: "teacher-primary" as string | null,
     noteExists: true,
@@ -43,7 +45,22 @@ vi.mock("@/lib/schedule/server", () => ({
   assertTeacherCapability: (actor: { role: string }) => {
     if (actor.role !== "teacher") throw new Error("not teacher");
   },
-  assertTeacherScope: (...args: unknown[]) => assertTeacherScopeMock(...args),
+  assertTeacherScope: (actor: { role: string; teacherId?: string | null; accessibleStudentIds?: string[] | null }, input: { studentId?: string | null; teacherId?: string | null }) => {
+    assertTeacherScopeMock(actor, input);
+    if (actor.role !== "teacher") return;
+    if (!actor.teacherId) {
+      throw Object.assign(new Error("Teacher profile is not linked"), { status: 403, code: "FORBIDDEN" });
+    }
+    if (!Array.isArray(actor.accessibleStudentIds)) {
+      throw Object.assign(new Error("Teacher scope is not loaded"), { status: 403, code: "FORBIDDEN" });
+    }
+    if (input.teacherId && input.teacherId !== actor.teacherId) {
+      throw Object.assign(new Error("Teachers can only plan lessons for themselves"), { status: 403, code: "FORBIDDEN" });
+    }
+    if (input.studentId && !actor.accessibleStudentIds.includes(input.studentId)) {
+      throw Object.assign(new Error("Student is outside the teacher scope"), { status: 403, code: "FORBIDDEN" });
+    }
+  },
   isStaffAdminScheduleActor: (actor: { role: string }) => actor.role === "admin" || actor.role === "manager",
   isTeacherScheduleActor: (actor: { role: string }) => actor.role === "teacher"
 }));
@@ -57,6 +74,10 @@ vi.mock("@/lib/supabase/admin", () => ({
       throw new Error(`Unexpected table ${table}`);
     }
   })
+}));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: () => createClientMock()
 }));
 
 function makeStudentsQuery() {
@@ -140,12 +161,35 @@ function makeNotesQuery() {
 
 describe("teacher note queries", () => {
   beforeEach(() => {
+    createClientMock.mockReset();
     insertMock.mockClear();
     updateMock.mockClear();
     deleteMock.mockClear();
+    profileLabelsRpcMock.mockReset();
     assertTeacherScopeMock.mockClear();
     state.studentPrimaryTeacherId = "teacher-primary";
     state.noteExists = true;
+    profileLabelsRpcMock.mockImplementation(async (_fn: string, args: { p_profile_ids: string[] }) => ({
+      data: args.p_profile_ids
+        .map((id) => state.profiles.get(id))
+        .filter(Boolean)
+        .map((profile) => ({
+          profile_id: profile?.id,
+          display_name: profile?.display_name,
+          first_name: profile?.first_name,
+          last_name: profile?.last_name,
+          role: profile?.role
+        })),
+      error: null
+    }));
+    createClientMock.mockResolvedValue({
+      from: (table: string) => {
+        if (table === "students") return makeStudentsQuery();
+        if (table === "teacher_student_notes") return makeNotesQuery();
+        throw new Error(`Unexpected user-scoped table ${table}`);
+      },
+      rpc: profileLabelsRpcMock
+    });
   });
 
   it("loads notes with author names", async () => {
@@ -161,7 +205,7 @@ describe("teacher note queries", () => {
 
   it("creates teacher notes with actor teacher id", async () => {
     const note = await createTeacherStudentNote(
-      { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: null },
+      { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"] },
       "student-1",
       { body: "Teacher note" }
     );
@@ -172,6 +216,9 @@ describe("teacher note queries", () => {
     }));
     expect(note.createdByName).toBe("Мария Teacher");
     expect(note.createdByRole).toBe("teacher");
+    expect(profileLabelsRpcMock).toHaveBeenCalledWith("get_accessible_profile_labels", {
+      p_profile_ids: ["teacher-user-1"]
+    });
   });
 
   it("creates admin notes with student's primary teacher id", async () => {
@@ -240,6 +287,50 @@ describe("teacher note queries", () => {
       { studentId: "student-1", teacherId: "teacher-1" }
     );
     expect(deleteMock).toHaveBeenCalled();
+  });
+
+  it("denies teacher note update for students outside teacher scope before write", async () => {
+    await expect(
+      updateTeacherStudentNote(
+        { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-2"] },
+        "note-1",
+        { body: "Out of scope", visibility: "private" }
+      )
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN"
+    });
+
+    expect(assertTeacherScopeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "teacher", teacherId: "teacher-1" }),
+      { studentId: "student-1", teacherId: "teacher-1" }
+    );
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("denies teacher note delete when teacher scope is missing before write", async () => {
+    await expect(
+      deleteTeacherStudentNote(
+        { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: null },
+        "note-1"
+      )
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN"
+    });
+
+    expect(deleteMock).not.toHaveBeenCalled();
+  });
+
+  it("denies teacher note delete when teacher scope is malformed before write", async () => {
+    await expect(
+      deleteTeacherStudentNote(
+        { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: "student-1" as never },
+        "note-1"
+      )
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN"
+    });
+
+    expect(deleteMock).not.toHaveBeenCalled();
   });
 
   it("returns not found when deleting a missing note", async () => {

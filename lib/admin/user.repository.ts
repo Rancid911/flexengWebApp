@@ -10,17 +10,22 @@ import {
   toUserDto
 } from "@/lib/admin/users";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
-export type AdminSupabaseClient = ReturnType<typeof createAdminClient>;
+export type AdminAuthSupabaseClient = ReturnType<typeof createAdminClient>;
+export type AdminUserTableClient = Awaited<ReturnType<typeof createClient>>;
+export type AdminSupabaseClient = AdminAuthSupabaseClient;
 
 export const ADMIN_PROFILE_SELECT = "id, role, first_name, last_name, display_name, email, phone, avatar_url, status, created_at, updated_at";
 
-export function createAdminUserRepositoryClient() {
+export function createAdminAuthUserClient() {
   return createAdminClient();
 }
 
+export const createAdminUserRepositoryClient = createAdminAuthUserClient;
+
 export async function createAuthUser(
-  supabase: AdminSupabaseClient,
+  supabase: AdminAuthSupabaseClient,
   payload: { email: string; password: string }
 ) {
   return await supabase.auth.admin.createUser({
@@ -30,20 +35,20 @@ export async function createAuthUser(
   });
 }
 
-export async function updateAuthUserById(supabase: AdminSupabaseClient, userId: string, patch: { email?: string; password?: string }) {
+export async function updateAuthUserById(supabase: AdminAuthSupabaseClient, userId: string, patch: { email?: string; password?: string }) {
   return await supabase.auth.admin.updateUserById(userId, patch);
 }
 
-export async function deleteAuthUserById(supabase: AdminSupabaseClient, userId: string) {
+export async function deleteAuthUserById(supabase: AdminAuthSupabaseClient, userId: string) {
   return await supabase.auth.admin.deleteUser(userId);
 }
 
-export async function deleteAuthUserByIdSafely(supabase: AdminSupabaseClient, userId: string) {
+export async function deleteAuthUserByIdSafely(supabase: AdminAuthSupabaseClient, userId: string) {
   await supabase.auth.admin.deleteUser(userId).catch(() => undefined);
 }
 
 export async function upsertProfileRow(
-  supabase: AdminSupabaseClient,
+  supabase: AdminUserTableClient,
   payload: {
     id: string;
     email: string;
@@ -68,24 +73,24 @@ export async function upsertProfileRow(
   );
 }
 
-export async function readProfileById(supabase: AdminSupabaseClient, userId: string) {
+export async function readProfileById(supabase: AdminUserTableClient, userId: string) {
   return await supabase.from("profiles").select(ADMIN_PROFILE_SELECT).eq("id", userId).single();
 }
 
-export async function readCreatedProfileById(supabase: AdminSupabaseClient, userId: string) {
+export async function readCreatedProfileById(supabase: AdminUserTableClient, userId: string) {
   return await supabase.from("profiles").select(ADMIN_PROFILE_SELECT).eq("id", userId).single();
 }
 
-export async function updateProfileById(supabase: AdminSupabaseClient, userId: string, patch: Record<string, unknown>) {
+export async function updateProfileById(supabase: AdminUserTableClient, userId: string, patch: Record<string, unknown>) {
   return await supabase.from("profiles").update(patch).eq("id", userId);
 }
 
-export async function deleteProfileById(supabase: AdminSupabaseClient, userId: string) {
+export async function deleteProfileById(supabase: AdminUserTableClient, userId: string) {
   return await supabase.from("profiles").delete().eq("id", userId);
 }
 
 export async function createStudentDetailsRow(
-  supabase: AdminSupabaseClient,
+  supabase: AdminUserTableClient,
   payload: {
     profileId: string;
     birthDate?: string | null;
@@ -109,24 +114,24 @@ export async function createStudentDetailsRow(
     .single();
 }
 
-export async function readStudentIdByProfileId(supabase: AdminSupabaseClient, profileId: string) {
+export async function readStudentIdByProfileId(supabase: AdminUserTableClient, profileId: string) {
   return await supabase.from("students").select("id").eq("profile_id", profileId).single();
 }
 
-export async function updateStudentDetailsByProfileId(supabase: AdminSupabaseClient, profileId: string, patch: Record<string, unknown>) {
+export async function updateStudentDetailsByProfileId(supabase: AdminUserTableClient, profileId: string, patch: Record<string, unknown>) {
   return await supabase.from("students").update(patch).eq("profile_id", profileId);
 }
 
-export async function deleteStudentDetailsByProfileId(supabase: AdminSupabaseClient, profileId: string) {
+export async function deleteStudentDetailsByProfileId(supabase: AdminUserTableClient, profileId: string) {
   return await supabase.from("students").delete().eq("profile_id", profileId);
 }
 
-export async function readPrimaryTeacherIdByStudentId(supabase: AdminSupabaseClient, studentId: string) {
+export async function readPrimaryTeacherIdByStudentId(supabase: AdminUserTableClient, studentId: string) {
   return await supabase.from("students").select("primary_teacher_id").eq("id", studentId).maybeSingle();
 }
 
 export async function upsertStudentBillingAccount(
-  supabase: AdminSupabaseClient,
+  supabase: AdminUserTableClient,
   payload: {
     studentId: string;
     billingMode: string;
@@ -146,35 +151,35 @@ export async function upsertStudentBillingAccount(
   );
 }
 
-export async function deleteStudentBillingAccount(supabase: AdminSupabaseClient, studentId: string) {
+export async function deleteStudentBillingAccount(supabase: AdminUserTableClient, studentId: string) {
   return await supabase.from("student_billing_accounts").delete().eq("student_id", studentId);
 }
 
-export async function deleteProfileRowForRollback(supabase: AdminSupabaseClient, profileId: string) {
+export async function deleteProfileRowForRollback(supabase: AdminUserTableClient, profileId: string) {
   await supabase.from("profiles").delete().eq("id", profileId);
 }
 
-export async function ensureTeacherRecordForProfile(supabase: AdminSupabaseClient, profileId: string) {
+export async function ensureTeacherRecordForProfile(supabase: AdminUserTableClient, profileId: string) {
   await ensureTeacherRecord(supabase, profileId);
 }
 
-export async function deleteTeacherRecordForProfile(supabase: AdminSupabaseClient, profileId: string) {
+export async function deleteTeacherRecordForProfile(supabase: AdminUserTableClient, profileId: string) {
   await deleteTeacherRecord(supabase, profileId);
 }
 
-export async function resolveTeacherProfileIdForTeacher(supabase: AdminSupabaseClient, teacherId: string | null) {
+export async function resolveTeacherProfileIdForTeacher(supabase: AdminUserTableClient, teacherId: string | null) {
   return await resolveTeacherProfileId(supabase, teacherId);
 }
 
-export async function assignPrimaryTeacher(supabase: AdminSupabaseClient, studentId: string, teacherId: string | null) {
+export async function assignPrimaryTeacher(supabase: AdminUserTableClient, studentId: string, teacherId: string | null) {
   await assignPrimaryTeacherToStudent(supabase, studentId, teacherId);
 }
 
-export async function readHydratedAdminUserByProfileId(supabase: AdminSupabaseClient, profileId: string, errorCode: string) {
+export async function readHydratedAdminUserByProfileId(supabase: AdminUserTableClient, profileId: string, errorCode: string) {
   return await readHydratedUserByProfileId(supabase, profileId, errorCode);
 }
 
-export async function hydrateCreatedAdminUser(supabase: AdminSupabaseClient, profile: Record<string, unknown>, errorCode: string) {
+export async function hydrateCreatedAdminUser(supabase: AdminUserTableClient, profile: Record<string, unknown>, errorCode: string) {
   const hydrated = await hydrateUsersWithStudentDetails(supabase, [profile], errorCode);
   if (!hydrated[0]) {
     throw new AdminHttpError(500, errorCode, "Failed to hydrate user");

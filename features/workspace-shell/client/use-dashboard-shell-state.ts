@@ -26,6 +26,8 @@ export type WorkspaceLayoutProfile = {
   email: string;
   avatarUrl: string | null;
   role: UserRole | null;
+  rbacPermissions?: string[];
+  rbacPermissionScopes?: Record<string, string[]>;
 };
 
 type DashboardRouter = {

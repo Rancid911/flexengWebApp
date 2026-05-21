@@ -1,13 +1,14 @@
 import type { StudentBillingMode } from "@/lib/billing/types";
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
-export type BillingLedgerRepositoryClient = ReturnType<typeof createAdminClient>;
+export type BillingLedgerRepositoryClient = ReturnType<typeof createAdminClient> | Awaited<ReturnType<typeof createClient>>;
 
 const BILLING_ACCOUNT_SELECT = "id, student_id, billing_mode, lesson_price_amount, currency, created_at, updated_at";
 const BILLING_LEDGER_SELECT =
   "id, student_id, entry_direction, unit_type, lesson_units, money_amount, reason, payment_transaction_id, schedule_lesson_id, payment_plan_id, effective_lesson_price_amount, effective_lesson_price_currency, description, created_at";
 
-export function createBillingLedgerRepository(client: BillingLedgerRepositoryClient = createAdminClient()) {
+export function createBillingLedgerRepository(client: BillingLedgerRepositoryClient) {
   return {
     async loadBillingAccount(studentId: string) {
       return await client.from("student_billing_accounts").select(BILLING_ACCOUNT_SELECT).eq("student_id", studentId).maybeSingle();

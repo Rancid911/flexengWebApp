@@ -15,6 +15,7 @@ const navigationMocks = vi.hoisted(() => ({
 const getHomeworkAssignmentDetailMock = vi.fn();
 const getHomeworkAssignmentsMock = vi.fn();
 const getHomeworkOverviewSummaryMock = vi.fn();
+const requireLayoutActorMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   notFound: navigationMocks.notFound
@@ -35,11 +36,17 @@ vi.mock("@/lib/homework/queries", () => ({
   getHomeworkOverviewSummary: (...args: unknown[]) => getHomeworkOverviewSummaryMock(...args)
 }));
 
+vi.mock("@/lib/auth/request-context", () => ({
+  requireLayoutActor: () => requireLayoutActorMock()
+}));
+
 describe("homework routes", () => {
   beforeEach(() => {
     getHomeworkAssignmentDetailMock.mockReset();
     getHomeworkAssignmentsMock.mockReset();
     getHomeworkOverviewSummaryMock.mockReset();
+    requireLayoutActorMock.mockReset();
+    requireLayoutActorMock.mockResolvedValue({ rbacRoles: [], rbacPermissions: [], rbacPermissionScopes: {} });
     navigationMocks.notFound.mockClear();
   });
 

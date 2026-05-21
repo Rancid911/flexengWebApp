@@ -5,9 +5,16 @@ type RpcResult = {
   error: { message: string } | null;
 };
 
-type QueryResponse = {
-  data: unknown;
-  error: { message: string } | null;
+type RbacRow = {
+  roles: {
+    key: string;
+    role_permissions: Array<{
+      scope: string;
+      permissions: {
+        key: string;
+      };
+    }>;
+  };
 };
 
 const cacheStore = new Map<string, unknown>();
@@ -43,12 +50,25 @@ vi.mock("next/cache", () => ({
   }
 }));
 
-function makeProfileClient(role: string | null) {
+function makeRequestClient(options: {
+  role: string | null;
+  rpcResult: RpcResult;
+  rbacRows?: RbacRow[];
+  rbacError?: { message: string } | null;
+}) {
   let profileReads = 0;
+  let rbacReads = 0;
+  let rpcCalls = 0;
   return {
     stats: {
       get profileReads() {
         return profileReads;
+      },
+      get rbacReads() {
+        return rbacReads;
+      },
+      get rpcCalls() {
+        return rpcCalls;
       }
     },
     auth: {
@@ -62,54 +82,11 @@ function makeProfileClient(role: string | null) {
         error: null
       })
     },
-    from: (table: string) => {
-      if (table !== "profiles") {
-        throw new Error(`Unexpected table: ${table}`);
+    rpc: async (fn: string) => {
+      if (fn !== "get_linked_actor_scope") {
+        throw new Error(`Unexpected RPC: ${fn}`);
       }
 
-      return {
-        select: () => ({
-          eq: () => ({
-            maybeSingle: async () => {
-              profileReads += 1;
-              return {
-                data: {
-                  role,
-                  email: "teacher@example.com",
-                  display_name: "Teacher Profile",
-                  first_name: "Teacher",
-                  last_name: "Profile",
-                  avatar_url: null
-                },
-                error: null
-              };
-            }
-          })
-        })
-      };
-    }
-  };
-}
-
-function makeFallbackAdminClient(options: {
-  rpcResult: RpcResult;
-  profileRole?: string | null;
-  studentId?: string | null;
-  teacherId?: string | null;
-  accessibleStudentIds?: string[];
-}) {
-  let rpcCalls = 0;
-  let profileReads = 0;
-  return {
-    stats: {
-      get profileReads() {
-        return profileReads;
-      },
-      get rpcCalls() {
-        return rpcCalls;
-      }
-    },
-    rpc: async () => {
       rpcCalls += 1;
       return options.rpcResult;
     },
@@ -118,11 +95,11 @@ function makeFallbackAdminClient(options: {
         return {
           select: () => ({
             eq: () => ({
-              maybeSingle: async (): Promise<QueryResponse> => {
+              maybeSingle: async () => {
                 profileReads += 1;
                 return {
                   data: {
-                    role: options.profileRole ?? null,
+                    role: options.role,
                     email: "teacher@example.com",
                     display_name: "Teacher Profile",
                     first_name: "Teacher",
@@ -137,41 +114,16 @@ function makeFallbackAdminClient(options: {
         };
       }
 
-      if (table === "students") {
+      if (table === "user_roles") {
         return {
           select: () => ({
-            eq: (column: string) => {
-              if (column === "profile_id") {
-                return {
-                  maybeSingle: async (): Promise<QueryResponse> => ({
-                    data: options.studentId ? { id: options.studentId } : null,
-                    error: null
-                  })
-                };
-              }
-
-              if (column === "primary_teacher_id") {
-                return Promise.resolve({
-                  data: (options.accessibleStudentIds ?? []).map((studentId) => ({ id: studentId })),
-                  error: null
-                } satisfies QueryResponse);
-              }
-
-              throw new Error(`Unexpected students.eq column: ${column}`);
+            eq: async () => {
+              rbacReads += 1;
+              return {
+                data: options.rbacRows ?? [],
+                error: options.rbacError ?? null
+              };
             }
-          })
-        };
-      }
-
-      if (table === "teachers") {
-        return {
-          select: () => ({
-            eq: () => ({
-              maybeSingle: async (): Promise<QueryResponse> => ({
-                data: options.teacherId ? { id: options.teacherId } : null,
-                error: null
-              })
-            })
           })
         };
       }
@@ -184,31 +136,29 @@ function makeFallbackAdminClient(options: {
 async function loadRequestContextModule(deps: {
   profileRole: string | null;
   rpcResult: RpcResult;
-  studentId?: string | null;
-  teacherId?: string | null;
-  accessibleStudentIds?: string[];
+  rbacRows?: RbacRow[];
+  rbacError?: { message: string } | null;
 }) {
-  const profileClient = makeProfileClient(deps.profileRole);
-  const adminClient = makeFallbackAdminClient({
+  const requestClient = makeRequestClient({
+    role: deps.profileRole,
     rpcResult: deps.rpcResult,
-    profileRole: deps.profileRole,
-    studentId: deps.studentId,
-    teacherId: deps.teacherId,
-    accessibleStudentIds: deps.accessibleStudentIds
+    rbacRows: deps.rbacRows,
+    rbacError: deps.rbacError
   });
 
   vi.doMock("@/lib/supabase/server", () => ({
-    createClient: async () => profileClient
+    createClient: async () => requestClient
   }));
 
   vi.doMock("@/lib/supabase/admin", () => ({
-    createAdminClient: () => adminClient
+    createAdminClient: () => {
+      throw new Error("Admin client should not be used by request context");
+    }
   }));
 
   return {
     module: await import("@/lib/auth/request-context"),
-    profileClient,
-    adminClient
+    requestClient
   };
 }
 
@@ -246,11 +196,94 @@ describe("request-context rpc linked scope", () => {
       teacherId: "teacher-1",
       accessibleStudentIds: ["student-1", "student-2"],
       isStudent: true,
-      isTeacher: true
+      isTeacher: true,
+      rbacRoles: [],
+      rbacPermissions: [],
+      rbacPermissionScopes: {}
     });
   });
 
-  it("falls back to chained resolver when linked scope RPC is unavailable", async () => {
+  it("adds RBAC metadata when role permission rows are available", async () => {
+    const { module: requestContext } = await loadRequestContextModule({
+      profileRole: "teacher",
+      rpcResult: {
+        data: [
+          {
+            student_id: null,
+            teacher_id: "teacher-1",
+            accessible_student_ids: ["student-1"]
+          }
+        ],
+        error: null
+      },
+      rbacRows: [
+        {
+          roles: {
+            key: "teacher",
+            role_permissions: [
+              { scope: "assigned", permissions: { key: "students.view" } },
+              { scope: "assigned", permissions: { key: "schedule.view" } },
+              { scope: "own_demo", permissions: { key: "learning.preview_as_student" } }
+            ]
+          }
+        }
+      ]
+    });
+
+    const actor = await requestContext.getAppActor();
+
+    expect(actor).toMatchObject({
+      isTeacher: true,
+      rbacRoles: ["teacher"],
+      rbacPermissions: ["learning.preview_as_student", "schedule.view", "students.view"],
+      rbacPermissionScopes: {
+        "learning.preview_as_student": ["own_demo"],
+        "schedule.view": ["assigned"],
+        "students.view": ["assigned"]
+      }
+    });
+  });
+
+  it("keeps legacy actor behavior when RBAC load fails", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { module: requestContext } = await loadRequestContextModule({
+      profileRole: "teacher",
+      rpcResult: {
+        data: [
+          {
+            student_id: "student-1",
+            teacher_id: "teacher-1",
+            accessible_student_ids: ["student-1"]
+          }
+        ],
+        error: null
+      },
+      rbacError: {
+        message: "relation public.user_roles does not exist"
+      }
+    });
+
+    const actor = await requestContext.getAppActor();
+
+    expect(actor).toMatchObject({
+      studentId: "student-1",
+      teacherId: "teacher-1",
+      accessibleStudentIds: ["student-1"],
+      isStudent: true,
+      isTeacher: true,
+      rbacRoles: [],
+      rbacPermissions: [],
+      rbacPermissionScopes: {}
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      "REQUEST_CONTEXT_RBAC_LOAD_FAILED",
+      expect.objectContaining({
+        code: "REQUEST_CONTEXT_RBAC_LOAD_FAILED"
+      })
+    );
+  });
+
+  it("degrades conservatively when linked scope RPC is unavailable", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { module: requestContext } = await loadRequestContextModule({
       profileRole: "teacher",
@@ -259,19 +292,17 @@ describe("request-context rpc linked scope", () => {
         error: {
           message: "Could not find the function public.get_linked_actor_scope in the schema cache"
         }
-      },
-      studentId: "student-1",
-      teacherId: "teacher-1",
-      accessibleStudentIds: ["student-3", "student-4"]
+      }
     });
 
     const actor = await requestContext.getAppActor();
 
     expect(actor).toMatchObject({
-      studentId: "student-1",
-      teacherId: "teacher-1",
-      accessibleStudentIds: ["student-3", "student-4"],
-      isTeacher: true
+      studentId: null,
+      teacherId: null,
+      accessibleStudentIds: null,
+      isStudent: false,
+      isTeacher: false
     });
     expect(warnSpy).toHaveBeenCalledWith(
       "REQUEST_CONTEXT_SCOPE_RPC_UNAVAILABLE",
@@ -281,8 +312,8 @@ describe("request-context rpc linked scope", () => {
     );
   });
 
-  it("reuses cached identity and linked scope between repeated calls", async () => {
-    const { module: requestContext, adminClient } = await loadRequestContextModule({
+  it("uses user-scoped profile, RBAC and linked scope reads without cross-request cache", async () => {
+    const { module: requestContext, requestClient } = await loadRequestContextModule({
       profileRole: "teacher",
       rpcResult: {
         data: [
@@ -299,12 +330,13 @@ describe("request-context rpc linked scope", () => {
     await requestContext.getAppActor();
     await requestContext.getAppActor();
 
-    expect(adminClient.stats.profileReads).toBe(1);
-    expect(adminClient.stats.rpcCalls).toBe(1);
+    expect(requestClient.stats.profileReads).toBe(2);
+    expect(requestClient.stats.rbacReads).toBe(2);
+    expect(requestClient.stats.rpcCalls).toBe(2);
   });
 
-  it("invalidates cached actor data explicitly", async () => {
-    const { module: requestContext, adminClient } = await loadRequestContextModule({
+  it("keeps linked scope invalidation callable", async () => {
+    const { module: requestContext, requestClient } = await loadRequestContextModule({
       profileRole: "teacher",
       rpcResult: {
         data: [
@@ -322,7 +354,8 @@ describe("request-context rpc linked scope", () => {
     await requestContext.invalidateFullAppActorCache("user-1");
     await requestContext.getAppActor();
 
-    expect(adminClient.stats.profileReads).toBe(2);
-    expect(adminClient.stats.rpcCalls).toBe(2);
+    expect(requestClient.stats.profileReads).toBe(2);
+    expect(requestClient.stats.rbacReads).toBe(2);
+    expect(requestClient.stats.rpcCalls).toBe(2);
   });
 });

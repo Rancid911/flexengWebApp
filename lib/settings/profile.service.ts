@@ -31,6 +31,10 @@ function isMissingBirthDateColumn(error: { message?: string } | null | undefined
   return String(error?.message ?? "").includes("birth_date");
 }
 
+function canWriteStudentBirthDateFallback(actor: AppActor) {
+  return actor.isStudent && Boolean(actor.studentId) && actor.profileRole === "student";
+}
+
 async function getCurrentAuthContext(actor: AppActor) {
   const supabase = await createClient();
   const { data: authData, error: authError } = await runAuthRequestWithLockRetry(() => supabase.auth.getUser());
@@ -140,6 +144,7 @@ export async function loadSettingsProfile(actor: AppActor): Promise<SettingsProf
 
 async function updateProfileFields(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  actor: AppActor,
   userId: string,
   input: SettingsProfileUpdateInput
 ) {
@@ -157,6 +162,10 @@ async function updateProfileFields(
     throw profileBirthDateError;
   }
   if (profileBirthDateError && isMissingBirthDateColumn(profileBirthDateError)) {
+    if (!canWriteStudentBirthDateFallback(actor)) {
+      return;
+    }
+
     if (input.birthDate) {
       const { error: studentUpsertError } = await supabase
         .from("students")
@@ -212,7 +221,7 @@ export async function updateSettingsProfile(actor: AppActor, input: SettingsProf
   let hasEmailPendingConfirmation = false;
 
   if (input.profileDirty) {
-    await updateProfileFields(supabase, userId, input);
+    await updateProfileFields(supabase, actor, userId, input);
     applied.profile = true;
   }
 

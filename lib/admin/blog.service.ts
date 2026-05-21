@@ -17,6 +17,7 @@ import type {
   blogTagCreateSchema,
   blogTagUpdateSchema
 } from "@/lib/admin/validation";
+import { createClient } from "@/lib/supabase/server";
 import type { z } from "zod";
 
 type BlogPostCreatePayload = z.infer<typeof blogPostCreateSchema>;
@@ -40,6 +41,10 @@ function asBlogRows(value: unknown): BlogRow[] {
 
 function asBlogRow(value: unknown): BlogRow {
   return (value ?? {}) as BlogRow;
+}
+
+async function createUserScopedAdminBlogRepository() {
+  return createAdminBlogRepository(await createClient());
 }
 
 async function loadCategoryMap(repository: AdminBlogRepository, categoryIds: string[], errorCode: string): Promise<Map<string, BlogCategoryDto>> {
@@ -152,7 +157,7 @@ async function hydratePostDto(repository: AdminBlogRepository, row: BlogRow, pos
 }
 
 export async function listAdminBlogPosts(params: PaginationInput): Promise<PaginatedResponse<BlogPostDetailDto>> {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const from = (params.page - 1) * params.pageSize;
   const to = from + params.pageSize - 1;
   const { data, error, count } = await repository.listPosts({ from, to, q: params.q });
@@ -170,7 +175,7 @@ export async function listAdminBlogPosts(params: PaginationInput): Promise<Pagin
 }
 
 export async function createAdminBlogPost(actor: AdminActor, payload: BlogPostCreatePayload): Promise<BlogPostDetailDto> {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const publishedAt = payload.status === "published" ? payload.published_at ?? new Date().toISOString() : null;
   const categoryId = await ensureCategoryIdByNameOrId(repository, { categoryId: payload.category_id, categoryName: payload.category_name });
 
@@ -205,7 +210,7 @@ export async function createAdminBlogPost(actor: AdminActor, payload: BlogPostCr
 }
 
 export async function updateAdminBlogPost(actor: AdminActor, id: string, payload: BlogPostUpdatePayload): Promise<BlogPostDetailDto> {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const { data: before, error: beforeError } = await repository.loadPostById(id);
   if (beforeError) throw new AdminHttpError(500, "BLOG_POST_UPDATE_FAILED", "Failed to fetch blog post", beforeError.message);
   if (!before) throw new AdminHttpError(404, "BLOG_POST_NOT_FOUND", "Blog post not found");
@@ -253,7 +258,7 @@ export async function updateAdminBlogPost(actor: AdminActor, id: string, payload
 }
 
 export async function deleteAdminBlogPost(actor: AdminActor, id: string): Promise<{ ok: true }> {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const { data: before, error: beforeError } = await repository.loadPostById(id);
   if (beforeError) throw new AdminHttpError(500, "BLOG_POST_DELETE_FAILED", "Failed to fetch blog post", beforeError.message);
   if (!before) throw new AdminHttpError(404, "BLOG_POST_NOT_FOUND", "Blog post not found");
@@ -266,14 +271,14 @@ export async function deleteAdminBlogPost(actor: AdminActor, id: string): Promis
 }
 
 export async function listAdminBlogCategories(): Promise<BlogCategoryDto[]> {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const { data, error } = await repository.listCategories();
   if (error) throw new AdminHttpError(500, "BLOG_CATEGORIES_FETCH_FAILED", "Failed to fetch categories", error.message);
   return asBlogRows(data).map((row) => toCategoryDto(row));
 }
 
 export async function createAdminBlogCategory(actor: AdminActor, payload: BlogCategoryCreatePayload): Promise<BlogCategoryDto> {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const { data, error } = await repository.createCategory(payload);
   if (error) throw new AdminHttpError(500, "BLOG_CATEGORY_CREATE_FAILED", "Failed to create category", error.message);
 
@@ -283,7 +288,7 @@ export async function createAdminBlogCategory(actor: AdminActor, payload: BlogCa
 }
 
 export async function updateAdminBlogCategory(actor: AdminActor, id: string, payload: BlogCategoryUpdatePayload) {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const { data: before, error: beforeError } = await repository.loadCategoryById(id);
   if (beforeError) throw new AdminHttpError(500, "BLOG_CATEGORY_UPDATE_FAILED", "Failed to fetch category", beforeError.message);
   if (!before) throw new AdminHttpError(404, "BLOG_CATEGORY_NOT_FOUND", "Category not found");
@@ -296,7 +301,7 @@ export async function updateAdminBlogCategory(actor: AdminActor, id: string, pay
 }
 
 export async function deleteAdminBlogCategory(actor: AdminActor, id: string): Promise<{ ok: true }> {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const { data: before, error: beforeError } = await repository.loadCategoryById(id);
   if (beforeError) throw new AdminHttpError(500, "BLOG_CATEGORY_DELETE_FAILED", "Failed to fetch category", beforeError.message);
   if (!before) throw new AdminHttpError(404, "BLOG_CATEGORY_NOT_FOUND", "Category not found");
@@ -309,14 +314,14 @@ export async function deleteAdminBlogCategory(actor: AdminActor, id: string): Pr
 }
 
 export async function listAdminBlogTags(): Promise<BlogTagDto[]> {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const { data, error } = await repository.listTags();
   if (error) throw new AdminHttpError(500, "BLOG_TAGS_FETCH_FAILED", "Failed to fetch tags", error.message);
   return asBlogRows(data).map((row) => toTagDto(row));
 }
 
 export async function createAdminBlogTag(actor: AdminActor, payload: BlogTagCreatePayload): Promise<BlogTagDto> {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const { data, error } = await repository.createTag(payload);
   if (error) throw new AdminHttpError(500, "BLOG_TAG_CREATE_FAILED", "Failed to create tag", error.message);
 
@@ -326,7 +331,7 @@ export async function createAdminBlogTag(actor: AdminActor, payload: BlogTagCrea
 }
 
 export async function updateAdminBlogTag(actor: AdminActor, id: string, payload: BlogTagUpdatePayload) {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const { data: before, error: beforeError } = await repository.loadTagById(id);
   if (beforeError) throw new AdminHttpError(500, "BLOG_TAG_UPDATE_FAILED", "Failed to fetch tag", beforeError.message);
   if (!before) throw new AdminHttpError(404, "BLOG_TAG_NOT_FOUND", "Tag not found");
@@ -339,7 +344,7 @@ export async function updateAdminBlogTag(actor: AdminActor, id: string, payload:
 }
 
 export async function deleteAdminBlogTag(actor: AdminActor, id: string): Promise<{ ok: true }> {
-  const repository = createAdminBlogRepository();
+  const repository = await createUserScopedAdminBlogRepository();
   const { data: before, error: beforeError } = await repository.loadTagById(id);
   if (beforeError) throw new AdminHttpError(500, "BLOG_TAG_DELETE_FAILED", "Failed to fetch tag", beforeError.message);
   if (!before) throw new AdminHttpError(404, "BLOG_TAG_NOT_FOUND", "Tag not found");

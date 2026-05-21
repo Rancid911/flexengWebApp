@@ -1,12 +1,12 @@
 import { createHomeworkAssignmentsRepository } from "@/lib/homework/assignments.repository";
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
-export type TeacherStudentProfileRepositoryClient = ReturnType<typeof createAdminClient>;
+export type TeacherStudentProfileRepositoryClient = Awaited<ReturnType<typeof createClient>>;
 
 const LESSON_SELECT = "id, student_id, teacher_id, title, starts_at, ends_at, meeting_url, comment, status, created_at, updated_at";
 
-export function createTeacherStudentProfileRepository(client: TeacherStudentProfileRepositoryClient = createAdminClient()) {
-  const homework = createHomeworkAssignmentsRepository(client);
+export function createTeacherStudentProfileRepository(client: TeacherStudentProfileRepositoryClient) {
+  const homework = createHomeworkAssignmentsRepository(client as Parameters<typeof createHomeworkAssignmentsRepository>[0]);
 
   return {
     client,
@@ -21,7 +21,7 @@ export function createTeacherStudentProfileRepository(client: TeacherStudentProf
 
     async loadProfiles(profileIds: string[]) {
       if (profileIds.length === 0) return { data: [], error: null };
-      return await client.from("profiles").select("id, display_name, first_name, last_name, email, phone, role").in("id", profileIds);
+      return await client.rpc("get_accessible_profile_labels", { p_profile_ids: profileIds });
     },
 
     async loadNotesFeed(studentId: string, limit: number) {

@@ -121,7 +121,10 @@ export function WorkspaceShellClient({
       .join("") || email[0]?.toUpperCase() || "U";
 
   const navConfig = useMemo(() => {
-    const config = getWorkspaceNavConfig(shellVariant, currentRole);
+    const config = getWorkspaceNavConfig(shellVariant, currentRole, {
+      rbacPermissions: initialProfile.rbacPermissions,
+      rbacPermissionScopes: initialProfile.rbacPermissionScopes
+    });
     if (!canShowCrmBadge) return config;
 
     return {
@@ -130,7 +133,7 @@ export function WorkspaceShellClient({
       secondary: applyCrmUnreadBadge(config.secondary, crmUnreadCount),
       mobileMore: applyCrmUnreadBadge(config.mobileMore, crmUnreadCount)
     };
-  }, [canShowCrmBadge, crmUnreadCount, currentRole, shellVariant]);
+  }, [canShowCrmBadge, crmUnreadCount, currentRole, initialProfile.rbacPermissionScopes, initialProfile.rbacPermissions, shellVariant]);
   const labelMotionClass = sidebarCollapsed
     ? "transition-[opacity,transform] duration-220 ease-[cubic-bezier(0.4,0,1,1)]"
     : "transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]";

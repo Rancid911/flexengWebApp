@@ -1,6 +1,6 @@
 import { AdminStudentsClient } from "@/features/admin/components/students-directory/admin-students-client";
 import { AdminTeachersClient } from "@/features/admin/components/teachers-directory/admin-teachers-client";
-import { requireStaffAdminPage } from "@/lib/admin/auth";
+import { requireAdminPagePermission } from "@/lib/admin/auth";
 import { listAdminStudentsDirectoryPage, listAdminTeachersDirectoryPage } from "@/lib/admin/user-directory";
 
 const DIRECTORY_PAGE_SIZE = 5;
@@ -23,7 +23,7 @@ async function parseDirectorySearchParams(searchParams: DirectoryRouteProps["sea
 }
 
 export async function renderAdminStudentsDirectoryRoute({ searchParams }: DirectoryRouteProps) {
-  await requireStaffAdminPage();
+  await requireAdminPagePermission("students.view");
   const { query, page } = await parseDirectorySearchParams(searchParams);
   const pageData = await listAdminStudentsDirectoryPage({ query, page, pageSize: DIRECTORY_PAGE_SIZE });
 
@@ -40,7 +40,7 @@ export async function renderAdminStudentsDirectoryRoute({ searchParams }: Direct
 }
 
 export async function renderAdminTeachersDirectoryRoute({ searchParams }: DirectoryRouteProps) {
-  await requireStaffAdminPage();
+  await requireAdminPagePermission("teachers.view");
   const { query, page } = await parseDirectorySearchParams(searchParams);
   const pageData = await listAdminTeachersDirectoryPage({ query, page, pageSize: DIRECTORY_PAGE_SIZE });
 

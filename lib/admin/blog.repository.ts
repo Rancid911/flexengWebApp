@@ -1,6 +1,6 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 
-export type AdminBlogRepositoryClient = ReturnType<typeof createAdminClient>;
+export type AdminBlogRepositoryClient = Awaited<ReturnType<typeof createClient>>;
 
 export const BLOG_POST_SELECT =
   "id, slug, title, excerpt, content, cover_image_url, status, published_at, author_name, category_id, reading_time_min, views_count, seo_title, seo_description, created_at, updated_at";
@@ -8,7 +8,7 @@ export const BLOG_POST_SELECT =
 export const BLOG_CATEGORY_SELECT = "id, slug, name, sort_order, is_active";
 export const BLOG_TAG_SELECT = "id, slug, name";
 
-export function createAdminBlogRepository(client: AdminBlogRepositoryClient = createAdminClient()) {
+export function createAdminBlogRepository(client: AdminBlogRepositoryClient) {
   return {
     listPosts(params: { from: number; to: number; q?: string | null }) {
       let query = client

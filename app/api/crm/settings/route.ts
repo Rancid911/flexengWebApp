@@ -20,7 +20,7 @@ function normalizeBackgroundImageUrl(value: unknown) {
 
 export const GET = withAdminErrorHandling(async () => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "crm.settings.read");
+  requirePermission(actor, "crm.leads.view");
   try {
     return NextResponse.json(await loadCrmSettings());
   } catch (error) {
@@ -30,7 +30,7 @@ export const GET = withAdminErrorHandling(async () => {
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest) => {
   const actor = await requireStaffAdminApi();
-  requirePermission(actor, "crm.settings.update");
+  requirePermission(actor, "crm.leads.manage");
   const body = (await request.json().catch(() => null)) as { background_image_url?: unknown } | null;
   const backgroundImageUrl = normalizeBackgroundImageUrl(body?.background_image_url);
 

@@ -429,4 +429,51 @@ describe("WorkspaceShellClient", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("hides profile navigation when RBAC metadata denies profile.view", () => {
+    render(
+      <WorkspaceShellClient
+        {...baseProps}
+        initialProfile={{
+          ...baseProps.initialProfile,
+          rbacPermissions: ["billing.view", "schedule.view"],
+          rbacPermissionScopes: {
+            "billing.view": ["own"],
+            "schedule.view": ["own"]
+          }
+        }}
+      >
+        <div>content</div>
+      </WorkspaceShellClient>
+    );
+
+    expect(screen.queryByRole("link", { name: "Профиль" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Оплата" })).toBeInTheDocument();
+  });
+
+  it("hides denied student workspace read links while keeping practice on legacy navigation", () => {
+    render(
+      <WorkspaceShellClient
+        {...baseProps}
+        initialProfile={{
+          ...baseProps.initialProfile,
+          rbacRoles: ["student"],
+          rbacPermissions: ["profile.view", "word_cards.train"],
+          rbacPermissionScopes: {
+            "profile.view": ["own"],
+            "word_cards.train": ["own"]
+          }
+        }}
+      >
+        <div>content</div>
+      </WorkspaceShellClient>
+    );
+
+    expect(screen.queryByRole("link", { name: "Расписание" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Практика" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Домашнее задание" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Слова" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Прогресс" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Оплата" })).not.toBeInTheDocument();
+  });
 });

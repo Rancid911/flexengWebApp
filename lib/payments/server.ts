@@ -12,13 +12,34 @@ import {
   mapYooKassaPaymentToTransactionUpdate
 } from "@/lib/payments/yookassa";
 import { getRequestOrigin } from "@/lib/server-origin";
-import { getCurrentStudentProfile } from "@/lib/students/current-student";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import type { AccessMode } from "@/lib/supabase/access";
 
-export const CURRENT_STUDENT_CHECKOUT_ACCESS_MODE: AccessMode = "privileged";
-export const CURRENT_STUDENT_TRANSACTION_SYNC_ACCESS_MODE: AccessMode = "privileged";
+export const CURRENT_STUDENT_CHECKOUT_ACCESS_MODE: AccessMode = "user_scoped";
+export const CURRENT_STUDENT_TRANSACTION_SYNC_ACCESS_MODE: AccessMode = "user_scoped";
 export const PAYMENT_WEBHOOK_ACCESS_MODE: AccessMode = "privileged";
+
+type CurrentStudentPaymentTransactionRow = {
+  transaction_id: string;
+  amount: number | string | null;
+  currency: string | null;
+  title: string | null;
+  description: string | null;
+  receipt_label: string | null;
+  student_id: string;
+  user_id: string;
+  customer_email: string | null;
+  plan_id: string;
+};
+
+type CurrentStudentPaymentStatusRow = {
+  id: string;
+  student_id: string;
+  status: string | null;
+  provider_payment_id: string | null;
+  created_at: string | null;
+};
 
 function normalizeWebhookEventId(eventType: string, providerPaymentId: string) {
   return `${eventType}:${providerPaymentId}`;
@@ -30,78 +51,59 @@ function getWebhookToken() {
 
 export async function createCheckoutForCurrentStudent(planId: string) {
   void CURRENT_STUDENT_CHECKOUT_ACCESS_MODE;
-  const profile = await getCurrentStudentProfile();
-  if (!profile?.studentId || !profile.userId) {
-    throw new AdminHttpError(401, "UNAUTHORIZED", "Authentication required");
-  }
-
-  const admin = createAdminClient();
-  await assertPaymentPlanBillingCompatibility(profile.studentId, planId);
-  const { data: plan, error: planError } = await admin
-    .from("payment_plans")
-    .select("id, title, description, amount, currency, yookassa_product_label, is_active")
-    .eq("id", planId)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (planError || !plan) {
-    throw new AdminHttpError(404, "PAYMENT_PLAN_NOT_FOUND", "Payment plan not found");
-  }
-
+  const supabase = await createClient();
   const transactionId = randomUUID();
   const idempotenceKey = randomUUID();
   const origin = await getRequestOrigin();
   const returnUrl = `${origin}/settings/payments?payment=${transactionId}`;
 
-  const { error: insertError } = await admin.from("payment_transactions").insert({
-    id: transactionId,
-    student_id: profile.studentId,
-    amount: Number(plan.amount ?? 0),
-    currency: String(plan.currency ?? "RUB"),
-    status: "pending",
-    description: plan.description ?? plan.title,
-    provider: "yookassa",
-    plan_id: plan.id,
-    return_url: returnUrl,
-    idempotence_key: idempotenceKey,
-    raw_status: "pending",
-    metadata: {
-      user_id: profile.userId,
-      student_id: profile.studentId,
-      plan_id: String(plan.id)
-    }
+  const { data: transactionRows, error: createError } = await supabase.rpc("create_current_student_payment_transaction", {
+    p_transaction_id: transactionId,
+    p_plan_id: planId,
+    p_return_url: returnUrl,
+    p_idempotence_key: idempotenceKey
   });
 
-  if (insertError) {
-    throw new AdminHttpError(500, "PAYMENT_TRANSACTION_CREATE_FAILED", "Failed to create payment transaction", insertError.message);
+  if (createError) {
+    throw new AdminHttpError(500, "PAYMENT_TRANSACTION_CREATE_FAILED", "Failed to create payment transaction", createError.message);
   }
+
+  const transaction = ((transactionRows ?? []) as CurrentStudentPaymentTransactionRow[])[0] ?? null;
+  if (!transaction) {
+    throw new AdminHttpError(404, "PAYMENT_PLAN_NOT_FOUND", "Payment plan not found");
+  }
+
+  await assertPaymentPlanBillingCompatibility(transaction.student_id, transaction.plan_id, supabase);
 
   try {
     const payment = await createYooKassaPayment({
-      amount: Number(plan.amount ?? 0),
-      currency: String(plan.currency ?? "RUB"),
-      description: String(plan.title),
+      amount: Number(transaction.amount ?? 0),
+      currency: String(transaction.currency ?? "RUB"),
+      description: String(transaction.title ?? ""),
       returnUrl,
       idempotenceKey,
-      receiptLabel: String(plan.yookassa_product_label ?? plan.title),
-      customerEmail: profile.email,
+      receiptLabel: String(transaction.receipt_label ?? transaction.title ?? ""),
+      customerEmail: transaction.customer_email ?? "",
       metadata: {
         transactionId,
-        userId: profile.userId,
-        studentId: profile.studentId,
-        planId: String(plan.id)
+        userId: transaction.user_id,
+        studentId: transaction.student_id,
+        planId: transaction.plan_id
       }
     });
 
     const update = mapYooKassaPaymentToTransactionUpdate(payment);
-    const { error: updateError } = await admin
-      .from("payment_transactions")
-      .update({
-        provider_payment_id: payment.id,
-        provider_payload: payment,
-        ...update
-      })
-      .eq("id", transactionId);
+    const { error: updateError } = await supabase.rpc("update_current_student_payment_transaction_provider_state", {
+      p_transaction_id: transactionId,
+      p_provider_payment_id: payment.id,
+      p_provider_payload: payment,
+      p_status: update.status,
+      p_raw_status: update.raw_status,
+      p_paid_at: update.paid_at,
+      p_confirmation_url: update.confirmation_url,
+      p_payment_method_id: update.payment_method_id,
+      p_is_reusable_payment_method: update.is_reusable_payment_method
+    });
 
     if (updateError) {
       throw new AdminHttpError(500, "PAYMENT_TRANSACTION_UPDATE_FAILED", "Failed to update payment transaction", updateError.message);
@@ -112,28 +114,28 @@ export async function createCheckoutForCurrentStudent(planId: string) {
       redirectUrl: payment.confirmation?.confirmation_url ?? returnUrl
     };
   } catch (error) {
-    await admin
-      .from("payment_transactions")
-      .update({ status: "failed", raw_status: "provider_error", updated_at: new Date().toISOString() })
-      .eq("id", transactionId);
+    await supabase.rpc("update_current_student_payment_transaction_provider_state", {
+      p_transaction_id: transactionId,
+      p_provider_payment_id: null,
+      p_provider_payload: null,
+      p_status: "failed",
+      p_raw_status: "provider_error",
+      p_paid_at: null,
+      p_confirmation_url: null,
+      p_payment_method_id: null,
+      p_is_reusable_payment_method: null
+    });
     throw error;
   }
 }
 
 export async function syncCurrentStudentTransaction(transactionId: string): Promise<PaymentStatusContext> {
   void CURRENT_STUDENT_TRANSACTION_SYNC_ACCESS_MODE;
-  const profile = await getCurrentStudentProfile();
-  if (!profile?.studentId) {
-    throw new AdminHttpError(401, "UNAUTHORIZED", "Authentication required");
-  }
-
-  const admin = createAdminClient();
-  const { data: transaction, error } = await admin
-    .from("payment_transactions")
-    .select("id, student_id, status, provider_payment_id, created_at")
-    .eq("id", transactionId)
-    .eq("student_id", profile.studentId)
-    .maybeSingle();
+  const supabase = await createClient();
+  const { data: transactionRows, error } = await supabase.rpc("load_current_student_payment_transaction_status", {
+    p_transaction_id: transactionId
+  });
+  const transaction = ((transactionRows ?? []) as CurrentStudentPaymentStatusRow[])[0] ?? null;
 
   if (error || !transaction) {
     throw new AdminHttpError(404, "PAYMENT_TRANSACTION_NOT_FOUND", "Payment transaction not found");
@@ -147,17 +149,25 @@ export async function syncCurrentStudentTransaction(transactionId: string): Prom
     const payment = await getYooKassaPayment(String(transaction.provider_payment_id));
     const update = mapYooKassaPaymentToTransactionUpdate(payment);
 
-    await admin
-      .from("payment_transactions")
-      .update({
-        provider_payload: payment,
-        ...update
-      })
-      .eq("id", transactionId);
+    const { error: updateError } = await supabase.rpc("update_current_student_payment_transaction_provider_state", {
+      p_transaction_id: transactionId,
+      p_provider_payment_id: payment.id,
+      p_provider_payload: payment,
+      p_status: update.status,
+      p_raw_status: update.raw_status,
+      p_paid_at: update.paid_at,
+      p_confirmation_url: update.confirmation_url,
+      p_payment_method_id: update.payment_method_id,
+      p_is_reusable_payment_method: update.is_reusable_payment_method
+    });
+
+    if (updateError) {
+      throw new AdminHttpError(500, "PAYMENT_TRANSACTION_UPDATE_FAILED", "Failed to update payment transaction", updateError.message);
+    }
 
     status = update.status;
     if (update.status === "succeeded") {
-      await syncPaymentTransactionBilling(transactionId, admin);
+      await syncPaymentTransactionBilling(transactionId, supabase);
     }
   }
 

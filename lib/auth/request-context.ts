@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { revalidateTag, unstable_cache } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import type { UserRole } from "@/lib/auth/get-user-role";
@@ -7,7 +7,6 @@ import { toAvatarMediaUrl } from "@/lib/media/urls";
 import { measureServerTiming } from "@/lib/server/timing";
 import { REQUEST_CONTEXT_ACCESS_POLICIES, type AccessMode } from "@/lib/supabase/access";
 import { runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 type RequestProfileRow = {
@@ -25,6 +24,7 @@ type MinimalRequestContext = {
 };
 
 export type AppCapability = "student" | "teacher" | "staff_admin";
+type RbacScope = "own" | "assigned" | "all" | "own_demo" | "public" | "service_only";
 
 type ProfileIdentityContext = MinimalRequestContext & {
   role: UserRole | null;
@@ -38,6 +38,9 @@ export type AppActor = ProfileIdentityContext & {
   studentId: string | null;
   teacherId: string | null;
   accessibleStudentIds: string[] | null;
+  rbacRoles: UserRole[];
+  rbacPermissions: string[];
+  rbacPermissionScopes: Record<string, string[]>;
   isStudent: boolean;
   isTeacher: boolean;
   isStaffAdmin: boolean;
@@ -68,6 +71,12 @@ type LinkedActorData = {
   accessibleStudentIds: string[] | null;
 };
 
+type RbacActorData = {
+  rbacRoles: UserRole[];
+  rbacPermissions: string[];
+  rbacPermissionScopes: Record<string, string[]>;
+};
+
 type LinkedActorScopeMode = "layout" | "full";
 
 type LinkedActorScopeRpcRow = {
@@ -76,16 +85,28 @@ type LinkedActorScopeRpcRow = {
   accessible_student_ids: string[] | null;
 };
 
+type RbacRolePermissionRow = {
+  scope?: string | null;
+  permissions?: {
+    key?: string | null;
+  } | null;
+};
+
+type RbacUserRoleRow = {
+  roles?:
+    | {
+        key?: string | null;
+        role_permissions?: RbacRolePermissionRow[] | null;
+      }
+    | null;
+};
+
 const REQUEST_CONTEXT_MINIMAL_ACCESS_MODE: AccessMode = REQUEST_CONTEXT_ACCESS_POLICIES.minimal.mode;
 const REQUEST_CONTEXT_PROFILE_ACCESS_MODE: AccessMode = REQUEST_CONTEXT_ACCESS_POLICIES.profileIdentity.mode;
+const REQUEST_CONTEXT_RBAC_ACCESS_MODE: AccessMode = REQUEST_CONTEXT_ACCESS_POLICIES.rbacActor.mode;
 const REQUEST_CONTEXT_LINKED_SCOPE_ACCESS_MODE: AccessMode = REQUEST_CONTEXT_ACCESS_POLICIES.linkedActorScope.mode;
-const PROFILE_IDENTITY_CACHE_TTL_SECONDS = 60;
-const LINKED_SCOPE_LAYOUT_CACHE_TTL_SECONDS = 30;
-const LINKED_SCOPE_FULL_CACHE_TTL_SECONDS = 15;
-
-function profileIdentityCacheTag(userId: string) {
-  return `request-context:profile-identity:${userId}`;
-}
+const USER_ROLE_ORDER: UserRole[] = ["admin", "manager", "teacher", "student"];
+const RBAC_SCOPE_ORDER: RbacScope[] = ["own", "assigned", "all", "own_demo", "public", "service_only"];
 
 function linkedActorScopeCacheTag(userId: string, mode: LinkedActorScopeMode) {
   return `request-context:linked-scope:${mode}:${userId}`;
@@ -101,6 +122,22 @@ function normalizeRole(value: string | null | undefined): UserRole | null {
   }
 
   return null;
+}
+
+function normalizeRbacScope(value: string | null | undefined): RbacScope | null {
+  if (value === "own" || value === "assigned" || value === "all" || value === "own_demo" || value === "public" || value === "service_only") {
+    return value;
+  }
+
+  return null;
+}
+
+function createEmptyRbacActorData(): RbacActorData {
+  return {
+    rbacRoles: [],
+    rbacPermissions: [],
+    rbacPermissionScopes: {}
+  };
 }
 
 export function isLinkedActorScopeRpcUnavailableMessage(message: string) {
@@ -123,7 +160,51 @@ export function normalizeLinkedActorScopeRpcData(
   };
 }
 
-export function buildAppActor(identity: ProfileIdentityContext, linked: LinkedActorData): AppActor {
+export function normalizeRbacActorData(payload: RbacUserRoleRow[] | null | undefined): RbacActorData {
+  const roles = new Set<UserRole>();
+  const permissions = new Set<string>();
+  const scopesByPermission = new Map<string, Set<RbacScope>>();
+
+  for (const row of payload ?? []) {
+    const role = normalizeRole(row.roles?.key);
+    if (role) {
+      roles.add(role);
+    }
+
+    for (const rolePermission of row.roles?.role_permissions ?? []) {
+      const permissionKey = rolePermission.permissions?.key;
+      const scope = normalizeRbacScope(rolePermission.scope);
+
+      if (!permissionKey || !scope) {
+        continue;
+      }
+
+      permissions.add(permissionKey);
+      const scopes = scopesByPermission.get(permissionKey) ?? new Set<RbacScope>();
+      scopes.add(scope);
+      scopesByPermission.set(permissionKey, scopes);
+    }
+  }
+
+  return {
+    rbacRoles: USER_ROLE_ORDER.filter((role) => roles.has(role)),
+    rbacPermissions: Array.from(permissions).sort(),
+    rbacPermissionScopes: Object.fromEntries(
+      Array.from(scopesByPermission.entries())
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([permission, scopes]) => [
+          permission,
+          RBAC_SCOPE_ORDER.filter((scope) => scopes.has(scope))
+        ])
+    )
+  };
+}
+
+export function buildAppActor(
+  identity: ProfileIdentityContext,
+  linked: LinkedActorData,
+  rbac: RbacActorData = createEmptyRbacActorData()
+): AppActor {
   const capabilities = new Set<AppCapability>();
 
   if (linked.studentId) {
@@ -149,6 +230,11 @@ export function buildAppActor(identity: ProfileIdentityContext, linked: LinkedAc
     studentId: linked.studentId,
     teacherId: linked.teacherId,
     accessibleStudentIds: isTeacher ? linked.accessibleStudentIds ?? [] : null,
+    rbacRoles: [...rbac.rbacRoles],
+    rbacPermissions: [...rbac.rbacPermissions],
+    rbacPermissionScopes: Object.fromEntries(
+      Object.entries(rbac.rbacPermissionScopes).map(([permission, scopes]) => [permission, [...scopes]])
+    ),
     isStudent,
     isTeacher,
     isStaffAdmin
@@ -215,7 +301,7 @@ const getMinimalRequestContextBase = cache(async (): Promise<MinimalRequestConte
 
 async function loadProfileIdentityContext(context: MinimalRequestContext): Promise<ProfileIdentityContext> {
   void REQUEST_CONTEXT_PROFILE_ACCESS_MODE;
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const profileResponse = await measureServerTiming("request-context-profile", async () =>
     supabase
       .from("profiles")
@@ -242,25 +328,7 @@ async function loadProfileIdentityContext(context: MinimalRequestContext): Promi
 }
 
 async function getCachedProfileIdentityContext(context: MinimalRequestContext): Promise<ProfileIdentityContext> {
-  let cacheMiss = false;
-  const load = unstable_cache(
-    async () => {
-      cacheMiss = true;
-      return measureServerTiming("request-context-profile-cache-miss", async () => loadProfileIdentityContext(context));
-    },
-    ["request-context-profile", context.userId],
-    {
-      revalidate: PROFILE_IDENTITY_CACHE_TTL_SECONDS,
-      tags: [profileIdentityCacheTag(context.userId)]
-    }
-  );
-
-  const identity = await load();
-  if (!cacheMiss) {
-    await measureServerTiming("request-context-profile-cache-hit", async () => identity);
-  }
-
-  return identity;
+  return measureServerTiming("request-context-profile-user-scoped", async () => loadProfileIdentityContext(context));
 }
 
 const getProfileIdentityContextBase = cache(async (): Promise<ProfileIdentityContext | null> => {
@@ -272,68 +340,14 @@ const getProfileIdentityContextBase = cache(async (): Promise<ProfileIdentityCon
   return getCachedProfileIdentityContext(context);
 });
 
-async function getLinkedActorDataWithChainedResolver(
-  adminClient: ReturnType<typeof createAdminClient>,
-  identity: ProfileIdentityContext,
-  mode: LinkedActorScopeMode
-): Promise<LinkedActorData> {
-  const [studentResponse, teacherResponse] = await Promise.all([
-    adminClient.from("students").select("id").eq("profile_id", identity.userId).maybeSingle(),
-    adminClient.from("teachers").select("id").eq("profile_id", identity.userId).maybeSingle()
-  ]);
-
-  if (studentResponse.error) {
-    throw studentResponse.error;
-  }
-
-  if (teacherResponse.error) {
-    throw teacherResponse.error;
-  }
-
-  const studentId = typeof studentResponse.data?.id === "string" ? studentResponse.data.id : null;
-  const teacherId = typeof teacherResponse.data?.id === "string" ? teacherResponse.data.id : null;
-
-  let accessibleStudentIds: string[] | null = null;
-  const shouldResolveTeacherScope = mode === "full" && (identity.profileRole === "teacher" || Boolean(teacherId));
-
-  if (shouldResolveTeacherScope) {
-    if (teacherId) {
-      const studentsResponse = await adminClient
-        .from("students")
-        .select("id")
-        .eq("primary_teacher_id", teacherId);
-
-      if (studentsResponse.error) {
-        throw studentsResponse.error;
-      }
-
-      accessibleStudentIds = Array.from(
-        new Set(
-          ((studentsResponse.data ?? []) as Array<{ id: string | null }>)
-            .map((row) => row.id)
-            .filter((value): value is string => Boolean(value))
-        )
-      );
-    } else {
-      accessibleStudentIds = [];
-    }
-  }
-
-  return {
-    studentId,
-    teacherId,
-    accessibleStudentIds
-  };
-}
-
-async function getLinkedActorDataWithPrivilegedResolver(
+async function getLinkedActorDataWithUserScopedResolver(
   identity: ProfileIdentityContext,
   mode: LinkedActorScopeMode
 ): Promise<LinkedActorData> {
   return measureServerTiming("request-context-linked-scope-rpc", async () => {
     void REQUEST_CONTEXT_LINKED_SCOPE_ACCESS_MODE;
-    const adminClient = createAdminClient();
-    const rpcResponse = await adminClient.rpc("get_linked_actor_scope", {
+    const supabase = await createClient();
+    const rpcResponse = await supabase.rpc("get_linked_actor_scope", {
       p_profile_id: identity.userId
     });
 
@@ -346,9 +360,11 @@ async function getLinkedActorDataWithPrivilegedResolver(
         code: "REQUEST_CONTEXT_SCOPE_RPC_UNAVAILABLE",
         message: rpcResponse.error.message
       });
-      return measureServerTiming("request-context-linked-scope-fallback", async () =>
-        getLinkedActorDataWithChainedResolver(adminClient, identity, mode)
-      );
+      return {
+        studentId: null,
+        teacherId: null,
+        accessibleStudentIds: null
+      };
     }
 
     console.warn("REQUEST_CONTEXT_SCOPE_RPC_FAILED", {
@@ -360,32 +376,49 @@ async function getLinkedActorDataWithPrivilegedResolver(
 }
 
 async function getCachedLinkedActorData(identity: ProfileIdentityContext, mode: LinkedActorScopeMode): Promise<LinkedActorData> {
-  let cacheMiss = false;
-  const load = unstable_cache(
-    async () => {
-      cacheMiss = true;
-      return measureServerTiming("request-context-linked-scope-cache-miss", async () =>
-        getLinkedActorDataWithPrivilegedResolver(identity, mode)
-      );
-    },
-    ["request-context-linked-scope", mode, identity.userId],
-    {
-      revalidate: mode === "full" ? LINKED_SCOPE_FULL_CACHE_TTL_SECONDS : LINKED_SCOPE_LAYOUT_CACHE_TTL_SECONDS,
-      tags: [linkedActorScopeCacheTag(identity.userId, mode)]
-    }
+  return measureServerTiming(
+    mode === "full" ? "request-context-linked-scope-full" : "request-context-linked-scope-layout",
+    async () => getLinkedActorDataWithUserScopedResolver(identity, mode)
   );
+}
 
-  const linked = await load();
-  if (!cacheMiss) {
-    await measureServerTiming("request-context-linked-scope-cache-hit", async () => linked);
+async function loadRbacActorData(identity: ProfileIdentityContext): Promise<RbacActorData> {
+  try {
+    void REQUEST_CONTEXT_RBAC_ACCESS_MODE;
+    const supabase = await createClient();
+    const response = await measureServerTiming("request-context-rbac", async () =>
+      supabase
+        .from("user_roles")
+        .select("roles(key, role_permissions(scope, permissions(key)))")
+        .eq("user_id", identity.userId)
+    );
+
+    if (response.error) {
+      console.warn("REQUEST_CONTEXT_RBAC_LOAD_FAILED", {
+        code: "REQUEST_CONTEXT_RBAC_LOAD_FAILED",
+        message: response.error.message
+      });
+      return createEmptyRbacActorData();
+    }
+
+    return normalizeRbacActorData(response.data as RbacUserRoleRow[] | null | undefined);
+  } catch (error) {
+    console.warn("REQUEST_CONTEXT_RBAC_LOAD_FAILED", {
+      code: "REQUEST_CONTEXT_RBAC_LOAD_FAILED",
+      message: error instanceof Error ? error.message : "Unknown RBAC load failure"
+    });
+    return createEmptyRbacActorData();
   }
+}
 
-  return linked;
+async function getCachedRbacActorData(identity: ProfileIdentityContext): Promise<RbacActorData> {
+  return measureServerTiming("request-context-rbac-user-scoped", async () => loadRbacActorData(identity));
 }
 
 type RequestContextBootstrap = {
   identity: ProfileIdentityContext;
   linked: LinkedActorData;
+  rbac: RbacActorData;
 };
 
 const getRequestContextBootstrapBase = cache(async (mode: LinkedActorScopeMode): Promise<RequestContextBootstrap | null> => {
@@ -395,9 +428,15 @@ const getRequestContextBootstrapBase = cache(async (mode: LinkedActorScopeMode):
   }
 
   const identity = await getCachedProfileIdentityContext(context);
+  const [linked, rbac] = await Promise.all([
+    getCachedLinkedActorData(identity, mode),
+    getCachedRbacActorData(identity)
+  ]);
+
   return {
     identity,
-    linked: await getCachedLinkedActorData(identity, mode)
+    linked,
+    rbac
   };
 });
 
@@ -407,7 +446,7 @@ const getAppActorBase = cache(async (mode: LinkedActorScopeMode): Promise<AppAct
     return null;
   }
 
-  return buildAppActor(bootstrap.identity, bootstrap.linked);
+  return buildAppActor(bootstrap.identity, bootstrap.linked, bootstrap.rbac);
 });
 
 export const getAuthActor = cache(async (): Promise<MinimalRequestContext | null> => await getMinimalRequestContextBase());
@@ -497,7 +536,7 @@ export async function requireRequestContext() {
 }
 
 export async function invalidateProfileIdentityCache(userId: string) {
-  revalidateTag(profileIdentityCacheTag(userId), "max");
+  void userId;
 }
 
 export async function invalidateLinkedActorScopeCache(userId: string, mode?: LinkedActorScopeMode) {
@@ -510,8 +549,11 @@ export async function invalidateLinkedActorScopeCache(userId: string, mode?: Lin
   revalidateTag(linkedActorScopeCacheTag(userId, "full"), "max");
 }
 
+export async function invalidateRbacActorCache(userId: string) {
+  void userId;
+}
+
 export async function invalidateFullAppActorCache(userId: string) {
-  await invalidateProfileIdentityCache(userId);
   await invalidateLinkedActorScopeCache(userId);
 }
 
