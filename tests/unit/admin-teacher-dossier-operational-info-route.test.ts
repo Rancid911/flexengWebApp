@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const createClientMock = vi.fn();
 const writeAuditMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -83,14 +90,14 @@ function createSupabaseMock(
 describe("PATCH /api/admin/teachers/[teacherId]/dossier/operational-info", () => {
   beforeEach(() => {
     vi.resetModules();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     createClientMock.mockReset();
     writeAuditMock.mockReset();
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
   });
 
   it("rejects teacher actors before touching Supabase or audit", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-profile-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-profile-1", role: "teacher" });
 
     const { PATCH } = await import("@/app/api/admin/teachers/[teacherId]/dossier/operational-info/route");
     const response = await PATCH(createRequest(validPayload), { params: Promise.resolve({ teacherId: "teacher-1" }) });
@@ -202,7 +209,7 @@ describe("PATCH /api/admin/teachers/[teacherId]/dossier/operational-info", () =>
   });
 
   it("delegates non-staff access to staff API guard", async () => {
-    requireStaffAdminApiMock.mockRejectedValue(new Error("NEXT_REDIRECT:/"));
+    requireAdminApiPermissionMock.mockRejectedValue(new Error("NEXT_REDIRECT:/"));
     const mocks = createSupabaseMock();
     createClientMock.mockResolvedValue(mocks.supabase);
 

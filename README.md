@@ -44,7 +44,7 @@ git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboar
 3. Заполните:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY` (нужен для server-side admin CRUD в `/admin`)
+   - `SUPABASE_SERVICE_ROLE_KEY` (нужен только для документированных privileged server boundaries из service-role inventory)
 
 ## Стек
 
@@ -73,12 +73,12 @@ git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboar
 - Protected API routes должны вызывать `requirePermission()`; public/provider/internal exceptions явно перечислены в `scripts/check-architecture.mjs`.
 - UI не обращается к Supabase напрямую; auth, storage and persistence flows go through same-origin API/server boundaries.
 - Browser Supabase clients are blocked by `npm run check:architecture`.
-- Актуальные правила описаны в `ARCHITECTURE.md`, `docs/architecture.md` и `ARCHITECTURE_MIGRATION.md`.
+- Актуальные правила описаны в `ARCHITECTURE.md`, `docs/README.md` и `docs/architecture.md`.
 
 ## Product docs
 
-- `docs/online-school-product-audit-2026-03.md` — аудит текущего функционала онлайн-школы и roadmap дальнейшего развития
-- `docs/online-school-delivery-plan-2026-q2.md` — инженерный delivery-plan по спринтам: schema, API, UI, роли и тестирование
+- `docs/decisions/historical/online-school-product-audit-2026-03.md` — historical audit and roadmap context, not current runtime truth
+- `docs/decisions/historical/online-school-delivery-plan-2026-q2.md` — historical engineering delivery plan, not current runtime truth
 
 ## Next 16 migration status
 

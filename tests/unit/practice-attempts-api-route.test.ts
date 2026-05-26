@@ -20,7 +20,12 @@ describe("/api/practice/attempts POST", () => {
       role: "student",
       profileRole: "student",
       isStudent: true,
-      studentId: "student-1"
+      studentId: "student-1",
+      rbacRoles: ["student"],
+      rbacPermissions: ["homework.submit"],
+      rbacPermissionScopes: {
+        "homework.submit": ["own"]
+      }
     });
     submitPracticeTestAttemptMock.mockReset();
   });
@@ -64,6 +69,77 @@ describe("/api/practice/attempts POST", () => {
       timeSpentSeconds: 42
     });
     expect(response.status).toBe(201);
+  });
+
+  it("submits attempts for loaded RBAC student actors with own homework submit scope", async () => {
+    getAppActorMock.mockResolvedValue({
+      userId: "student-profile-1",
+      role: "student",
+      profileRole: "student",
+      isStudent: true,
+      studentId: "student-1",
+      rbacRoles: ["student"],
+      rbacPermissions: ["homework.submit"],
+      rbacPermissionScopes: {
+        "homework.submit": ["own"]
+      }
+    });
+    submitPracticeTestAttemptMock.mockResolvedValue({
+      attemptId: "attempt-1",
+      score: 100,
+      correctAnswers: 2,
+      totalQuestions: 2,
+      passed: true,
+      passingScore: 70,
+      questions: []
+    });
+
+    const { POST } = await import("@/app/api/practice/attempts/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/practice/attempts", {
+        method: "POST",
+        body: JSON.stringify({
+          activityId: "test_11111111-1111-1111-1111-111111111111",
+          answers: [
+            {
+              questionId: "22222222-2222-2222-2222-222222222222",
+              optionId: "33333333-3333-3333-3333-333333333333"
+            }
+          ],
+          timeSpentSeconds: 42
+        })
+      })
+    );
+
+    expect(submitPracticeTestAttemptMock).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(201);
+  });
+
+  it("denies loaded RBAC student actors missing homework submit before parsing invalid JSON", async () => {
+    getAppActorMock.mockResolvedValue({
+      userId: "student-profile-1",
+      role: "student",
+      profileRole: "student",
+      isStudent: true,
+      studentId: "student-1",
+      rbacRoles: ["student"],
+      rbacPermissions: ["homework.view"],
+      rbacPermissionScopes: {
+        "homework.view": ["own"]
+      }
+    });
+
+    const { POST } = await import("@/app/api/practice/attempts/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/practice/attempts", {
+        method: "POST",
+        body: "not-json"
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN" });
+    expect(submitPracticeTestAttemptMock).not.toHaveBeenCalled();
   });
 
   it("rejects unauthenticated attempts before submit", async () => {

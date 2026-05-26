@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireStaffAdminApi } from "@/lib/admin/auth";
+import { requireAdminApiPermission } from "@/lib/admin/auth";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { updateTeacherBasicInfo } from "@/lib/admin/teacher-dossier.service";
 import { teacherBasicInfoUpdateSchema } from "@/lib/admin/validation";
-import { requirePermission } from "@/lib/permissions";
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ teacherId: string }> }) => {
-  const actor = await requireStaffAdminApi();
-  requirePermission(actor, "teachers.manage");
+  const actor = await requireAdminApiPermission("teachers.manage");
   const { teacherId } = await params;
   const body = await request.json();
   const parsed = teacherBasicInfoUpdateSchema.safeParse(body);

@@ -2,6 +2,7 @@ export type RbacPermissionActor = {
   rbacRoles?: string[] | null;
   rbacPermissions?: string[] | null;
   rbacPermissionScopes?: Record<string, string[]> | null;
+  rbacStatus?: "loaded" | "empty" | "error" | null;
 };
 
 export type RbacPermissionRule = {
@@ -11,11 +12,12 @@ export type RbacPermissionRule = {
 
 function hasLoadedRbacMetadata(actor: RbacPermissionActor | null | undefined) {
   if (!actor) return false;
-  return Boolean(
+  const hasMetadata = Boolean(
     (Array.isArray(actor.rbacRoles) && actor.rbacRoles.length > 0) ||
       (Array.isArray(actor.rbacPermissions) && actor.rbacPermissions.length > 0) ||
       (actor.rbacPermissionScopes && Object.keys(actor.rbacPermissionScopes).length > 0)
   );
+  return (actor.rbacStatus ?? (hasMetadata ? "loaded" : "empty")) === "loaded" && hasMetadata;
 }
 
 export function canUseRbacPermission(
@@ -24,7 +26,7 @@ export function canUseRbacPermission(
   allowedScopes: string[] = []
 ) {
   if (!hasLoadedRbacMetadata(actor)) {
-    return true;
+    return false;
   }
 
   if (!actor?.rbacPermissions?.includes(permission)) {

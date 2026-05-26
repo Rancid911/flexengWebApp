@@ -28,22 +28,36 @@ import { GET as getScheduleOptions } from "@/app/api/schedule/options/route";
 
 const teacherActor = {
   role: "teacher",
+  accessMode: "teacher_assigned",
   userId: "teacher-profile-1",
   teacherId: "teacher-1",
   studentId: null,
-  accessibleStudentIds: ["student-1"]
+  accessibleStudentIds: ["student-1"],
+  rbacStatus: "loaded",
+  rbacPermissions: ["schedule.view", "schedule.manage"],
+  rbacPermissionScopes: {
+    "schedule.view": ["assigned"],
+    "schedule.manage": ["assigned"]
+  }
 };
 
 const studentActor = {
   role: "student",
+  accessMode: "student_own",
   userId: "student-profile-1",
   studentId: "student-1",
   teacherId: null,
-  accessibleStudentIds: null
+  accessibleStudentIds: null,
+  rbacStatus: "loaded",
+  rbacPermissions: ["schedule.view"],
+  rbacPermissionScopes: {
+    "schedule.view": ["own"]
+  }
 };
 
 const deniedActor = {
   role: null,
+  accessMode: "staff_all",
   userId: "profile-without-workspace",
   studentId: null,
   teacherId: null,

@@ -47,6 +47,4 @@ export const REQUEST_ACCESS_MATRIX = {
   ]
 } as const;
 
-export const SERVICE_ROLE_EXCEPTION_LIST = [
-  "lib/search/sources/search-documents.ts: search candidate aggregation remains aggregate/service-role by design"
-] as const;
+export const SERVICE_ROLE_EXCEPTION_LIST = [] as const;

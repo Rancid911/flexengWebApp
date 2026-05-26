@@ -12,6 +12,6 @@ export const GET = withApiErrorHandling(async () => {
   }
   requirePermission(actor, "notifications.user.read");
 
-  const { items, unreadCount } = await listVisibleNotificationsForUser();
+  const { items, unreadCount } = await listVisibleNotificationsForUser(actor);
   return NextResponse.json({ items, unreadCount });
 });

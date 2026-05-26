@@ -123,10 +123,10 @@ describe("requireRealStudentWriteContext", () => {
     ).toThrow("Real student write context required");
   });
 
-  it("allows explicit real dual-role actors only when represented as a student profile", async () => {
+  it("denies teacher-linked dual-role actors even when profileRole is student metadata", async () => {
     const { requireRealStudentWriteContext } = await import("@/lib/students/current-student");
 
-    expect(
+    expect(() =>
       requireRealStudentWriteContext({
         userId: "dual-profile-1",
         email: "dual@example.com",
@@ -141,9 +141,6 @@ describe("requireRealStudentWriteContext", () => {
         teacherId: "teacher-1",
         accessibleStudentIds: ["student-2"]
       })
-    ).toEqual({
-      userId: "dual-profile-1",
-      studentId: "student-1"
-    });
+    ).toThrow("Real student write context required");
   });
 });

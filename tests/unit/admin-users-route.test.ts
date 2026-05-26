@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const writeAuditMock = vi.fn();
 const invalidateFullAppActorCacheMock = vi.fn();
 const createAdminClientMock = vi.fn();
@@ -10,7 +10,14 @@ const hydrateUsersWithStudentDetailsMock = vi.fn();
 const toUserDtoMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/admin/audit", () => ({
@@ -41,7 +48,7 @@ vi.mock("@/lib/admin/users", async () => {
 describe("/api/admin/users POST", () => {
   beforeEach(() => {
     vi.resetModules();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     writeAuditMock.mockReset();
     invalidateFullAppActorCacheMock.mockReset();
     createAdminClientMock.mockReset();
@@ -51,7 +58,7 @@ describe("/api/admin/users POST", () => {
   });
 
   it("creates a teacher record so the new teacher appears in teacher options", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const profileSelectSingleMock = vi.fn().mockResolvedValue({
       data: {
@@ -176,7 +183,7 @@ describe("/api/admin/users POST", () => {
   });
 
   it("denies manager user creation before touching Supabase clients", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
 
     const { POST } = await import("@/app/api/admin/users/route");
     const response = await POST(

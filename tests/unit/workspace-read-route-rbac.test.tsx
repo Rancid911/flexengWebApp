@@ -77,7 +77,7 @@ describe("workspace read route RBAC guards", () => {
     ["words", () => import("@/app/(workspace)/(shared-zone)/words/my/page").then((module) => module.default())],
     ["payments", () => import("@/app/(workspace)/(student-zone)/settings/payments/page").then((module) => module.default({ searchParams: Promise.resolve({}) }))],
     ["teacher students", () => import("@/app/(workspace)/(teacher-zone)/students/page").then((module) => module.default({ searchParams: Promise.resolve({}) }))]
-  ])("renders %s with legacy fallback when RBAC metadata is empty", async (_name, renderPage) => {
+  ])("denies %s when RBAC metadata is empty", async (_name, renderPage) => {
     routeMocks.requireLayoutActor.mockResolvedValue({
       userId: "user-1",
       rbacRoles: [],
@@ -85,8 +85,8 @@ describe("workspace read route RBAC guards", () => {
       rbacPermissionScopes: {}
     });
 
-    await expect(renderPage()).resolves.toBeTruthy();
-    expect(routeMocks.notFound).not.toHaveBeenCalled();
+    await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(routeMocks.notFound).toHaveBeenCalledTimes(1);
   });
 
   it.each([

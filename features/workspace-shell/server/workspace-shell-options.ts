@@ -1,43 +1,21 @@
 import type { WorkspaceChromeProps, WorkspaceShellVariant, WorkspaceUtilitySlots } from "@/features/workspace-shell/model/workspace-shell.types";
+import { getWorkspaceUtilitySlots, resolveWorkspaceShellIntent } from "@/features/workspace-shell/model/workspace-shell-intent";
 
 type ResolveWorkspaceShellOptionsArgs = {
-  shellVariant: WorkspaceShellVariant;
+  shellVariant?: WorkspaceShellVariant;
   pathname?: string;
-};
-
-const baseUtilitySlotsByVariant: Record<WorkspaceShellVariant, WorkspaceUtilitySlots> = {
-  shared: {
-    search: "lazy",
-    notifications: "lazy"
-  },
-  staff: {
-    search: "lazy",
-    notifications: "lazy"
-  },
-  teacher: {
-    search: "none",
-    notifications: "lazy"
-  },
-  student: {
-    search: "none",
-    notifications: "lazy"
-  }
 };
 
 export function resolveWorkspaceShellOptions({
   shellVariant,
   pathname
 }: ResolveWorkspaceShellOptionsArgs): WorkspaceChromeProps {
-  const utilitySlots = {
-    ...baseUtilitySlotsByVariant[shellVariant]
-  };
-
-  if (pathname === "/search") {
-    utilitySlots.search = "none";
-  }
+  const intent = pathname ? resolveWorkspaceShellIntent(pathname) : null;
+  const resolvedShellVariant = shellVariant ?? intent?.shellVariant ?? "shared";
+  const utilitySlots: WorkspaceUtilitySlots = intent?.utilitySlots ?? getWorkspaceUtilitySlots(resolvedShellVariant);
 
   return {
-    shellVariant,
+    shellVariant: resolvedShellVariant,
     utilitySlots
   };
 }

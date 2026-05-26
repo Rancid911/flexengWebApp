@@ -1,11 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const getAdminDashboardMetricsMock = vi.fn();
 const listAdminTeacherOptionsMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/admin/dashboard-metrics", () => ({
@@ -17,7 +24,7 @@ vi.mock("@/lib/admin/user-directory", () => ({
 }));
 
 function resetMocks() {
-  requireStaffAdminApiMock.mockReset();
+  requireAdminApiPermissionMock.mockReset();
   getAdminDashboardMetricsMock.mockReset();
   listAdminTeacherOptionsMock.mockReset();
 }
@@ -42,8 +49,8 @@ describe("admin read helper API routes", () => {
     resetMocks();
   });
 
-  it("loads dashboard metrics after admin dashboard read permission check", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+  it("loads dashboard metrics after roles view permission check", async () => {
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     getAdminDashboardMetricsMock.mockResolvedValue({
       revenue_month: 120000,
       new_payments_7d: 4,
@@ -57,11 +64,12 @@ describe("admin read helper API routes", () => {
     const response = await GET();
 
     expect(response.status).toBe(200);
+    expect(requireAdminApiPermissionMock).toHaveBeenCalledWith("roles.view");
     expect(getAdminDashboardMetricsMock).toHaveBeenCalledTimes(1);
   });
 
   it("does not load dashboard metrics for managers", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
 
     const { GET } = await import("@/app/api/admin/dashboard/metrics/route");
     const response = await GET();
@@ -69,8 +77,8 @@ describe("admin read helper API routes", () => {
     await expectForbidden(response);
   });
 
-  it("does not load dashboard metrics without admin dashboard read permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+  it("does not load dashboard metrics without roles view permission", async () => {
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/admin/dashboard/metrics/route");
     const response = await GET();
@@ -79,7 +87,7 @@ describe("admin read helper API routes", () => {
   });
 
   it("loads teacher options after admin teachers read permission check", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     listAdminTeacherOptionsMock.mockResolvedValue([{ id: "teacher-1", name: "Teacher One" }]);
 
     const { GET } = await import("@/app/api/admin/users/teacher-options/route");
@@ -90,7 +98,7 @@ describe("admin read helper API routes", () => {
   });
 
   it("does not load teacher options without admin teachers read permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/admin/users/teacher-options/route");
     const response = await GET();

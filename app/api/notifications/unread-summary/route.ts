@@ -12,6 +12,6 @@ export const GET = withApiErrorHandling(async () => {
   }
   requirePermission(actor, "notifications.user.read");
 
-  const { unreadCount } = await getUnreadNotificationsSummaryForUser();
+  const { unreadCount } = await getUnreadNotificationsSummaryForUser(actor);
   return NextResponse.json({ unreadCount });
 });

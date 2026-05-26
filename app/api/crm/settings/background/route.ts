@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireStaffAdminApi } from "@/lib/admin/auth";
+import { requireAdminApiPermission } from "@/lib/admin/auth";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { uploadCrmBackgroundImage } from "@/lib/crm/queries";
-import { requirePermission } from "@/lib/permissions";
 
 const MAX_BACKGROUND_SIZE_BYTES = 8 * 1024 * 1024;
 
@@ -37,8 +36,7 @@ async function readCrmBackgroundFormData(request: NextRequest) {
 }
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
-  const actor = await requireStaffAdminApi();
-  requirePermission(actor, "crm.leads.manage");
+  await requireAdminApiPermission("crm.leads.manage");
 
   const formData = await readCrmBackgroundFormData(request);
   let file = formData.get("file");

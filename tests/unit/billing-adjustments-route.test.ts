@@ -20,7 +20,18 @@ describe("/api/students/[id]/billing/adjustments", () => {
   });
 
   it("creates a billing adjustment for an authorized staff actor", async () => {
-    requireScheduleApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireScheduleApiMock.mockResolvedValue({
+      userId: "manager-1",
+      role: "manager",
+      accessMode: "staff_all",
+      studentId: null,
+      teacherId: null,
+      accessibleStudentIds: null,
+      rbacStatus: "loaded",
+      rbacRoles: ["manager"],
+      rbacPermissions: ["billing.adjust"],
+      rbacPermissionScopes: { "billing.adjust": ["all"] }
+    });
     createStudentBillingAdjustmentMock.mockResolvedValue({ studentId: "student-1" });
 
     const { POST } = await import("@/app/api/students/[id]/billing/adjustments/route");
@@ -49,8 +60,14 @@ describe("/api/students/[id]/billing/adjustments", () => {
     requireScheduleApiMock.mockResolvedValue({
       userId: "teacher-profile-1",
       role: "teacher",
+      accessMode: "teacher_assigned",
+      studentId: null,
       teacherId: "teacher-1",
-      accessibleStudentIds: ["student-2"]
+      accessibleStudentIds: ["student-2"],
+      rbacStatus: "loaded",
+      rbacRoles: ["teacher"],
+      rbacPermissions: ["billing.adjust"],
+      rbacPermissionScopes: { "billing.adjust": ["assigned"] }
     });
 
     const { POST } = await import("@/app/api/students/[id]/billing/adjustments/route");

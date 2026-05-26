@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { StudentsDirectoryClient, type StudentsDirectoryItem } from "@/features/students/components/students-directory-client";
+import { renderAdminStudentsDirectoryRoute } from "@/features/admin/server/admin-directory-routes";
 import { measureServerTiming } from "@/lib/server/timing";
 import { isStaffAdminScheduleActor, isStudentScheduleActor, isTeacherScheduleActor, requireSchedulePage } from "@/lib/schedule/server";
 import { listTeacherStudentsPage } from "@/lib/teacher-workspace/queries";
@@ -22,7 +23,7 @@ export async function renderTeacherStudentsRoute({
     redirect("/dashboard");
   }
   if (isStaffAdminScheduleActor(actor)) {
-    redirect("/admin/students");
+    return renderAdminStudentsDirectoryRoute({ searchParams, basePath: "/students" });
   }
   if (!isTeacherScheduleActor(actor)) {
     redirect("/dashboard");

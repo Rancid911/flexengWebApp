@@ -24,7 +24,7 @@ describe("ProfileSettingsPage", () => {
     notFoundMock.mockClear();
   });
 
-  it("renders with legacy fallback when RBAC metadata is empty", async () => {
+  it("denies direct access when RBAC metadata is empty", async () => {
     requireLayoutActorMock.mockResolvedValue({
       userId: "student-profile-1",
       rbacRoles: [],
@@ -33,10 +33,8 @@ describe("ProfileSettingsPage", () => {
     });
 
     const { default: ProfileSettingsPage } = await import("@/app/(workspace)/(shared-zone)/settings/profile/page");
-    const result = await ProfileSettingsPage();
-
-    expect(result).toBeTruthy();
-    expect(notFoundMock).not.toHaveBeenCalled();
+    await expect(ProfileSettingsPage()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(notFoundMock).toHaveBeenCalledTimes(1);
   });
 
   it("renders when RBAC grants profile.view own scope", async () => {

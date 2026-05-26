@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const createClientMock = vi.fn();
 const writeAuditMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -103,13 +110,13 @@ async function expectForbidden(response: Response) {
 describe("/api/admin/tests", () => {
   beforeEach(() => {
     vi.resetModules();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     createClientMock.mockReset();
     writeAuditMock.mockReset();
   });
 
   it("returns a field validation error when a trainer is missing module_id", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     createClientMock.mockResolvedValue({});
 
     const { POST } = await import("@/app/api/admin/tests/route");
@@ -127,7 +134,7 @@ describe("/api/admin/tests", () => {
   });
 
   it("rejects list access without the learning tests permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/admin/tests/route");
     const response = await GET(new NextRequest("http://localhost/api/admin/tests?page=1"));
@@ -136,7 +143,7 @@ describe("/api/admin/tests", () => {
   });
 
   it("rejects create access without the learning tests permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { POST } = await import("@/app/api/admin/tests/route");
     const response = await POST(
@@ -151,7 +158,7 @@ describe("/api/admin/tests", () => {
   });
 
   it("returns a field validation error when a final test is missing module_id", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     createClientMock.mockResolvedValue({});
 
     const { POST } = await import("@/app/api/admin/tests/route");
@@ -169,7 +176,7 @@ describe("/api/admin/tests", () => {
   });
 
   it("assigns a new trainer to the end of the list when sort_order is omitted", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const insertedTestRow = { ...buildDetailRow(), id: "test-created", activity_type: "trainer", module_id: "11111111-1111-4111-8111-111111111111", sort_order: 6 };
     const testsInsertMock = vi.fn(() => ({
@@ -227,7 +234,7 @@ describe("/api/admin/tests", () => {
   });
 
   it("allows placement tests without module_id when placement fields are valid", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const insertedTestRow = { ...buildDetailRow(), id: "placement-created", activity_type: "test", assessment_kind: "placement", module_id: null, scoring_profile: { kind: "placement_v1" }, sort_order: 3 };
     const testsInsertMock = vi.fn(() => ({
@@ -309,13 +316,13 @@ describe("/api/admin/tests", () => {
 describe("/api/admin/tests/[id]", () => {
   beforeEach(() => {
     vi.resetModules();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     createClientMock.mockReset();
     writeAuditMock.mockReset();
   });
 
   it("returns full test detail with nested questions and attempts flag", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const detailRow = buildDetailRow();
     const testsSingleMock = vi.fn().mockResolvedValue({ data: detailRow, error: null });
@@ -355,7 +362,7 @@ describe("/api/admin/tests/[id]", () => {
   });
 
   it("rejects detail access without the learning tests permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/admin/tests/[id]/route");
     const response = await GET(new NextRequest("http://localhost/api/admin/tests/test-1"), {
@@ -366,7 +373,7 @@ describe("/api/admin/tests/[id]", () => {
   });
 
   it("rejects update access without the learning tests permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { PATCH } = await import("@/app/api/admin/tests/[id]/route");
     const response = await PATCH(
@@ -384,7 +391,7 @@ describe("/api/admin/tests/[id]", () => {
   });
 
   it("rejects delete access without the learning tests permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { DELETE } = await import("@/app/api/admin/tests/[id]/route");
     const response = await DELETE(new NextRequest("http://localhost/api/admin/tests/test-1", { method: "DELETE" }), {
@@ -395,7 +402,7 @@ describe("/api/admin/tests/[id]", () => {
   });
 
   it("blocks question deletion for a test that already has attempts", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const detailRow = buildDetailRow();
     const testsSingleMock = vi.fn().mockResolvedValue({ data: detailRow, error: null });
@@ -455,7 +462,7 @@ describe("/api/admin/tests/[id]", () => {
   });
 
   it("updates time limit on existing test", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const beforeRow = buildDetailRow();
     const afterRow = { ...buildDetailRow(), time_limit_minutes: 25 };
@@ -509,7 +516,7 @@ describe("/api/admin/tests/[id]", () => {
   });
 
   it("clears time limit on existing test", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const beforeRow = buildDetailRow();
     const afterRow = { ...buildDetailRow(), time_limit_minutes: null };

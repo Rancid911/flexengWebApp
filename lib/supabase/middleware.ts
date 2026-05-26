@@ -24,11 +24,13 @@ const PROTECTED_API_PREFIXES = [
   "/api/admin/",
   "/api/notifications",
   "/api/schedule",
-  "/api/search",
   "/api/students/",
   "/api/teacher-notes/",
   "/api/payments"
 ];
+const OPTIONAL_AUTH_API_EXACT_PATHS = new Set([
+  "/api/search"
+]);
 const PUBLIC_API_EXACT_PATHS = new Set([
   "/api/payments/yookassa/webhook"
 ]);
@@ -46,8 +48,12 @@ export function isProtectedAppPath(pathname: string) {
 }
 
 export function isProtectedApiPath(pathname: string) {
-  if (PUBLIC_API_EXACT_PATHS.has(pathname)) return false;
+  if (PUBLIC_API_EXACT_PATHS.has(pathname) || OPTIONAL_AUTH_API_EXACT_PATHS.has(pathname)) return false;
   return PROTECTED_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix));
+}
+
+export function isOptionalAuthApiPath(pathname: string) {
+  return OPTIONAL_AUTH_API_EXACT_PATHS.has(pathname);
 }
 
 export async function updateSession(request: NextRequest) {
@@ -55,6 +61,7 @@ export async function updateSession(request: NextRequest) {
   const isAuthPage = AUTH_PAGE_PATHS.has(pathname);
   const isProtectedAppPage = isProtectedAppPath(pathname);
   const isProtectedApi = isProtectedApiPath(pathname);
+  const isOptionalAuthApi = isOptionalAuthApiPath(pathname);
   const hasAuthCookie = hasSupabaseAuthCookie(request);
 
   // App pages use the server request-context as the source of truth.
@@ -67,7 +74,7 @@ export async function updateSession(request: NextRequest) {
     return redirectResponse;
   }
 
-  if (!isProtectedApi && !isAuthPage) {
+  if (!isProtectedApi && !isAuthPage && !(isOptionalAuthApi && hasAuthCookie)) {
     const response = NextResponse.next({ request });
     response.headers.set("Cache-Control", "private, no-store");
     return response;

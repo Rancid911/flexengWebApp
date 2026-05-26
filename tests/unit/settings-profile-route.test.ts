@@ -23,7 +23,15 @@ describe("/api/settings/profile", () => {
   });
 
   it("returns current profile settings after read permission check", async () => {
-    const actor = { userId: "profile-1", role: "student" };
+    const actor = {
+      userId: "profile-1",
+      role: "student",
+      rbacRoles: ["student"],
+      rbacPermissions: ["profile.view"],
+      rbacPermissionScopes: {
+        "profile.view": ["own"]
+      }
+    };
     const profile = {
       userId: "profile-1",
       email: "student@example.com",
@@ -76,7 +84,15 @@ describe("/api/settings/profile", () => {
   });
 
   it("parses settings form data and updates profile after update permission check", async () => {
-    const actor = { userId: "profile-1", role: "teacher" };
+    const actor = {
+      userId: "profile-1",
+      role: "teacher",
+      rbacRoles: ["teacher"],
+      rbacPermissions: ["profile.update"],
+      rbacPermissionScopes: {
+        "profile.update": ["own"]
+      }
+    };
     const formData = new URLSearchParams();
     formData.set("firstName", "Ann");
     formData.set("lastName", "Lee");

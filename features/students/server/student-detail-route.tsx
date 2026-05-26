@@ -22,11 +22,16 @@ import {
   getTeacherStudentMistakesSnapshot,
   getTeacherStudentNotesFeed
 } from "@/lib/teacher-workspace/queries";
+import { requireAdminPagePermission } from "@/lib/admin/auth";
 
 type StudentDetailKind = "schedule" | "homework" | "notes" | "mistakes";
 type StudentDetailRouteMode = "admin" | "teacher";
 
 async function resolveStudentDetailActor(mode: StudentDetailRouteMode, studentId: string, kind: StudentDetailKind) {
+  if (mode === "admin") {
+    await requireAdminPagePermission("students.view");
+  }
+
   const actor = await measureServerTiming(`${mode}-student-${kind}-context`, () => requireSchedulePage());
 
   if (isStudentScheduleActor(actor)) {
@@ -42,7 +47,10 @@ async function resolveStudentDetailActor(mode: StudentDetailRouteMode, studentId
   }
 
   if (isStaffAdminScheduleActor(actor)) {
-    redirect(`/admin/students/${studentId}/${kind}`);
+    return {
+      actor,
+      profileHref: `/students/${studentId}`
+    };
   }
   if (!isTeacherScheduleActor(actor)) {
     redirect("/dashboard");

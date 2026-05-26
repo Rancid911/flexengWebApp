@@ -13,17 +13,31 @@ vi.mock("@/lib/auth/request-context", () => ({
 }));
 
 vi.mock("@/lib/notifications/server", () => ({
-  listVisibleNotificationsForUser: () => listVisibleNotificationsForUserMock(),
+  listVisibleNotificationsForUser: (...args: unknown[]) => listVisibleNotificationsForUserMock(...args),
   markNotificationReadForUser: (id: string) => markNotificationReadForUserMock(id),
   dismissNotificationForUser: (id: string) => dismissNotificationForUserMock(id),
-  getUnreadNotificationsSummaryForUser: () => getUnreadNotificationsSummaryForUserMock()
+  getUnreadNotificationsSummaryForUser: (...args: unknown[]) => getUnreadNotificationsSummaryForUserMock(...args)
 }));
+
+function actorWithNotificationView(scope: "own" | "all" | "assigned" = "own") {
+  return {
+    userId: `notification-${scope}-user`,
+    role: "student",
+    isStudent: true,
+    rbacStatus: "loaded",
+    rbacRoles: ["student"],
+    rbacPermissions: ["notifications.view"],
+    rbacPermissionScopes: {
+      "notifications.view": [scope]
+    }
+  };
+}
 
 describe("notification self-service routes", () => {
   beforeEach(() => {
     vi.resetModules();
     getAppActorMock.mockReset();
-    getAppActorMock.mockResolvedValue({ userId: "student-profile-1", role: "student", isStudent: true });
+    getAppActorMock.mockResolvedValue(actorWithNotificationView("own"));
     listVisibleNotificationsForUserMock.mockReset();
     markNotificationReadForUserMock.mockReset();
     dismissNotificationForUserMock.mockReset();
@@ -44,7 +58,7 @@ describe("notification self-service routes", () => {
       items: [{ id: "notif-1", title: "A", body: "B", type: "update", is_read: false }],
       unreadCount: 1
     });
-    expect(listVisibleNotificationsForUserMock).toHaveBeenCalledTimes(1);
+    expect(listVisibleNotificationsForUserMock).toHaveBeenCalledWith(expect.objectContaining({ userId: "notification-own-user" }));
   });
 
   it("returns lightweight unread summary for the bell badge", async () => {
@@ -55,10 +69,11 @@ describe("notification self-service routes", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ unreadCount: 33 });
-    expect(getUnreadNotificationsSummaryForUserMock).toHaveBeenCalledTimes(1);
+    expect(getUnreadNotificationsSummaryForUserMock).toHaveBeenCalledWith(expect.objectContaining({ userId: "notification-own-user" }));
   });
 
   it("marks a visible notification as read through the notification service", async () => {
+    getAppActorMock.mockResolvedValue(actorWithNotificationView("own"));
     markNotificationReadForUserMock.mockResolvedValue({ ok: true });
 
     const { POST } = await import("@/app/api/notifications/[id]/read/route");
@@ -70,6 +85,7 @@ describe("notification self-service routes", () => {
   });
 
   it("dismisses a visible notification through the notification service", async () => {
+    getAppActorMock.mockResolvedValue(actorWithNotificationView("own"));
     dismissNotificationForUserMock.mockResolvedValue({ ok: true });
 
     const { POST } = await import("@/app/api/notifications/[id]/dismiss/route");
@@ -115,6 +131,46 @@ describe("notification self-service routes", () => {
 
   it("returns 403 before dismiss mutation service when actor lacks permission", async () => {
     getAppActorMock.mockResolvedValue({ userId: "guest-1", role: null });
+
+    const { POST } = await import("@/app/api/notifications/[id]/dismiss/route");
+    const response = await POST({} as never, { params: Promise.resolve({ id: "notif-1" }) });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN" });
+    expect(dismissNotificationForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 before read mutation service when loaded RBAC lacks notification view", async () => {
+    getAppActorMock.mockResolvedValue({
+      userId: "student-profile-1",
+      role: "student",
+      isStudent: true,
+      rbacRoles: ["student"],
+      rbacPermissions: ["profile.view"],
+      rbacPermissionScopes: {
+        "profile.view": ["own"]
+      }
+    });
+
+    const { POST } = await import("@/app/api/notifications/[id]/read/route");
+    const response = await POST({} as never, { params: Promise.resolve({ id: "notif-1" }) });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN" });
+    expect(markNotificationReadForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 before dismiss mutation service when loaded RBAC lacks notification view", async () => {
+    getAppActorMock.mockResolvedValue({
+      userId: "student-profile-1",
+      role: "student",
+      isStudent: true,
+      rbacRoles: ["student"],
+      rbacPermissions: ["profile.view"],
+      rbacPermissionScopes: {
+        "profile.view": ["own"]
+      }
+    });
 
     const { POST } = await import("@/app/api/notifications/[id]/dismiss/route");
     const response = await POST({} as never, { params: Promise.resolve({ id: "notif-1" }) });

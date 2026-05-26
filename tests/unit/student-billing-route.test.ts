@@ -26,9 +26,14 @@ describe("/api/students/[id]/billing", () => {
     requireScheduleApiMock.mockResolvedValue({
       userId: "student-profile-1",
       role: "student",
+      accessMode: "student_own",
       studentId: "student-1",
       teacherId: null,
-      accessibleStudentIds: null
+      accessibleStudentIds: null,
+      rbacStatus: "loaded",
+      rbacRoles: ["student"],
+      rbacPermissions: ["billing.view"],
+      rbacPermissionScopes: { "billing.view": ["own"] }
     });
     getBillingSummaryForActorMock.mockResolvedValue({ studentId: "student-1", entries: [] });
 
@@ -45,9 +50,14 @@ describe("/api/students/[id]/billing", () => {
     requireScheduleApiMock.mockResolvedValue({
       userId: "student-profile-1",
       role: "student",
+      accessMode: "student_own",
       studentId: "student-1",
       teacherId: null,
-      accessibleStudentIds: null
+      accessibleStudentIds: null,
+      rbacStatus: "loaded",
+      rbacRoles: ["student"],
+      rbacPermissions: ["billing.view"],
+      rbacPermissionScopes: { "billing.view": ["own"] }
     });
 
     const { GET } = await import("@/app/api/students/[id]/billing/route");
@@ -65,9 +75,14 @@ describe("/api/students/[id]/billing", () => {
     requireScheduleApiMock.mockResolvedValue({
       userId: "teacher-profile-1",
       role: "teacher",
+      accessMode: "teacher_assigned",
       studentId: null,
       teacherId: "teacher-1",
-      accessibleStudentIds: ["student-1"]
+      accessibleStudentIds: ["student-1"],
+      rbacStatus: "loaded",
+      rbacRoles: ["teacher"],
+      rbacPermissions: ["billing.view"],
+      rbacPermissionScopes: { "billing.view": ["assigned"] }
     });
     getBillingSummaryForActorMock.mockResolvedValue({ studentId: "student-1", entries: [] });
 
@@ -84,9 +99,14 @@ describe("/api/students/[id]/billing", () => {
     requireScheduleApiMock.mockResolvedValue({
       userId: "manager-1",
       role: "manager",
+      accessMode: "staff_all",
       studentId: null,
       teacherId: null,
-      accessibleStudentIds: null
+      accessibleStudentIds: null,
+      rbacStatus: "loaded",
+      rbacRoles: ["manager"],
+      rbacPermissions: ["billing.adjust"],
+      rbacPermissionScopes: { "billing.adjust": ["all"] }
     });
     updateStudentBillingSettingsMock.mockResolvedValue({ studentId: "student-1", billingMode: "per_lesson_price" });
 
@@ -114,9 +134,14 @@ describe("/api/students/[id]/billing", () => {
     requireScheduleApiMock.mockResolvedValue({
       userId: "teacher-profile-1",
       role: "teacher",
+      accessMode: "teacher_assigned",
       studentId: null,
       teacherId: "teacher-1",
-      accessibleStudentIds: ["student-1"]
+      accessibleStudentIds: ["student-1"],
+      rbacStatus: "loaded",
+      rbacRoles: ["teacher"],
+      rbacPermissions: ["billing.view"],
+      rbacPermissionScopes: { "billing.view": ["assigned"] }
     });
 
     const { PATCH } = await import("@/app/api/students/[id]/billing/route");

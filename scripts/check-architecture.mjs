@@ -30,7 +30,7 @@ const apiPermissionExceptionReasons = new Map([
   ["app/api/blog/posts/route.ts", "public blog posts read endpoint"],
   ["app/api/blog/posts/[slug]/route.ts", "public blog post detail read endpoint"],
   ["app/api/leads/route.ts", "public marketing lead intake endpoint"],
-  ["app/api/search/route.ts", "public/workspace read-model endpoint with service-level visibility filtering"],
+  ["app/api/search/route.ts", "optional-auth hybrid public/workspace search endpoint with service-level visibility filtering"],
   ["app/api/payments/yookassa/webhook/route.ts", "provider-authenticated YooKassa webhook"],
   ["app/api/request-context/invalidate/route.ts", "internal self cache utility with minimal auth check"]
 ]);
@@ -110,8 +110,18 @@ for (const file of projectFiles.filter((item) => item.startsWith("app/api/") && 
   if (hasRawDbAccess(source)) {
     fail(file, "API routes must not call createAdminClient, .from(), or .rpc() directly; move access to service/query/repository layer");
   }
-  if (!/\brequirePermission\s*\(/.test(source) && !apiPermissionExceptionReasons.has(file)) {
-    fail(file, "protected API routes must call requirePermission(); public/provider/internal exceptions must be explicit in check-architecture.mjs");
+  if (!/\b(?:requirePermission|requireAdminApiPermission|requireAdminApiAnyPermission)\s*\(/.test(source) && !apiPermissionExceptionReasons.has(file)) {
+    fail(file, "protected API routes must call requirePermission() or an RBAC-aware API permission guard; public/provider/internal exceptions must be explicit in check-architecture.mjs");
+  }
+}
+
+for (const file of projectFiles.filter((item) => /^(app|features)\//.test(item) && /\.(ts|tsx)$/.test(item))) {
+  const source = read(file);
+  if (/\brequireStaffAdmin(?:Api|Page)\s*\(/.test(source)) {
+    fail(
+      file,
+      "legacy requireStaffAdmin* guards are deprecated; use requireAdminPagePermission/requireAdminPageAnyPermission or requireAdminApiPermission/requireAdminApiAnyPermission"
+    );
   }
 }
 

@@ -5,7 +5,7 @@ const { afterMock } = vi.hoisted(() => ({
   afterMock: vi.fn()
 }));
 
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const listAdminPaymentControlMock = vi.fn();
 const getAdminPaymentReminderSettingsMock = vi.fn();
 const updateAdminPaymentReminderSettingsMock = vi.fn();
@@ -21,7 +21,14 @@ vi.mock("next/server", async (importOriginal) => {
 });
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/admin/payments-control", () => ({
@@ -33,7 +40,7 @@ vi.mock("@/lib/admin/payments-control", () => ({
 }));
 
 function resetMocks() {
-  requireStaffAdminApiMock.mockReset();
+  requireAdminApiPermissionMock.mockReset();
   listAdminPaymentControlMock.mockReset();
   getAdminPaymentReminderSettingsMock.mockReset();
   updateAdminPaymentReminderSettingsMock.mockReset();
@@ -67,7 +74,7 @@ describe("admin payments control API routes", () => {
   });
 
   it("lists payment control rows after billing read permission check", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
     listAdminPaymentControlMock.mockResolvedValue({
       items: [],
       total: 0,
@@ -86,7 +93,7 @@ describe("admin payments control API routes", () => {
   });
 
   it("does not list payment control rows without billing read permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/admin/payments-control/route");
     const response = await GET(new NextRequest("http://localhost/api/admin/payments-control"));
@@ -95,7 +102,7 @@ describe("admin payments control API routes", () => {
   });
 
   it("reads payment reminder settings after billing read permission check", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     getAdminPaymentReminderSettingsMock.mockResolvedValue({
       enabled: true,
       threshold_lessons: 1,
@@ -110,7 +117,7 @@ describe("admin payments control API routes", () => {
   });
 
   it("does not read payment reminder settings without billing read permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/admin/payment-reminder-settings/route");
     const response = await GET();
@@ -120,7 +127,7 @@ describe("admin payments control API routes", () => {
 
   it("updates reminder settings and schedules sync after reminder management permission check", async () => {
     const actor = { userId: "admin-1", role: "admin" };
-    requireStaffAdminApiMock.mockResolvedValue(actor);
+    requireAdminApiPermissionMock.mockResolvedValue(actor);
     updateAdminPaymentReminderSettingsMock.mockResolvedValue({
       enabled: false,
       threshold_lessons: 2,
@@ -154,7 +161,7 @@ describe("admin payments control API routes", () => {
   });
 
   it("does not parse or update reminder settings without reminder management permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { PATCH } = await import("@/app/api/admin/payment-reminder-settings/route");
     const response = await PATCH(
@@ -170,7 +177,7 @@ describe("admin payments control API routes", () => {
 
   it("sends a manual reminder after reminder management permission check", async () => {
     const actor = { userId: "manager-1", role: "manager" };
-    requireStaffAdminApiMock.mockResolvedValue(actor);
+    requireAdminApiPermissionMock.mockResolvedValue(actor);
     sendStudentPaymentReminderMock.mockResolvedValue({ ok: true });
 
     const { POST } = await import("@/app/api/admin/payments-control/reminders/route");
@@ -187,7 +194,7 @@ describe("admin payments control API routes", () => {
   });
 
   it("does not send a manual reminder without reminder management permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { POST } = await import("@/app/api/admin/payments-control/reminders/route");
     const response = await POST(

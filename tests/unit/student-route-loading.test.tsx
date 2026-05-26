@@ -52,6 +52,10 @@ vi.mock("@/lib/auth/request-context", () => ({
   requireLayoutActor: () => requireLayoutActorMock()
 }));
 
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
+
 vi.mock("@/features/words/components/words-overview", () => ({
   WordsOverview: (props: unknown) => <div data-testid="words-overview-probe">{JSON.stringify(props)}</div>
 }));

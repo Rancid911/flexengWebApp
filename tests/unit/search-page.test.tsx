@@ -4,9 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import SearchPage from "@/app/search/page";
 
 const getLayoutActorMock = vi.fn();
+const notFoundMock = vi.fn(() => {
+  throw new Error("NEXT_NOT_FOUND");
+});
 
 vi.mock("@/lib/auth/request-context", () => ({
   getLayoutActor: () => getLayoutActorMock()
+}));
+
+vi.mock("next/navigation", () => ({
+  notFound: () => notFoundMock()
 }));
 
 vi.mock("@/features/marketing/components/main-header", () => ({
@@ -48,6 +55,7 @@ vi.mock("@/features/search/components/search-page-view", () => ({
 describe("SearchPage", () => {
   beforeEach(() => {
     getLayoutActorMock.mockReset();
+    notFoundMock.mockClear();
   });
 
   it("renders public shell for guest access without workspace chrome", async () => {
@@ -80,7 +88,12 @@ describe("SearchPage", () => {
       isStudent: true,
       isTeacher: false,
       isStaffAdmin: false,
-      profileRole: "student"
+      profileRole: "student",
+      rbacRoles: ["student"],
+      rbacPermissions: ["search.ui"],
+      rbacPermissionScopes: {
+        "search.ui": ["own"]
+      }
     });
 
     render(await SearchPage({ searchParams: Promise.resolve({ q: "words", section: "blog" }) }));
@@ -91,5 +104,24 @@ describe("SearchPage", () => {
     expect(screen.getByTestId("search-page-view")).toBeInTheDocument();
     expect(screen.queryByTestId("public-search-shell")).not.toBeInTheDocument();
     expect(screen.queryByTestId("public-header")).not.toBeInTheDocument();
+  });
+
+  it("does not expose authenticated workspace search without search UI permission", async () => {
+    getLayoutActorMock.mockResolvedValue({
+      userId: "user-1",
+      role: "student",
+      isStudent: true,
+      isTeacher: false,
+      isStaffAdmin: false,
+      profileRole: "student",
+      rbacRoles: ["student"],
+      rbacPermissions: ["profile.view"],
+      rbacPermissionScopes: {
+        "profile.view": ["own"]
+      }
+    });
+
+    await expect(SearchPage({ searchParams: Promise.resolve({ q: "words" }) })).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(notFoundMock).toHaveBeenCalledTimes(1);
   });
 });

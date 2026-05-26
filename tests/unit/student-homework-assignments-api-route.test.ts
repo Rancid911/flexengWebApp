@@ -7,9 +7,14 @@ const requireScheduleApiMock = vi.hoisted(() =>
   vi.fn(async () => ({
     userId: "teacher-profile",
     role: "teacher",
+    accessMode: "teacher_assigned",
     studentId: null,
     teacherId: "teacher-1",
-    accessibleStudentIds: ["student-1"]
+    accessibleStudentIds: ["student-1"],
+    rbacStatus: "loaded",
+    rbacRoles: ["teacher"],
+    rbacPermissions: ["homework.assign"],
+    rbacPermissionScopes: { "homework.assign": ["assigned"] }
   }))
 );
 
@@ -28,9 +33,14 @@ describe("/api/students/[id]/homework-assignments", () => {
     requireScheduleApiMock.mockResolvedValue({
       userId: "teacher-profile",
       role: "teacher",
+      accessMode: "teacher_assigned",
       studentId: null,
       teacherId: "teacher-1",
-      accessibleStudentIds: ["student-1"]
+      accessibleStudentIds: ["student-1"],
+      rbacStatus: "loaded",
+      rbacRoles: ["teacher"],
+      rbacPermissions: ["homework.assign"],
+      rbacPermissionScopes: { "homework.assign": ["assigned"] }
     });
     listTeacherStudentStandaloneHomeworkMock.mockReset();
     createTeacherStudentStandaloneHomeworkMock.mockReset();
@@ -55,9 +65,14 @@ describe("/api/students/[id]/homework-assignments", () => {
     requireScheduleApiMock.mockResolvedValue({
       userId: "student-profile",
       role: "student",
+      accessMode: "student_own",
       studentId: "student-1",
       teacherId: null,
-      accessibleStudentIds: null
+      accessibleStudentIds: null,
+      rbacStatus: "loaded",
+      rbacRoles: ["student"],
+      rbacPermissions: [],
+      rbacPermissionScopes: {}
     });
 
     const { GET } = await import("@/app/api/students/[id]/homework-assignments/route");
@@ -115,9 +130,14 @@ describe("/api/students/[id]/homework-assignments", () => {
     requireScheduleApiMock.mockResolvedValue({
       userId: "student-profile",
       role: "student",
+      accessMode: "student_own",
       studentId: "student-1",
       teacherId: null,
-      accessibleStudentIds: null
+      accessibleStudentIds: null,
+      rbacStatus: "loaded",
+      rbacRoles: ["student"],
+      rbacPermissions: [],
+      rbacPermissionScopes: {}
     });
 
     const { POST } = await import("@/app/api/students/[id]/homework-assignments/route");

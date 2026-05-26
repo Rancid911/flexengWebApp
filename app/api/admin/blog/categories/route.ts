@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireStaffAdminApi } from "@/lib/admin/auth";
+import { requireAdminApiPermission } from "@/lib/admin/auth";
 import { createAdminBlogCategory, listAdminBlogCategories } from "@/lib/admin/blog.service";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { blogCategoryCreateSchema } from "@/lib/admin/validation";
-import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async () => {
-  const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.manage");
+  await requireAdminApiPermission("content.manage");
   const payload = await listAdminBlogCategories();
   return NextResponse.json(payload);
 });
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
-  const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.manage");
+  const actor = await requireAdminApiPermission("content.manage");
   const body = await request.json();
   const parsed = blogCategoryCreateSchema.safeParse(body);
   if (!parsed.success) throw new AdminHttpError(400, "VALIDATION_ERROR", "Invalid category payload", parsed.error.flatten());

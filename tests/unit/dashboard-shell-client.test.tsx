@@ -76,14 +76,40 @@ describe("WorkspaceShellClient", () => {
     displayName: "Admin User",
     email: "admin@example.com",
     avatarUrl: null,
-    role: "admin" as const
+    role: "admin" as const,
+    rbacRoles: ["admin"],
+    rbacPermissions: [
+      "crm.leads.view",
+      "users.view",
+      "students.view",
+      "teachers.view",
+      "payments.manage",
+      "profile.view",
+      "schedule.view"
+    ],
+    rbacPermissionScopes: {
+      "crm.leads.view": ["all"],
+      "users.view": ["all"],
+      "students.view": ["all"],
+      "teachers.view": ["all"],
+      "payments.manage": ["all"],
+      "profile.view": ["own"],
+      "schedule.view": ["all"]
+    }
   };
   const managerProfile = {
     userId: "manager-1",
     displayName: "Manager User",
     email: "manager@example.com",
     avatarUrl: null,
-    role: "manager" as const
+    role: "manager" as const,
+    rbacRoles: ["manager"],
+    rbacPermissions: ["crm.leads.view", "profile.view", "schedule.view"],
+    rbacPermissionScopes: {
+      "crm.leads.view": ["all"],
+      "profile.view": ["own"],
+      "schedule.view": ["all"]
+    }
   };
 
   afterEach(() => {
@@ -428,6 +454,44 @@ describe("WorkspaceShellClient", () => {
     );
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("updates shell navigation intent across workspace pathnames without remounting the shell root", () => {
+    const autoShellProps = {
+      initialSidebarCollapsed: baseProps.initialSidebarCollapsed,
+      initialProfile: baseProps.initialProfile,
+      appVersion: baseProps.appVersion
+    };
+    const { rerender } = render(
+      <WorkspaceShellClient {...autoShellProps} initialProfile={adminProfile}>
+        <div>workspace content</div>
+      </WorkspaceShellClient>
+    );
+    const shellRoot = screen.getByTestId("workspace-shell-root");
+
+    expect(screen.getByRole("link", { name: /CRM/ })).toBeInTheDocument();
+
+    navigationMockState.pathname = "/students";
+    rerender(
+      <WorkspaceShellClient {...autoShellProps} initialProfile={adminProfile}>
+        <div>workspace content</div>
+      </WorkspaceShellClient>
+    );
+
+    expect(screen.getByTestId("workspace-shell-root")).toBe(shellRoot);
+    expect(screen.queryByRole("link", { name: /CRM/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ученики" })).toHaveAttribute("href", "/students");
+
+    navigationMockState.pathname = "/admin/payments";
+    rerender(
+      <WorkspaceShellClient {...autoShellProps} initialProfile={adminProfile}>
+        <div>workspace content</div>
+      </WorkspaceShellClient>
+    );
+
+    expect(screen.getByTestId("workspace-shell-root")).toBe(shellRoot);
+    expect(screen.getByRole("link", { name: /CRM/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Оплата" })).toHaveAttribute("href", "/admin/payments");
   });
 
   it("hides profile navigation when RBAC metadata denies profile.view", () => {

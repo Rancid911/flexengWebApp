@@ -17,11 +17,12 @@ import {
   teacherTimezoneOptions,
   teacherWeekdayOptions
 } from "@/lib/admin/teacher-dossier-options";
+import { NOTIFICATION_TARGET_AUDIENCES } from "@/lib/notifications/audience";
 
 const roleEnum = z.enum(["admin", "manager", "teacher", "student"]);
 const billingModeEnum = z.enum(["package_lessons", "per_lesson_price"]);
 const notificationTypeEnum = z.enum(["maintenance", "update", "news", "assignments"]);
-const notificationTargetRoleEnum = z.enum(["all", "admin", "manager", "teacher", "student"]);
+const notificationTargetRoleEnum = z.enum(NOTIFICATION_TARGET_AUDIENCES);
 const testActivityTypeEnum = z.enum(["trainer", "test"]);
 const testAssessmentKindEnum = z.enum(["regular", "placement"]);
 const testLevelEnum = z.enum(["A1", "A2", "B1", "B2", "C1"]);

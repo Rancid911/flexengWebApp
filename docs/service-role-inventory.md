@@ -2,6 +2,8 @@
 
 This inventory is the enforced baseline for `createAdminClient()` usage. `npm run check:architecture` fails when a new call site appears or when an existing file's call count changes without updating this inventory and the checker allowlist.
 
+For the broader current access-control model and intentional compatibility layers, use `docs/access-control-current-state.md`. This document remains the authoritative service-role exception inventory.
+
 ## Rules
 
 - API routes and server pages must not call `createAdminClient()` directly.

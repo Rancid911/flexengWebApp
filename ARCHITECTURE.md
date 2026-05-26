@@ -92,14 +92,14 @@ Protected API route handlers must call `requirePermission()` after authenticatio
 
 ## Authorization Rules
 
-The access model is migrating from role-only checks toward a minimal RBAC/RLS model:
+The access model uses DB-backed RBAC metadata for protected authorization:
 
 - role: business context
 - permission: allowed function
 - scope: allowed data boundary
 - RLS: final row-level database guard
 
-`profiles.role` remains a legacy / primary role / compatibility field during the migration, but it must not be treated as the final source of truth for new access-control design.
+`profiles.role` remains a legacy compatibility/display/default metadata field, but it must not grant protected access.
 
 Current legacy roles:
 
@@ -108,13 +108,13 @@ Current legacy roles:
 - `manager`
 - `admin`
 
-New authorization checks should prefer permissions:
+Authorization checks use permissions:
 
 ```ts
 requirePermission(actor, "crm.leads.read");
 ```
 
-The current permissions layer is code-based. The next database-backed RBAC step must stay minimal and additive: `roles`, `user_roles`, `permissions`, and `role_permissions` with a scope field. Do not add `user_permissions`, deny semantics, permission preset tables, or a role/permission admin UI in the first DB PR.
+The current permissions layer uses DB-backed RBAC metadata loaded into `AppActor`, with `can()` and permission-aware page/API guards as the application boundary. `profiles.role` remains a compatibility/default/display field only; it must not grant access, including when RBAC metadata is empty or fails to load. New DB-backed permissions must stay additive and be registered in the permission vocabulary before use.
 
 Teacher preview must not create or mutate real student records. If persistent teacher demo progress becomes a product requirement later, use separate demo tables rather than shared `student_*` tables.
 

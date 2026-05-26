@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireStaffAdminApi } from "@/lib/admin/auth";
+import { requireAdminApiPermission } from "@/lib/admin/auth";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { deleteAdminTest, getAdminTest, updateAdminTest } from "@/lib/admin/tests.service";
 import { adminTestUpdateSchema } from "@/lib/admin/validation";
-import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-  const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.manage");
+  await requireAdminApiPermission("content.manage");
   const { id } = await params;
   return NextResponse.json(await getAdminTest(id));
 });
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-  const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.manage");
+  const actor = await requireAdminApiPermission("content.manage");
   const { id } = await params;
   const body = await request.json();
   const parsed = adminTestUpdateSchema.safeParse(body);
@@ -25,8 +22,7 @@ export const PATCH = withAdminErrorHandling(async (request: NextRequest, { param
 });
 
 export const DELETE = withAdminErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-  const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.manage");
+  const actor = await requireAdminApiPermission("content.manage");
   const { id } = await params;
   return NextResponse.json(await deleteAdminTest(actor, id));
 });

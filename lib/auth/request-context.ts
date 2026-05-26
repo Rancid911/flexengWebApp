@@ -24,6 +24,7 @@ type MinimalRequestContext = {
 };
 
 export type AppCapability = "student" | "teacher" | "staff_admin";
+export type RbacStatus = "loaded" | "empty" | "error";
 type RbacScope = "own" | "assigned" | "all" | "own_demo" | "public" | "service_only";
 
 type ProfileIdentityContext = MinimalRequestContext & {
@@ -41,6 +42,7 @@ export type AppActor = ProfileIdentityContext & {
   rbacRoles: UserRole[];
   rbacPermissions: string[];
   rbacPermissionScopes: Record<string, string[]>;
+  rbacStatus: RbacStatus;
   isStudent: boolean;
   isTeacher: boolean;
   isStaffAdmin: boolean;
@@ -75,6 +77,7 @@ type RbacActorData = {
   rbacRoles: UserRole[];
   rbacPermissions: string[];
   rbacPermissionScopes: Record<string, string[]>;
+  rbacStatus: RbacStatus;
 };
 
 type LinkedActorScopeMode = "layout" | "full";
@@ -107,6 +110,24 @@ const REQUEST_CONTEXT_RBAC_ACCESS_MODE: AccessMode = REQUEST_CONTEXT_ACCESS_POLI
 const REQUEST_CONTEXT_LINKED_SCOPE_ACCESS_MODE: AccessMode = REQUEST_CONTEXT_ACCESS_POLICIES.linkedActorScope.mode;
 const USER_ROLE_ORDER: UserRole[] = ["admin", "manager", "teacher", "student"];
 const RBAC_SCOPE_ORDER: RbacScope[] = ["own", "assigned", "all", "own_demo", "public", "service_only"];
+const STAFF_WORKSPACE_RBAC_PERMISSIONS = [
+  "users.view",
+  "users.manage",
+  "roles.view",
+  "roles.manage",
+  "teachers.view",
+  "teachers.manage",
+  "students.view",
+  "students.manage",
+  "crm.leads.view",
+  "crm.leads.manage",
+  "content.manage",
+  "notifications.manage",
+  "word_cards.manage",
+  "payments.view",
+  "payments.manage",
+  "billing.adjust"
+] as const;
 
 function linkedActorScopeCacheTag(userId: string, mode: LinkedActorScopeMode) {
   return `request-context:linked-scope:${mode}:${userId}`;
@@ -132,12 +153,45 @@ function normalizeRbacScope(value: string | null | undefined): RbacScope | null 
   return null;
 }
 
-function createEmptyRbacActorData(): RbacActorData {
+function createEmptyRbacActorData(rbacStatus: RbacStatus = "empty"): RbacActorData {
   return {
     rbacRoles: [],
     rbacPermissions: [],
-    rbacPermissionScopes: {}
+    rbacPermissionScopes: {},
+    rbacStatus
   };
+}
+
+function hasRbacActorMetadata(rbac: Pick<AppActor, "rbacRoles" | "rbacPermissions" | "rbacPermissionScopes">) {
+  return Boolean(
+    rbac.rbacRoles.length > 0 ||
+      rbac.rbacPermissions.length > 0 ||
+      Object.keys(rbac.rbacPermissionScopes).length > 0
+  );
+}
+
+function resolveRbacStatus(rbac: RbacActorData | Pick<AppActor, "rbacRoles" | "rbacPermissions" | "rbacPermissionScopes"> & { rbacStatus?: RbacStatus | null }) {
+  return rbac.rbacStatus ?? (hasRbacActorMetadata(rbac) ? "loaded" : "empty");
+}
+
+function hasLoadedRbacActorData(rbac: RbacActorData | Pick<AppActor, "rbacRoles" | "rbacPermissions" | "rbacPermissionScopes" | "rbacStatus">) {
+  return resolveRbacStatus(rbac) === "loaded" && hasRbacActorMetadata(rbac);
+}
+
+function resolveRbacStaffRole(rbac: RbacActorData | Pick<AppActor, "rbacRoles" | "rbacPermissions" | "rbacPermissionScopes">): "admin" | "manager" | null {
+  if (rbac.rbacRoles.includes("admin")) return "admin";
+  if (rbac.rbacRoles.includes("manager")) return "manager";
+  return null;
+}
+
+function hasAllScopedStaffWorkspacePermission(rbac: RbacActorData | Pick<AppActor, "rbacRoles" | "rbacPermissions" | "rbacPermissionScopes">) {
+  return STAFF_WORKSPACE_RBAC_PERMISSIONS.some((permission) =>
+    rbac.rbacPermissions.includes(permission) && rbac.rbacPermissionScopes[permission]?.includes("all")
+  );
+}
+
+function hasStaffWorkspaceAccess(rbac: RbacActorData) {
+  return hasLoadedRbacActorData(rbac) && Boolean(resolveRbacStaffRole(rbac) || hasAllScopedStaffWorkspacePermission(rbac));
 }
 
 export function isLinkedActorScopeRpcUnavailableMessage(message: string) {
@@ -186,7 +240,7 @@ export function normalizeRbacActorData(payload: RbacUserRoleRow[] | null | undef
     }
   }
 
-  return {
+  const normalized = {
     rbacRoles: USER_ROLE_ORDER.filter((role) => roles.has(role)),
     rbacPermissions: Array.from(permissions).sort(),
     rbacPermissionScopes: Object.fromEntries(
@@ -198,6 +252,10 @@ export function normalizeRbacActorData(payload: RbacUserRoleRow[] | null | undef
         ])
     )
   };
+  return {
+    ...normalized,
+    rbacStatus: hasRbacActorMetadata(normalized) ? "loaded" : "empty"
+  };
 }
 
 export function buildAppActor(
@@ -205,6 +263,11 @@ export function buildAppActor(
   linked: LinkedActorData,
   rbac: RbacActorData = createEmptyRbacActorData()
 ): AppActor {
+  const rbacStatus = resolveRbacStatus(rbac);
+  const normalizedRbac = {
+    ...rbac,
+    rbacStatus
+  };
   const capabilities = new Set<AppCapability>();
 
   if (linked.studentId) {
@@ -215,7 +278,7 @@ export function buildAppActor(
     capabilities.add("teacher");
   }
 
-  if (identity.profileRole === "manager" || identity.profileRole === "admin") {
+  if (hasStaffWorkspaceAccess(normalizedRbac)) {
     capabilities.add("staff_admin");
   }
 
@@ -230,11 +293,12 @@ export function buildAppActor(
     studentId: linked.studentId,
     teacherId: linked.teacherId,
     accessibleStudentIds: isTeacher ? linked.accessibleStudentIds ?? [] : null,
-    rbacRoles: [...rbac.rbacRoles],
-    rbacPermissions: [...rbac.rbacPermissions],
+    rbacRoles: [...normalizedRbac.rbacRoles],
+    rbacPermissions: [...normalizedRbac.rbacPermissions],
     rbacPermissionScopes: Object.fromEntries(
-      Object.entries(rbac.rbacPermissionScopes).map(([permission, scopes]) => [permission, [...scopes]])
+      Object.entries(normalizedRbac.rbacPermissionScopes).map(([permission, scopes]) => [permission, [...scopes]])
     ),
+    rbacStatus,
     isStudent,
     isTeacher,
     isStaffAdmin
@@ -259,9 +323,11 @@ export function assertStaffAdminCapability(actor: AppActor | null | undefined): 
   }
 }
 
-export function resolveDefaultWorkspace(actor: Pick<AppActor, "isStaffAdmin" | "isTeacher" | "isStudent" | "profileRole">): UserRole | null {
+export function resolveDefaultWorkspace(
+  actor: Pick<AppActor, "isStaffAdmin" | "isTeacher" | "isStudent" | "rbacRoles" | "rbacPermissions" | "rbacPermissionScopes" | "rbacStatus">
+): UserRole | null {
   if (actor.isStaffAdmin) {
-    return actor.profileRole === "admin" ? "admin" : "manager";
+    return resolveRbacStaffRole(actor) ?? "manager";
   }
 
   if (actor.isTeacher) {
@@ -272,7 +338,7 @@ export function resolveDefaultWorkspace(actor: Pick<AppActor, "isStaffAdmin" | "
     return "student";
   }
 
-  return actor.profileRole;
+  return null;
 }
 
 const getMinimalRequestContextBase = cache(async (): Promise<MinimalRequestContext | null> =>
@@ -398,7 +464,7 @@ async function loadRbacActorData(identity: ProfileIdentityContext): Promise<Rbac
         code: "REQUEST_CONTEXT_RBAC_LOAD_FAILED",
         message: response.error.message
       });
-      return createEmptyRbacActorData();
+      return createEmptyRbacActorData("error");
     }
 
     return normalizeRbacActorData(response.data as RbacUserRoleRow[] | null | undefined);
@@ -407,7 +473,7 @@ async function loadRbacActorData(identity: ProfileIdentityContext): Promise<Rbac
       code: "REQUEST_CONTEXT_RBAC_LOAD_FAILED",
       message: error instanceof Error ? error.message : "Unknown RBAC load failure"
     });
-    return createEmptyRbacActorData();
+    return createEmptyRbacActorData("error");
   }
 }
 

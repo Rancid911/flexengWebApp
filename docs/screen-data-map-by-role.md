@@ -332,8 +332,8 @@
   - [search-route.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/search/server/search-route.tsx)
   - [search-service.ts](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/lib/search/search-service.ts)
 - Источники:
-  - search candidates via RPC `search_documents_query`
-  - visibility filters use request-context
+  - search candidates via hardened user-scoped RPC `search_documents_query_for_actor`
+  - visibility filters use request-context and actor-scoped search rules
   - for student enrollment-restricted documents:
     - `student_course_enrollments`
 
@@ -540,10 +540,10 @@
 
 - Same shared search route
 - Источники:
-  - RPC `search_documents_query`
-  - request-context capabilities
+  - hardened user-scoped RPC `search_documents_query_for_actor`
+  - request-context identity, linked scope, and explicit domain visibility permissions
 - For admin visibility:
-  - admin sees admin-scoped search documents if `roleScope` allows staff admin
+  - staff users see admin-scoped search documents only when matching all-scoped domain RBAC grants allow that result type
 
 ## Public / support screens outside role profiles
 
@@ -576,7 +576,7 @@
   - `admin_dashboard_metrics`
   - `admin_list_payment_control`
   - `admin_payment_control_stats`
-  - `search_documents_query`
+  - `search_documents_query_for_actor`
 - Главный общий источник identity/profile:
   - `profiles`
 - Главный общий источник role-linked business scope:

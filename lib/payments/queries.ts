@@ -40,7 +40,7 @@ export const STUDENT_PAYMENT_STATUS_CONTEXT_DATA_LOADING = defineDataLoadingDesc
 export const STUDENT_PAYMENTS_BILLING_SUMMARY_DATA_LOADING = defineDataLoadingDescriptor({
   id: "student-payments-billing-summary",
   owner: "@/lib/billing/server#getCurrentStudentBillingSummary",
-  accessMode: "privileged",
+  accessMode: "user_scoped",
   loadLevel: "page",
   shape: "summary",
   issues: [],

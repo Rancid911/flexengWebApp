@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 import { adminWordCardSetCreateSchema } from "@/lib/admin/validation";
 
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const listAdminWordCardSetsMock = vi.fn();
 const getAdminWordCardSetMock = vi.fn();
 const createAdminWordCardSetMock = vi.fn();
@@ -11,7 +11,14 @@ const updateAdminWordCardSetMock = vi.fn();
 const deleteAdminWordCardSetMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/admin/word-card-sets.service", () => ({
@@ -79,7 +86,7 @@ describe("admin word card set validation", () => {
 describe("admin word card set API routes", () => {
   beforeEach(() => {
     vi.resetModules();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     listAdminWordCardSetsMock.mockReset();
     getAdminWordCardSetMock.mockReset();
     createAdminWordCardSetMock.mockReset();
@@ -88,7 +95,7 @@ describe("admin word card set API routes", () => {
   });
 
   it("lists word card sets for staff actors with card-set management permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
     listAdminWordCardSetsMock.mockResolvedValue({ items: [], total: 0, page: 2, pageSize: 10 });
 
     const { GET } = await import("@/app/api/admin/word-card-sets/route");
@@ -99,7 +106,7 @@ describe("admin word card set API routes", () => {
   });
 
   it("loads word card set details only after permission check", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     getAdminWordCardSetMock.mockResolvedValue({ id: "set-1", title: "Cafe words", cards: [] });
 
     const { GET } = await import("@/app/api/admin/word-card-sets/[id]/route");
@@ -122,7 +129,7 @@ describe("admin word card set API routes", () => {
       is_published: false,
       cards
     };
-    requireStaffAdminApiMock.mockResolvedValue(actor);
+    requireAdminApiPermissionMock.mockResolvedValue(actor);
     createAdminWordCardSetMock.mockResolvedValue({ id: "set-1", title: "Cafe words" });
     updateAdminWordCardSetMock.mockResolvedValue({ id: "set-1", title: "Cafe words updated" });
     deleteAdminWordCardSetMock.mockResolvedValue({ ok: true });
@@ -158,7 +165,7 @@ describe("admin word card set API routes", () => {
   });
 
   it("does not call services when a non-staff actor lacks card-set management permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/admin/word-card-sets/route");
     const response = await GET(new NextRequest("http://localhost/api/admin/word-card-sets"));

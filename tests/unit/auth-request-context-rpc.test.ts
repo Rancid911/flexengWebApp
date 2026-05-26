@@ -244,7 +244,7 @@ describe("request-context rpc linked scope", () => {
     });
   });
 
-  it("keeps legacy actor behavior when RBAC load fails", async () => {
+  it("fails closed for staff access when RBAC load fails", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { module: requestContext } = await loadRequestContextModule({
       profileRole: "teacher",

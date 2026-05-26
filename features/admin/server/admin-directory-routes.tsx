@@ -14,6 +14,10 @@ type DirectoryRouteProps = {
   searchParams?: Promise<{ q?: string; page?: string }>;
 };
 
+type StudentsDirectoryRouteProps = DirectoryRouteProps & {
+  basePath?: string;
+};
+
 async function parseDirectorySearchParams(searchParams: DirectoryRouteProps["searchParams"]) {
   const params = (await searchParams) ?? {};
   return {
@@ -22,7 +26,7 @@ async function parseDirectorySearchParams(searchParams: DirectoryRouteProps["sea
   };
 }
 
-export async function renderAdminStudentsDirectoryRoute({ searchParams }: DirectoryRouteProps) {
+export async function renderAdminStudentsDirectoryRoute({ searchParams, basePath }: StudentsDirectoryRouteProps) {
   await requireAdminPagePermission("students.view");
   const { query, page } = await parseDirectorySearchParams(searchParams);
   const pageData = await listAdminStudentsDirectoryPage({ query, page, pageSize: DIRECTORY_PAGE_SIZE });
@@ -35,6 +39,7 @@ export async function renderAdminStudentsDirectoryRoute({ searchParams }: Direct
       page={pageData.page}
       pageSize={pageData.pageSize}
       pageCount={pageData.pageCount}
+      basePath={basePath}
     />
   );
 }

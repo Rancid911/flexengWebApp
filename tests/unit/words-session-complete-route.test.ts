@@ -20,12 +20,17 @@ describe("/api/words/sessions/complete POST", () => {
       role: "student",
       profileRole: "student",
       isStudent: true,
-      studentId: "student-1"
+      studentId: "student-1",
+      rbacRoles: ["student"],
+      rbacPermissions: ["word_cards.train"],
+      rbacPermissionScopes: {
+        "word_cards.train": ["own"]
+      }
     });
     completeWordSessionMock.mockReset();
   });
 
-  it("completes a word session for a student actor", async () => {
+  it("completes a word session for an RBAC-granted real student actor", async () => {
     completeWordSessionMock.mockResolvedValue({
       total: 1,
       mastered: 1,
@@ -45,6 +50,66 @@ describe("/api/words/sessions/complete POST", () => {
     expect(response.status).toBe(201);
     expect(completeWordSessionMock).toHaveBeenCalledWith([{ wordId: "word-1", result: "known" }]);
     await expect(response.json()).resolves.toEqual({ total: 1, mastered: 1, addedDifficult: 0 });
+  });
+
+  it("completes a word session for loaded RBAC student actors with own train scope", async () => {
+    getAppActorMock.mockResolvedValue({
+      userId: "student-profile-1",
+      role: "student",
+      profileRole: "student",
+      isStudent: true,
+      studentId: "student-1",
+      rbacRoles: ["student"],
+      rbacPermissions: ["word_cards.train"],
+      rbacPermissionScopes: {
+        "word_cards.train": ["own"]
+      }
+    });
+    completeWordSessionMock.mockResolvedValue({
+      total: 1,
+      mastered: 1,
+      addedDifficult: 0
+    });
+
+    const { POST } = await import("@/app/api/words/sessions/complete/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/words/sessions/complete", {
+        method: "POST",
+        body: JSON.stringify({
+          answers: [{ wordId: "word-1", result: "known" }]
+        })
+      })
+    );
+
+    expect(response.status).toBe(201);
+    expect(completeWordSessionMock).toHaveBeenCalledWith([{ wordId: "word-1", result: "known" }]);
+  });
+
+  it("denies loaded RBAC student actors missing train scope before parsing invalid JSON", async () => {
+    getAppActorMock.mockResolvedValue({
+      userId: "student-profile-1",
+      role: "student",
+      profileRole: "student",
+      isStudent: true,
+      studentId: "student-1",
+      rbacRoles: ["student"],
+      rbacPermissions: ["profile.view"],
+      rbacPermissionScopes: {
+        "profile.view": ["own"]
+      }
+    });
+
+    const { POST } = await import("@/app/api/words/sessions/complete/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/words/sessions/complete", {
+        method: "POST",
+        body: "not-json"
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN" });
+    expect(completeWordSessionMock).not.toHaveBeenCalled();
   });
 
   it("rejects unauthenticated word sessions before service calls", async () => {

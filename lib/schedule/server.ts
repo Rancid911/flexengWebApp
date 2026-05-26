@@ -14,23 +14,25 @@ import { ScheduleHttpError } from "@/lib/schedule/http";
 export type ScheduleActor = {
   userId: string;
   role: UserRole;
+  accessMode: ScheduleAccessMode;
   studentId: string | null;
   teacherId: string | null;
   accessibleStudentIds: string[] | null;
 };
 
+export type ScheduleAccessMode = "student_own" | "teacher_assigned" | "staff_all";
 export type ScheduleActorMode = "contextOnly" | "teacherScope";
 
 export function isStudentScheduleActor(actor: ScheduleActor) {
-  return actor.role === "student";
+  return actor.accessMode === "student_own";
 }
 
 export function isTeacherScheduleActor(actor: ScheduleActor) {
-  return actor.role === "teacher";
+  return actor.accessMode === "teacher_assigned";
 }
 
 export function isStaffAdminScheduleActor(actor: ScheduleActor) {
-  return actor.role === "manager" || actor.role === "admin";
+  return actor.accessMode === "staff_all";
 }
 
 function toScheduleActor(context: AppActor | null, mode: ScheduleActorMode = "teacherScope"): ScheduleActor {
@@ -47,9 +49,17 @@ function toScheduleActor(context: AppActor | null, mode: ScheduleActorMode = "te
     throw new ScheduleHttpError(403, "FORBIDDEN", "Teacher profile is not linked");
   }
 
+  if (workspaceRole === "student" && !context.studentId) {
+    throw new ScheduleHttpError(403, "FORBIDDEN", "Student profile is not linked");
+  }
+
+  const accessMode: ScheduleAccessMode =
+    workspaceRole === "student" ? "student_own" : workspaceRole === "teacher" ? "teacher_assigned" : "staff_all";
+
   return {
     userId: context.userId,
     role: workspaceRole,
+    accessMode,
     studentId: context.studentId,
     teacherId: workspaceRole === "teacher" ? context.teacherId : null,
     accessibleStudentIds: workspaceRole === "teacher" && mode === "teacherScope" ? context.accessibleStudentIds : null

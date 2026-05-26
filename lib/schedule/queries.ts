@@ -31,7 +31,7 @@ import type {
 } from "@/lib/schedule/types";
 import { buildStudentSchedulePreview, hasLessonEnded } from "@/lib/schedule/utils";
 import type { ScheduleActor } from "@/lib/schedule/server";
-import { assertScheduleWriteAccess, assertTeacherScope } from "@/lib/schedule/server";
+import { assertScheduleWriteAccess, assertTeacherScope, isStudentScheduleActor, isTeacherScheduleActor } from "@/lib/schedule/server";
 
 export {
   SCHEDULE_FILTER_CATALOG_DATA_LOADING,
@@ -43,6 +43,14 @@ export type { ScheduleLessonRow };
 
 const TEACHER_SCHEDULE_DEFAULT_WINDOW_DAYS = 21;
 const STAFF_SCHEDULE_DEFAULT_WINDOW_DAYS = 14;
+
+function getStaffScheduleRole(actor: ScheduleActor): StaffSchedulePageData["role"] {
+  if (actor.role === "teacher" || actor.role === "manager" || actor.role === "admin") {
+    return actor.role;
+  }
+
+  throw new ScheduleHttpError(403, "FORBIDDEN", "Staff schedule role is required");
+}
 const SCHEDULE_FILTER_SEARCH_LIMIT = 50;
 
 function assertCanMarkLessonCompleted(lesson: Pick<ScheduleLessonRow, "ends_at">) {
@@ -65,7 +73,7 @@ function compactFilters(filters: StaffScheduleFilters = {}) {
 }
 
 function getTeacherScopedFilters(actor: ScheduleActor, filters: StaffScheduleFilters = {}) {
-  if (actor.role !== "teacher") {
+  if (!isTeacherScheduleActor(actor)) {
     return compactFilters(filters);
   }
 
@@ -93,11 +101,11 @@ export function resolveStudentOptionIds(actor: ScheduleActor, studentIdsOverride
     return studentIdsOverride;
   }
 
-  if (actor.role === "student") {
+  if (isStudentScheduleActor(actor)) {
     return actor.studentId ? [actor.studentId] : [];
   }
 
-  if (actor.role === "teacher") {
+  if (isTeacherScheduleActor(actor)) {
     return actor.accessibleStudentIds ?? [];
   }
 
@@ -114,7 +122,7 @@ function getStaffScheduleWindow(actor: ScheduleActor, filters: StaffScheduleFilt
   const explicitPastSelection = hasExplicitPastDateSelection(filters, now);
   const baseStart = filters.dateFrom ? new Date(`${filters.dateFrom}T00:00:00.000Z`) : new Date(now);
   const normalizedStart = explicitPastSelection ? baseStart : new Date(Math.max(baseStart.getTime(), now.getTime()));
-  const defaultWindowDays = actor.role === "teacher" ? TEACHER_SCHEDULE_DEFAULT_WINDOW_DAYS : STAFF_SCHEDULE_DEFAULT_WINDOW_DAYS;
+  const defaultWindowDays = isTeacherScheduleActor(actor) ? TEACHER_SCHEDULE_DEFAULT_WINDOW_DAYS : STAFF_SCHEDULE_DEFAULT_WINDOW_DAYS;
   const endDate = filters.dateTo ? new Date(`${filters.dateTo}T23:59:59.999Z`) : addDays(normalizedStart, defaultWindowDays);
 
   return {
@@ -228,7 +236,7 @@ export async function getSchedulePageDataInternal(
     const repository = await createUserScopedScheduleRepository();
     const includeFollowup = options.includeFollowup;
 
-    if (actor.role === "student") {
+    if (isStudentScheduleActor(actor)) {
       const rows = await measureServerTiming("schedule-list", () => listScheduleLessonRows(actor, filters, repository));
       const mapped = await mapScheduleLessons(rows, { includeFollowup: true }, repository);
       const preview = buildStudentSchedulePreview(mapped as StudentScheduleLessonDto[]);
@@ -260,13 +268,13 @@ export async function getSchedulePageDataInternal(
       buildOptionsFromLessons(mapped as StaffScheduleLessonDto[], filters, actor)
     );
     return {
-      role: actor.role,
+      role: getStaffScheduleRole(actor),
       lessons: mapped as StaffScheduleLessonDto[],
       students,
       teachers,
       filterCatalogDeferred: true,
       filters: getTeacherScopedFilters(actor, filters),
-      teacherLocked: actor.role === "teacher"
+      teacherLocked: isTeacherScheduleActor(actor)
     } satisfies StaffSchedulePageData;
   });
 }
@@ -306,7 +314,7 @@ export async function getStudentSchedulePreviewByStudentId(studentId: string, li
 
     const teacherOptions = await measureServerTiming("schedule-preview-teachers", () =>
       repository.loadTeacherOptions(
-        { userId: "", role: "admin", studentId: null, teacherId: null, accessibleStudentIds: null },
+        { userId: "", role: "admin", accessMode: "staff_all", studentId: null, teacherId: null, accessibleStudentIds: null },
         Array.from(new Set(rows.map((row) => row.teacher_id)))
       )
     );
@@ -328,14 +336,14 @@ export async function createScheduleLesson(actor: ScheduleActor, payload: Schedu
 }
 
 function assertLessonAccess(actor: ScheduleActor, row: ScheduleLessonRow) {
-  if (actor.role === "student") {
+  if (isStudentScheduleActor(actor)) {
     if (!actor.studentId || row.student_id !== actor.studentId) {
       throw new ScheduleHttpError(403, "FORBIDDEN", "Lesson is outside the student scope");
     }
     return;
   }
 
-  if (actor.role === "teacher") {
+  if (isTeacherScheduleActor(actor)) {
     assertTeacherScope(actor, {
       studentId: row.student_id,
       teacherId: row.teacher_id
@@ -350,7 +358,7 @@ export async function updateScheduleLesson(actor: ScheduleActor, id: string, pay
   assertLessonAccess(actor, existing);
 
   const nextStudentId = payload.studentId ?? existing.student_id;
-  const nextTeacherId = actor.role === "teacher" ? actor.teacherId : payload.teacherId ?? existing.teacher_id;
+  const nextTeacherId = isTeacherScheduleActor(actor) ? actor.teacherId : payload.teacherId ?? existing.teacher_id;
   assertTeacherScope(actor, {
     studentId: nextStudentId,
     teacherId: nextTeacherId

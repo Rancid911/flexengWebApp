@@ -1,7 +1,7 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
 import type { createClient } from "@/lib/supabase/server";
 import { ScheduleHttpError } from "@/lib/schedule/http";
-import type { ScheduleActor } from "@/lib/schedule/server";
+import { isStudentScheduleActor, isTeacherScheduleActor, type ScheduleActor } from "@/lib/schedule/server";
 import type { StaffScheduleFilters, ScheduleLessonMutationPayload, ScheduleTeacherOptionDto, ScheduleStudentOptionDto } from "@/lib/schedule/types";
 import {
   buildDisplayName,
@@ -148,7 +148,7 @@ export function createScheduleRepository(client: ScheduleRepositoryClient) {
 
     async loadTeacherOptions(actor: ScheduleActor, teacherIdsOverride?: string[]): Promise<ScheduleTeacherOptionDto[]> {
       let teacherIds: string[] | null = teacherIdsOverride ?? null;
-      if (actor.role === "teacher") {
+      if (isTeacherScheduleActor(actor)) {
         teacherIds = actor.teacherId ? [actor.teacherId] : [];
       }
 
@@ -189,10 +189,10 @@ export function createScheduleRepository(client: ScheduleRepositoryClient) {
       const effectiveLimit = Math.max(1, Math.min(limit, 100));
       let query = client.from("students").select(PROFILE_LABEL_SELECT).order("created_at", { ascending: true }).limit(effectiveLimit);
 
-      if (actor.role === "student") {
+      if (isStudentScheduleActor(actor)) {
         if (!actor.studentId) return [];
         query = query.eq("id", actor.studentId);
-      } else if (actor.role === "teacher") {
+      } else if (isTeacherScheduleActor(actor)) {
         const accessibleIds = actor.accessibleStudentIds ?? [];
         if (accessibleIds.length === 0) return [];
         query = query.in("id", accessibleIds);
@@ -218,7 +218,7 @@ export function createScheduleRepository(client: ScheduleRepositoryClient) {
       const effectiveLimit = Math.max(1, Math.min(limit, 100));
       let query = client.from("teachers").select(PROFILE_LABEL_SELECT).order("created_at", { ascending: true }).limit(effectiveLimit);
 
-      if (actor.role === "teacher") {
+      if (isTeacherScheduleActor(actor)) {
         if (!actor.teacherId) return [];
         query = query.eq("id", actor.teacherId);
       }
@@ -249,11 +249,11 @@ export function createScheduleRepository(client: ScheduleRepositoryClient) {
       const { actor, filters, startsAt, endsAt, agendaMode } = args;
       let query = client.from("student_schedule_lessons").select(SCHEDULE_LESSON_SELECT).order("starts_at", { ascending: true }).limit(120);
 
-      if (actor.role === "student") {
+      if (isStudentScheduleActor(actor)) {
         if (!actor.studentId) return [];
         query = query.eq("student_id", actor.studentId).eq("status", "scheduled").gt("starts_at", new Date().toISOString());
       } else {
-        if (actor.role === "teacher") {
+        if (isTeacherScheduleActor(actor)) {
           const accessibleIds = actor.accessibleStudentIds ?? [];
           if (accessibleIds.length === 0) return [];
           query = query.in("student_id", accessibleIds).eq("teacher_id", actor.teacherId ?? "");
@@ -304,7 +304,7 @@ export function createScheduleRepository(client: ScheduleRepositoryClient) {
     async createScheduleLessonRow(payload: ScheduleLessonMutationPayload, actor: ScheduleActor) {
       const insertPayload = {
         student_id: payload.studentId,
-        teacher_id: actor.role === "teacher" ? actor.teacherId : payload.teacherId,
+        teacher_id: isTeacherScheduleActor(actor) ? actor.teacherId : payload.teacherId,
         title: payload.title,
         starts_at: payload.startsAt,
         ends_at: payload.endsAt,

@@ -32,7 +32,7 @@ function isMissingBirthDateColumn(error: { message?: string } | null | undefined
 }
 
 function canWriteStudentBirthDateFallback(actor: AppActor) {
-  return actor.isStudent && Boolean(actor.studentId) && actor.profileRole === "student";
+  return actor.isStudent && Boolean(actor.studentId) && !actor.isTeacher;
 }
 
 async function getCurrentAuthContext(actor: AppActor) {

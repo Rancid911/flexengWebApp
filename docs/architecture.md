@@ -2,6 +2,8 @@
 
 This document defines the current layering rules for the dashboard-next project. It is intentionally conservative: it documents the architecture we want future changes to follow without requiring a rewrite of existing modules.
 
+For current authorization, RBAC/RLS, request-context, service-role, storage and workspace-boundary rules, start with `docs/access-control-current-state.md`.
+
 ## Current Layers
 
 - `app/*`: Next.js routing conventions, layouts, pages, route handlers, and API transport boundaries only.

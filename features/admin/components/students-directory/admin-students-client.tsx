@@ -8,13 +8,14 @@ type AdminStudentsClientProps = {
   page: number;
   pageSize: number;
   pageCount: number;
+  basePath?: string;
 };
 
 function getStudentDisplayName(student: AdminUserDto) {
   return `${student.first_name ?? ""} ${student.last_name ?? ""}`.trim() || `User #${student.id.slice(0, 8)}`;
 }
 
-export function AdminStudentsClient({ query, students, total, page, pageSize, pageCount }: AdminStudentsClientProps) {
+export function AdminStudentsClient({ query, students, total, page, pageSize, pageCount, basePath = "/admin/students" }: AdminStudentsClientProps) {
   const directoryStudents: StudentsDirectoryItem[] = students
     .filter((student) => student.student_id)
     .map((student) => ({
@@ -30,5 +31,5 @@ export function AdminStudentsClient({ query, students, total, page, pageSize, pa
       billingDebtLabel: student.billing_debt_label
     }));
 
-  return <StudentsDirectoryClient mode="admin" basePath="/admin/students" query={query} students={directoryStudents} total={total} page={page} pageSize={pageSize} pageCount={pageCount} />;
+  return <StudentsDirectoryClient mode="admin" basePath={basePath} query={query} students={directoryStudents} total={total} page={page} pageSize={pageSize} pageCount={pageCount} />;
 }

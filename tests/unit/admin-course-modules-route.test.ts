@@ -1,11 +1,18 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const createClientMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -15,12 +22,12 @@ vi.mock("@/lib/supabase/server", () => ({
 describe("/api/admin/course-modules/options", () => {
   beforeEach(() => {
     vi.resetModules();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     createClientMock.mockReset();
   });
 
   it("returns readable module options sorted by course and module title", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
@@ -73,7 +80,7 @@ describe("/api/admin/course-modules/options", () => {
   });
 
   it("rejects module options access without the learning content permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/admin/course-modules/options/route");
     const response = await GET();
@@ -90,12 +97,12 @@ describe("/api/admin/course-modules/options", () => {
 describe("/api/admin/courses/options", () => {
   beforeEach(() => {
     vi.resetModules();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     createClientMock.mockReset();
   });
 
   it("returns readable course options sorted by title", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
@@ -126,7 +133,7 @@ describe("/api/admin/courses/options", () => {
   });
 
   it("rejects course options access without the learning content permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/admin/courses/options/route");
     const response = await GET();
@@ -143,12 +150,12 @@ describe("/api/admin/courses/options", () => {
 describe("/api/admin/course-modules", () => {
   beforeEach(() => {
     vi.resetModules();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     createClientMock.mockReset();
   });
 
   it("creates a module at the end of the selected course", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const moduleInsertMock = vi.fn(() => ({
       select: vi.fn(() => ({
@@ -225,7 +232,7 @@ describe("/api/admin/course-modules", () => {
   });
 
   it("returns validation errors for missing course or title", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     createClientMock.mockResolvedValue({});
 
     const { POST } = await import("@/app/api/admin/course-modules/route");
@@ -244,7 +251,7 @@ describe("/api/admin/course-modules", () => {
   });
 
   it("rejects module creation without the learning content permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { POST } = await import("@/app/api/admin/course-modules/route");
     const response = await POST(

@@ -98,6 +98,19 @@ function filterProfileNavItems(items: WorkspaceNavItem[], canShowProfile: boolea
 
 const navAccessRules: Record<string, RbacPermissionRule[]> = {
   schedule: [{ permission: "schedule.view", scopes: ["own", "assigned", "all"] }],
+  crm: [
+    { permission: "crm.leads.view", scopes: ["all"] },
+    { permission: "crm.leads.manage", scopes: ["all"] }
+  ],
+  admin: [
+    { permission: "users.view", scopes: ["all"] },
+    { permission: "content.manage", scopes: ["all"] },
+    { permission: "notifications.manage", scopes: ["all"] },
+    { permission: "word_cards.manage", scopes: ["all"] }
+  ],
+  "admin-students": [{ permission: "students.view", scopes: ["all"] }],
+  "admin-teachers": [{ permission: "teachers.view", scopes: ["all"] }],
+  "payments-control": [{ permission: "payments.manage", scopes: ["all"] }],
   "teacher-students": [{ permission: "students.view", scopes: ["assigned", "all"] }],
   homework: [{ permission: "homework.view", scopes: ["own", "assigned", "all"] }],
   progress: [{ permission: "student_progress.view", scopes: ["own", "assigned", "all"] }],

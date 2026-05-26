@@ -34,7 +34,14 @@ const teacherActor = {
   userId: "teacher-1",
   teacherId: "teacher-1",
   studentId: null,
-  accessibleStudentIds: ["student-1"]
+  accessibleStudentIds: ["student-1"],
+  rbacRoles: ["teacher"],
+  rbacPermissions: ["students.view", "schedule.view", "schedule.manage"],
+  rbacPermissionScopes: {
+    "students.view": ["assigned"],
+    "schedule.view": ["assigned"],
+    "schedule.manage": ["assigned"]
+  }
 };
 
 const studentActor = {
@@ -43,6 +50,65 @@ const studentActor = {
   studentId: "student-1",
   teacherId: null,
   accessibleStudentIds: null
+};
+
+const adminNotesActor = {
+  role: "admin",
+  userId: "admin-1",
+  rbacRoles: ["admin"],
+  rbacPermissions: ["students.manage"],
+  rbacPermissionScopes: {
+    "students.manage": ["all"]
+  }
+};
+
+const managerScheduleReaderActor = {
+  role: "manager",
+  userId: "manager-1",
+  rbacRoles: ["manager"],
+  rbacPermissions: ["schedule.view"],
+  rbacPermissionScopes: {
+    "schedule.view": ["all"]
+  }
+};
+
+const teacherWithoutScheduleGrant = {
+  role: "teacher",
+  userId: "teacher-1",
+  teacherId: "teacher-1",
+  studentId: null,
+  accessibleStudentIds: ["student-1"],
+  rbacRoles: ["teacher"],
+  rbacPermissions: ["profile.view"],
+  rbacPermissionScopes: {
+    "profile.view": ["own"]
+  }
+};
+
+const teacherWithAssignedStudentViewGrant = {
+  role: "teacher",
+  userId: "teacher-1",
+  teacherId: "teacher-1",
+  studentId: null,
+  accessibleStudentIds: ["student-1"],
+  rbacRoles: ["teacher"],
+  rbacPermissions: ["students.view"],
+  rbacPermissionScopes: {
+    "students.view": ["assigned"]
+  }
+};
+
+const teacherWithoutNotesGrant = {
+  role: "teacher",
+  userId: "teacher-1",
+  teacherId: "teacher-1",
+  studentId: null,
+  accessibleStudentIds: ["student-1"],
+  rbacRoles: ["teacher"],
+  rbacPermissions: ["profile.view"],
+  rbacPermissionScopes: {
+    "profile.view": ["own"]
+  }
 };
 
 function expectNoTeacherNoteServicesCalled() {
@@ -89,6 +155,43 @@ describe("teacher workspace api routes", () => {
     await expect(response.json()).resolves.toEqual({ id: "note-1", body: "New note" });
   });
 
+  it("creates a teacher note for loaded RBAC teachers with assigned student grant", async () => {
+    requireScheduleApiMock.mockResolvedValue(teacherWithAssignedStudentViewGrant);
+    createTeacherStudentNoteMock.mockResolvedValue({ id: "note-1", body: "New note" });
+
+    const response = await createTeacherNote(
+      new Request("http://localhost/api/students/student-1/teacher-notes", {
+        method: "POST",
+        body: JSON.stringify({ body: "New note", visibility: "private" }),
+        headers: { "Content-Type": "application/json" }
+      }) as never,
+      { params: Promise.resolve({ id: "student-1" }) }
+    );
+
+    expect(response.status).toBe(201);
+    expect(createTeacherStudentNoteMock).toHaveBeenCalledWith(teacherWithAssignedStudentViewGrant, "student-1", {
+      body: "New note",
+      visibility: "private"
+    });
+  });
+
+  it("denies teacher note create for loaded RBAC teachers missing note grants before body parsing", async () => {
+    requireScheduleApiMock.mockResolvedValue(teacherWithoutNotesGrant);
+
+    const response = await createTeacherNote(
+      new Request("http://localhost/api/students/student-1/teacher-notes", {
+        method: "POST",
+        body: "not-json",
+        headers: { "Content-Type": "application/json" }
+      }) as never,
+      { params: Promise.resolve({ id: "student-1" }) }
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Permission denied" });
+    expectNoTeacherNoteServicesCalled();
+  });
+
   it("denies teacher note create before body parsing and service calls", async () => {
     requireScheduleApiMock.mockResolvedValue(studentActor);
 
@@ -127,6 +230,43 @@ describe("teacher workspace api routes", () => {
     await expect(response.json()).resolves.toEqual({ id: "note-1", body: "Updated note" });
   });
 
+  it("updates a teacher note for loaded RBAC teachers with assigned student grant", async () => {
+    requireScheduleApiMock.mockResolvedValue(teacherWithAssignedStudentViewGrant);
+    updateTeacherStudentNoteMock.mockResolvedValue({ id: "note-1", body: "Updated note" });
+
+    const response = await patchTeacherNote(
+      new Request("http://localhost/api/teacher-notes/note-1", {
+        method: "PATCH",
+        body: JSON.stringify({ body: "Updated note", visibility: "private" }),
+        headers: { "Content-Type": "application/json" }
+      }) as never,
+      { params: Promise.resolve({ id: "note-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateTeacherStudentNoteMock).toHaveBeenCalledWith(teacherWithAssignedStudentViewGrant, "note-1", {
+      body: "Updated note",
+      visibility: "private"
+    });
+  });
+
+  it("denies teacher note patch for loaded RBAC teachers missing note grants before body parsing", async () => {
+    requireScheduleApiMock.mockResolvedValue(teacherWithoutNotesGrant);
+
+    const response = await patchTeacherNote(
+      new Request("http://localhost/api/teacher-notes/note-1", {
+        method: "PATCH",
+        body: "not-json",
+        headers: { "Content-Type": "application/json" }
+      }) as never,
+      { params: Promise.resolve({ id: "note-1" }) }
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Permission denied" });
+    expectNoTeacherNoteServicesCalled();
+  });
+
   it("denies teacher note patch before body parsing and service calls", async () => {
     requireScheduleApiMock.mockResolvedValue(studentActor);
 
@@ -145,7 +285,7 @@ describe("teacher workspace api routes", () => {
   });
 
   it("returns forbidden for teacher note patch when query layer rejects out-of-scope write", async () => {
-    requireScheduleApiMock.mockResolvedValue({ role: "teacher", userId: "teacher-1" });
+    requireScheduleApiMock.mockResolvedValue(teacherWithAssignedStudentViewGrant);
     updateTeacherStudentNoteMock.mockRejectedValue(new ScheduleHttpError(403, "FORBIDDEN", "Teacher write capability required"));
 
     const response = await patchTeacherNote(
@@ -161,7 +301,7 @@ describe("teacher workspace api routes", () => {
   });
 
   it("deletes a teacher note through the route", async () => {
-    const actor = { role: "admin", userId: "admin-1" };
+    const actor = adminNotesActor;
     requireScheduleApiMock.mockResolvedValue(actor);
     deleteTeacherStudentNoteMock.mockResolvedValue({ id: "note-1" });
 
@@ -173,6 +313,32 @@ describe("teacher workspace api routes", () => {
     expect(response.status).toBe(200);
     expect(deleteTeacherStudentNoteMock).toHaveBeenCalledWith(actor, "note-1");
     await expect(response.json()).resolves.toEqual({ id: "note-1" });
+  });
+
+  it("deletes a teacher note for loaded RBAC teachers with assigned student grant", async () => {
+    requireScheduleApiMock.mockResolvedValue(teacherWithAssignedStudentViewGrant);
+    deleteTeacherStudentNoteMock.mockResolvedValue({ id: "note-1" });
+
+    const response = await deleteTeacherNote(
+      new Request("http://localhost/api/teacher-notes/note-1", { method: "DELETE" }) as never,
+      { params: Promise.resolve({ id: "note-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(deleteTeacherStudentNoteMock).toHaveBeenCalledWith(teacherWithAssignedStudentViewGrant, "note-1");
+  });
+
+  it("denies teacher note delete for loaded RBAC teachers missing note grants before service calls", async () => {
+    requireScheduleApiMock.mockResolvedValue(teacherWithoutNotesGrant);
+
+    const response = await deleteTeacherNote(
+      new Request("http://localhost/api/teacher-notes/note-1", { method: "DELETE" }) as never,
+      { params: Promise.resolve({ id: "note-1" }) }
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Permission denied" });
+    expectNoTeacherNoteServicesCalled();
   });
 
   it("denies teacher note delete before service calls", async () => {
@@ -189,7 +355,7 @@ describe("teacher workspace api routes", () => {
   });
 
   it("returns query-layer errors for teacher note delete", async () => {
-    requireScheduleApiMock.mockResolvedValue({ role: "teacher", userId: "teacher-1" });
+    requireScheduleApiMock.mockResolvedValue(teacherWithAssignedStudentViewGrant);
     deleteTeacherStudentNoteMock.mockRejectedValue(new ScheduleHttpError(404, "TEACHER_NOTE_NOT_FOUND", "Teacher note not found"));
 
     const response = await deleteTeacherNote(
@@ -201,7 +367,7 @@ describe("teacher workspace api routes", () => {
   });
 
   it("returns forbidden for outcome save when query layer rejects teacher scope", async () => {
-    requireScheduleApiMock.mockResolvedValue({ role: "teacher", userId: "teacher-1" });
+    requireScheduleApiMock.mockResolvedValue(teacherActor);
     upsertTeacherLessonFollowupMock.mockRejectedValue(new ScheduleHttpError(403, "FORBIDDEN", "Teacher write capability required"));
 
     const response = await postLessonOutcome(
@@ -240,8 +406,25 @@ describe("teacher workspace api routes", () => {
     expectNoLessonFollowupServicesCalled();
   });
 
+  it("denies outcome save before body parsing when loaded RBAC lacks schedule manage", async () => {
+    requireScheduleApiMock.mockResolvedValue(teacherWithoutScheduleGrant);
+
+    const response = await postLessonOutcome(
+      new Request("http://localhost/api/schedule/lesson-1/outcome", {
+        method: "POST",
+        body: "not-json",
+        headers: { "Content-Type": "application/json" }
+      }) as never,
+      { params: Promise.resolve({ id: "lesson-1" }) }
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Permission denied" });
+    expectNoLessonFollowupServicesCalled();
+  });
+
   it("returns forbidden for attendance save when query layer rejects mismatched teacher lesson", async () => {
-    requireScheduleApiMock.mockResolvedValue({ role: "teacher", userId: "teacher-1" });
+    requireScheduleApiMock.mockResolvedValue(teacherActor);
     upsertTeacherLessonFollowupMock.mockRejectedValue(new ScheduleHttpError(403, "FORBIDDEN", "Teacher write capability required"));
 
     const response = await postLessonAttendance(
@@ -273,8 +456,25 @@ describe("teacher workspace api routes", () => {
     expectNoLessonFollowupServicesCalled();
   });
 
+  it("denies attendance save before body parsing when loaded RBAC lacks schedule manage", async () => {
+    requireScheduleApiMock.mockResolvedValue(teacherWithoutScheduleGrant);
+
+    const response = await postLessonAttendance(
+      new Request("http://localhost/api/schedule/lesson-1/attendance", {
+        method: "POST",
+        body: "not-json",
+        headers: { "Content-Type": "application/json" }
+      }) as never,
+      { params: Promise.resolve({ id: "lesson-1" }) }
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Permission denied" });
+    expectNoLessonFollowupServicesCalled();
+  });
+
   it("keeps reader path available for follow-up GET", async () => {
-    requireScheduleApiMock.mockResolvedValue({ role: "manager", userId: "manager-1" });
+    requireScheduleApiMock.mockResolvedValue(managerScheduleReaderActor);
     getTeacherLessonFollowupMock.mockResolvedValue({ attendance: null, outcome: null });
 
     const response = await getLessonOutcome(
@@ -288,6 +488,19 @@ describe("teacher workspace api routes", () => {
 
   it("denies follow-up GET for student actors before service calls", async () => {
     requireScheduleApiMock.mockResolvedValue(studentActor);
+
+    const response = await getLessonOutcome(
+      new Request("http://localhost/api/schedule/lesson-1/outcome", { method: "GET" }) as never,
+      { params: Promise.resolve({ id: "lesson-1" }) }
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Permission denied" });
+    expectNoLessonFollowupServicesCalled();
+  });
+
+  it("denies follow-up GET before service calls when loaded RBAC lacks schedule view", async () => {
+    requireScheduleApiMock.mockResolvedValue(teacherWithoutScheduleGrant);
 
     const response = await getLessonOutcome(
       new Request("http://localhost/api/schedule/lesson-1/outcome", { method: "GET" }) as never,
@@ -314,6 +527,16 @@ describe("teacher workspace api routes", () => {
 
   it("denies follow-up test options before studentId validation and service calls", async () => {
     requireScheduleApiMock.mockResolvedValue(studentActor);
+
+    const response = await getFollowupTestOptions(new Request("http://localhost/api/schedule/followup-test-options") as never);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ code: "FORBIDDEN", message: "Permission denied" });
+    expectNoLessonFollowupServicesCalled();
+  });
+
+  it("denies follow-up test options before validation when loaded RBAC lacks schedule manage", async () => {
+    requireScheduleApiMock.mockResolvedValue(teacherWithoutScheduleGrant);
 
     const response = await getFollowupTestOptions(new Request("http://localhost/api/schedule/followup-test-options") as never);
 

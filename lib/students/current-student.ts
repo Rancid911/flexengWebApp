@@ -39,7 +39,7 @@ export function requireRealStudentWriteContext(
     throw new StudentWriteAccessError("Authentication required", 401, "UNAUTHORIZED");
   }
 
-  const isConfirmedRealStudent = actor.isStudent && Boolean(actor.studentId) && actor.profileRole === "student";
+  const isConfirmedRealStudent = actor.isStudent && Boolean(actor.studentId) && !actor.isTeacher;
   if (!isConfirmedRealStudent) {
     throw new StudentWriteAccessError();
   }

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getAppActorMock = vi.fn();
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const canReadProfileAvatarMock = vi.fn();
 const loadAvatarMediaFileMock = vi.fn();
 const loadCrmBackgroundMediaFileMock = vi.fn();
@@ -12,7 +12,14 @@ vi.mock("@/lib/auth/request-context", () => ({
 }));
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/media/service", () => ({
@@ -29,18 +36,30 @@ function mediaFile(contentType = "image/png") {
   };
 }
 
+function ownProfileReadActor(userId: string) {
+  return {
+    userId,
+    role: "student",
+    rbacStatus: "loaded",
+    rbacPermissions: ["profile.view"],
+    rbacPermissionScopes: {
+      "profile.view": ["own"]
+    }
+  };
+}
+
 describe("media API routes", () => {
   beforeEach(() => {
     vi.resetModules();
     getAppActorMock.mockReset();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     canReadProfileAvatarMock.mockReset();
     loadAvatarMediaFileMock.mockReset();
     loadCrmBackgroundMediaFileMock.mockReset();
   });
 
   it("streams own avatar with private cache headers", async () => {
-    getAppActorMock.mockResolvedValue({ userId: "profile-1", role: "student" });
+    getAppActorMock.mockResolvedValue(ownProfileReadActor("profile-1"));
     canReadProfileAvatarMock.mockReturnValue(true);
     loadAvatarMediaFileMock.mockResolvedValue(mediaFile("image/png"));
 
@@ -95,7 +114,7 @@ describe("media API routes", () => {
   });
 
   it("returns 404 when an avatar object is missing", async () => {
-    getAppActorMock.mockResolvedValue({ userId: "profile-1", role: "student" });
+    getAppActorMock.mockResolvedValue(ownProfileReadActor("profile-1"));
     canReadProfileAvatarMock.mockReturnValue(true);
     loadAvatarMediaFileMock.mockResolvedValue(null);
 
@@ -108,7 +127,7 @@ describe("media API routes", () => {
   });
 
   it("streams CRM background only after CRM settings read permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
     loadCrmBackgroundMediaFileMock.mockResolvedValue(mediaFile("image/jpeg"));
 
     const { GET } = await import("@/app/api/media/crm-background/route");
@@ -121,7 +140,7 @@ describe("media API routes", () => {
   });
 
   it("denies CRM background when the actor lacks CRM settings read permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/media/crm-background/route");
     const response = await GET(new NextRequest("http://localhost/api/media/crm-background"));

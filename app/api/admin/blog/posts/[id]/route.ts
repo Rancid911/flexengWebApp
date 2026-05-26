@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireStaffAdminApi } from "@/lib/admin/auth";
+import { requireAdminApiPermission } from "@/lib/admin/auth";
 import { deleteAdminBlogPost, updateAdminBlogPost } from "@/lib/admin/blog.service";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { blogPostUpdateSchema } from "@/lib/admin/validation";
-import { requirePermission } from "@/lib/permissions";
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-  const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.manage");
+  const actor = await requireAdminApiPermission("content.manage");
   const { id } = await params;
   const body = await request.json();
   const parsed = blogPostUpdateSchema.safeParse(body);
@@ -19,8 +17,7 @@ export const PATCH = withAdminErrorHandling(async (request: NextRequest, { param
 });
 
 export const DELETE = withAdminErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-  const actor = await requireStaffAdminApi();
-  requirePermission(actor, "content.manage");
+  const actor = await requireAdminApiPermission("content.manage");
   const { id } = await params;
   const payload = await deleteAdminBlogPost(actor, id);
   return NextResponse.json(payload);

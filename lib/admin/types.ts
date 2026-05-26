@@ -1,4 +1,5 @@
 import type { StudentBillingMode } from "@/lib/billing/types";
+import type { NotificationTargetAudience } from "@/lib/notifications/audience";
 
 export type ApiErrorShape = {
   code: string;
@@ -191,7 +192,7 @@ export type AdminDashboardMetricsDto = {
 
 export type NotificationType = "maintenance" | "update" | "news" | "assignments";
 
-export type NotificationTargetRole = "all" | AdminUserRole;
+export type NotificationTargetRole = NotificationTargetAudience;
 
 export type AdminNotificationDto = {
   id: string;

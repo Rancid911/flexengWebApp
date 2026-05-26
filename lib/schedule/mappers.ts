@@ -8,7 +8,7 @@ import type {
   StudentScheduleLessonDto,
   ScheduleLessonStatus
 } from "@/lib/schedule/types";
-import type { ScheduleActor } from "@/lib/schedule/server";
+import { isTeacherScheduleActor, type ScheduleActor } from "@/lib/schedule/server";
 
 export type ScheduleLessonRow = {
   id: string;
@@ -138,7 +138,7 @@ export function buildOptionsFromLessons(
     });
   }
 
-  if (actor.role === "teacher" && actor.teacherId && !teachersById.has(actor.teacherId)) {
+  if (isTeacherScheduleActor(actor) && actor.teacherId && !teachersById.has(actor.teacherId)) {
     teachersById.set(actor.teacherId, {
       id: actor.teacherId,
       label: "Вы"

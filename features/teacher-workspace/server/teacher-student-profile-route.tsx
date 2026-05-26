@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { StudentProfileView } from "@/features/students/components/student-profile-view";
 import { TeacherStudentProfileView } from "@/features/teacher-workspace/components/teacher-student-profile-view";
 import {
   isStaffAdminScheduleActor,
@@ -17,7 +18,21 @@ export async function renderTeacherStudentProfileRoute({ params }: { params: Pro
     redirect("/dashboard");
   }
   if (isStaffAdminScheduleActor(actor)) {
-    redirect(`/admin/students/${studentId}`);
+    const sections = await measureServerTiming("teacher-student-profile-route-data", () =>
+      loadTeacherStudentProfileSections(actor, studentId)
+    );
+
+    return (
+      <StudentProfileView
+        sections={sections}
+        canWriteNotes
+        canManageBilling
+        canAssignPlacement
+        canAssignHomework
+        backLink={{ href: "/students", label: "Назад к ученикам" }}
+        profileBasePath={`/students/${sections.header.studentId}`}
+      />
+    );
   }
 
   const sections = await measureServerTiming("teacher-student-profile-route-data", () =>

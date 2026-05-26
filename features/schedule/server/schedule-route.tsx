@@ -1,6 +1,6 @@
 import { ScheduleClient } from "@/features/schedule/components/schedule-client";
 import { getSchedulePageDataInternal } from "@/lib/schedule/queries";
-import { requireSchedulePage } from "@/lib/schedule/server";
+import { isStudentScheduleActor, requireSchedulePage } from "@/lib/schedule/server";
 import { scheduleFiltersSchema } from "@/lib/schedule/validation";
 import { measureServerTiming } from "@/lib/server/timing";
 
@@ -22,7 +22,7 @@ export async function renderScheduleRoute({
   });
   const initialData = await measureServerTiming("schedule-route-data", () =>
     getSchedulePageDataInternal(actor, parsedFilters.success ? parsedFilters.data : {}, {
-      includeFollowup: actor.role === "student"
+      includeFollowup: isStudentScheduleActor(actor)
     })
   );
 

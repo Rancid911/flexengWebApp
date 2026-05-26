@@ -10,12 +10,12 @@
 - `settings/payments`: narrow-loader `Promise.all` assembly for billing summary, payments list, plans and payment status context.
 - `progress`: reference implementation for summary-first student loading.
 
-## Current privileged exception
-- Student billing summary and reminder-state remain a documented privileged exception until a user-scoped DB summary path exists.
+## User-scoped companion paths
+- `settings/payments`: billing summary uses the actor-scoped `get_accessible_student_billing_summary(...)` RPC through the user-scoped server client.
+- `student-dashboard`: payment reminder state is isolated from the core dashboard payload and loads through an actor-scoped reminder RPC.
 
 ## Future RPC/view candidates
 - `student dashboard`: `student_words` counts and consolidated progress/test/mistakes aggregates
 - `practice`: topic progress summary and recommendation feed aggregate
 - `progress`: overview aggregate and weak-points aggregate
-- `payments`: user-scoped billing summary and reminder-state summary
 - `homework`: summary counts if overview calculations continue to grow

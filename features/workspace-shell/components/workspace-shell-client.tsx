@@ -17,6 +17,7 @@ import {
 } from "@/features/workspace-shell/client/use-dashboard-shell-state";
 import { CrmBackgroundContext } from "@/features/workspace-shell/client/crm-background-context";
 import { getWorkspaceNavConfig } from "@/features/workspace-shell/model/workspace-navigation";
+import { resolveWorkspaceShellIntent } from "@/features/workspace-shell/model/workspace-shell-intent";
 import type { WorkspaceNavItem, WorkspaceShellVariant, WorkspaceUtilitySlots } from "@/features/workspace-shell/model/workspace-shell.types";
 import { cn } from "@/lib/utils";
 
@@ -70,7 +71,7 @@ function normalizeCrmBackgroundImageUrl(url: string | null | undefined) {
 export type WorkspaceShellClientProps = {
   initialSidebarCollapsed: boolean | null;
   initialProfile: WorkspaceLayoutProfile;
-  shellVariant: WorkspaceShellVariant;
+  shellVariant?: WorkspaceShellVariant;
   utilitySlots?: WorkspaceUtilitySlots;
   crmBackgroundImageUrl?: string | null;
   children: React.ReactNode;
@@ -86,6 +87,9 @@ export function WorkspaceShellClient({
 }: WorkspaceShellClientProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const shellIntent = useMemo(() => resolveWorkspaceShellIntent(pathname), [pathname]);
+  const resolvedShellVariant = shellVariant ?? shellIntent.shellVariant;
+  const resolvedUtilitySlots = utilitySlots ?? (shellVariant ? undefined : shellIntent.utilitySlots);
   const { sidebarCollapsed, sidebarTransitionsEnabled, toggleSidebar } = useDashboardSidebarState(initialSidebarCollapsed);
   const {
     mobileMoreSheetOpen,
@@ -121,7 +125,7 @@ export function WorkspaceShellClient({
       .join("") || email[0]?.toUpperCase() || "U";
 
   const navConfig = useMemo(() => {
-    const config = getWorkspaceNavConfig(shellVariant, currentRole, {
+    const config = getWorkspaceNavConfig(resolvedShellVariant, currentRole, {
       rbacPermissions: initialProfile.rbacPermissions,
       rbacPermissionScopes: initialProfile.rbacPermissionScopes
     });
@@ -133,7 +137,7 @@ export function WorkspaceShellClient({
       secondary: applyCrmUnreadBadge(config.secondary, crmUnreadCount),
       mobileMore: applyCrmUnreadBadge(config.mobileMore, crmUnreadCount)
     };
-  }, [canShowCrmBadge, crmUnreadCount, currentRole, initialProfile.rbacPermissionScopes, initialProfile.rbacPermissions, shellVariant]);
+  }, [canShowCrmBadge, crmUnreadCount, currentRole, initialProfile.rbacPermissionScopes, initialProfile.rbacPermissions, resolvedShellVariant]);
   const labelMotionClass = sidebarCollapsed
     ? "transition-[opacity,transform] duration-220 ease-[cubic-bezier(0.4,0,1,1)]"
     : "transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]";
@@ -267,7 +271,7 @@ export function WorkspaceShellClient({
         utilities={
           <WorkspaceUtilities
             currentUserId={currentUserId}
-            utilitySlots={utilitySlots}
+            utilitySlots={resolvedUtilitySlots}
             crmGlassMode={crmGlassMode}
           />
         }

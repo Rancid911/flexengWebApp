@@ -25,7 +25,7 @@ export type WorkspaceNavConfig = {
 };
 
 export type WorkspaceChromeProps = {
-  shellVariant: WorkspaceShellVariant;
+  shellVariant?: WorkspaceShellVariant;
   utilitySlots?: WorkspaceUtilitySlots;
   crmBackgroundImageUrl?: string | null;
 };

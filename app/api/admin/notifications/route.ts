@@ -1,22 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireStaffAdminApi } from "@/lib/admin/auth";
+import { requireAdminApiPermission } from "@/lib/admin/auth";
 import { AdminHttpError, parsePagination, withAdminErrorHandling } from "@/lib/admin/http";
 import { createAdminNotification, listAdminNotifications } from "@/lib/admin/notifications.service";
 import { adminNotificationCreateSchema } from "@/lib/admin/validation";
-import { requirePermission } from "@/lib/permissions";
 
 export const GET = withAdminErrorHandling(async (request: NextRequest) => {
-  const actor = await requireStaffAdminApi();
-  requirePermission(actor, "notifications.manage");
+  await requireAdminApiPermission("notifications.manage");
   const { page, pageSize, q } = parsePagination(new URL(request.url));
   const payload = await listAdminNotifications({ page, pageSize, q });
   return NextResponse.json(payload);
 });
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
-  const actor = await requireStaffAdminApi();
-  requirePermission(actor, "notifications.manage");
+  const actor = await requireAdminApiPermission("notifications.manage");
   const body = await request.json();
   const parsed = adminNotificationCreateSchema.safeParse(body);
   if (!parsed.success) throw new AdminHttpError(400, "VALIDATION_ERROR", "Invalid notification payload", parsed.error.flatten());

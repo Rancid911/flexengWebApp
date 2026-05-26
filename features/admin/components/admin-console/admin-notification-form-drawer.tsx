@@ -6,16 +6,22 @@ import { notificationTypeOptions, type NotificationForm } from "@/features/admin
 import { Button } from "@/components/ui/button";
 import { CheckboxField, FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { NOTIFICATION_TARGET_AUDIENCES, type NotificationTargetAudience } from "@/lib/notifications/audience";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const roleOptions: Array<{ value: "all" | "student" | "teacher" | "manager" | "admin"; label: string }> = [
-  { value: "all", label: "Все роли" },
-  { value: "student", label: "Студент" },
-  { value: "teacher", label: "Преподаватель" },
-  { value: "manager", label: "Менеджер" },
-  { value: "admin", label: "Администратор" }
-];
+const roleLabels: Record<NotificationTargetAudience, string> = {
+  all: "Все роли",
+  student: "Студент",
+  teacher: "Преподаватель",
+  manager: "Менеджер",
+  admin: "Администратор"
+};
+
+const roleOptions: Array<{ value: NotificationTargetAudience; label: string }> = NOTIFICATION_TARGET_AUDIENCES.map((value) => ({
+  value,
+  label: roleLabels[value]
+}));
 
 type Props = {
   open: boolean;

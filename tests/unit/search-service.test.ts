@@ -235,6 +235,61 @@ describe("searchSite", () => {
     );
   });
 
+  it("does not require search.ui to return actor-scoped private results", async () => {
+    getSearchContextMock.mockResolvedValue({
+      ...studentContext,
+      rbacPermissions: ["homework.view"],
+      rbacPermissionScopes: { "homework.view": ["own"] }
+    });
+    fetchCandidatesMock.mockResolvedValue([
+      makeCandidate({
+        id: "public",
+        entityId: "public-post",
+        title: "Public post",
+        href: "/articles/public-post",
+        section: "blog",
+        roleScope: ["all"],
+        visibility: "public",
+        rank: 10
+      }),
+      makeCandidate({
+        id: "owned",
+        entityType: "homework",
+        entityId: "owned-homework",
+        title: "Owned homework",
+        href: "/homework/owned-homework",
+        section: "homework",
+        roleScope: ["student"],
+        visibility: "student_owned",
+        ownerStudentId: "student-1",
+        rank: 9
+      }),
+      makeCandidate({
+        id: "other",
+        entityType: "homework",
+        entityId: "other-homework",
+        title: "Other homework",
+        href: "/homework/other-homework",
+        section: "homework",
+        roleScope: ["student"],
+        visibility: "student_owned",
+        ownerStudentId: "student-2",
+        rank: 8
+      })
+    ]);
+
+    const result = await searchSite({ query: "homework", limit: 10 });
+
+    expect(result.items.map((item) => item.entityId)).toEqual(["public-post", "owned-homework"]);
+    expect(fetchCandidatesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({
+          rbacPermissions: ["homework.view"]
+        })
+      })
+    );
+  });
+
   it("returns empty result for short query", async () => {
     const result = await searchSite({ query: "a" });
 

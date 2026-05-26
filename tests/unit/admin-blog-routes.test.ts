@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const listAdminBlogPostsMock = vi.fn();
 const createAdminBlogPostMock = vi.fn();
 const updateAdminBlogPostMock = vi.fn();
@@ -12,7 +12,14 @@ const updateAdminBlogTagMock = vi.fn();
 const deleteAdminBlogTagMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/admin/blog.service", () => ({
@@ -33,7 +40,7 @@ vi.mock("@/lib/admin/blog.service", () => ({
 describe("admin blog API routes", () => {
   beforeEach(() => {
     vi.resetModules();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     listAdminBlogPostsMock.mockReset();
     createAdminBlogPostMock.mockReset();
     updateAdminBlogPostMock.mockReset();
@@ -45,7 +52,7 @@ describe("admin blog API routes", () => {
   });
 
   it("lists posts for staff actors with content management permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
     listAdminBlogPostsMock.mockResolvedValue({ items: [], total: 0, page: 2, pageSize: 10 });
 
     const { GET } = await import("@/app/api/admin/blog/posts/route");
@@ -57,7 +64,7 @@ describe("admin blog API routes", () => {
 
   it("passes the actor through when creating and updating blog content", async () => {
     const actor = { userId: "admin-1", role: "admin" };
-    requireStaffAdminApiMock.mockResolvedValue(actor);
+    requireAdminApiPermissionMock.mockResolvedValue(actor);
     createAdminBlogCategoryMock.mockResolvedValue({ id: "category-1", slug: "grammar" });
     updateAdminBlogTagMock.mockResolvedValue({ id: "tag-1", slug: "a1-updated" });
 
@@ -88,7 +95,7 @@ describe("admin blog API routes", () => {
 
   it("passes the actor through when deleting blog content", async () => {
     const actor = { userId: "admin-1", role: "admin" };
-    requireStaffAdminApiMock.mockResolvedValue(actor);
+    requireAdminApiPermissionMock.mockResolvedValue(actor);
     deleteAdminBlogPostMock.mockResolvedValue({ ok: true, id: "post-1" });
 
     const { DELETE } = await import("@/app/api/admin/blog/posts/[id]/route");
@@ -101,7 +108,7 @@ describe("admin blog API routes", () => {
   });
 
   it("does not call services when a non-staff actor lacks content management permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/admin/blog/categories/route");
     const response = await GET();

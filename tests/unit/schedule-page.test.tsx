@@ -11,11 +11,16 @@ vi.mock("@/lib/auth/request-context", () => ({
   requireLayoutActor: () => requireLayoutActorMock()
 }));
 
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
+
 vi.mock("@/lib/schedule/queries", () => ({
   getSchedulePageDataInternal: (...args: unknown[]) => getSchedulePageDataInternalMock(...args)
 }));
 
 vi.mock("@/lib/schedule/server", () => ({
+  isStudentScheduleActor: (actor: { accessMode?: string }) => actor.accessMode === "student_own",
   requireSchedulePage: () => requireSchedulePageMock()
 }));
 
@@ -33,7 +38,7 @@ describe("SchedulePage", () => {
   });
 
   it("forwards validated search params into schedule page data query", async () => {
-    const actor = { role: "teacher", userId: "user-1" };
+    const actor = { role: "teacher", accessMode: "teacher_assigned", userId: "user-1" };
     requireSchedulePageMock.mockResolvedValue(actor);
     getSchedulePageDataInternalMock.mockResolvedValue({ role: "teacher", lessons: [] });
 
@@ -59,7 +64,7 @@ describe("SchedulePage", () => {
   });
 
   it("falls back to empty filters when search params are invalid", async () => {
-    const actor = { role: "teacher", userId: "user-1" };
+    const actor = { role: "teacher", accessMode: "teacher_assigned", userId: "user-1" };
     requireSchedulePageMock.mockResolvedValue(actor);
     getSchedulePageDataInternalMock.mockResolvedValue({ role: "teacher", lessons: [] });
 

@@ -4,7 +4,6 @@ const { state, gteCalls } = vi.hoisted(() => ({
   state: {
     userCreatedAt: "2026-04-10T00:00:00.000Z",
     profile: {
-      role: "student" as string | null,
       created_at: "2026-04-12T00:00:00.000Z" as string | null
     },
     notifications: [
@@ -71,7 +70,6 @@ import { getUnreadNotificationsSummaryForUser, listVisibleNotificationsForUser }
 function resetState() {
   state.userCreatedAt = "2026-04-10T00:00:00.000Z";
   state.profile = {
-    role: "student",
     created_at: "2026-04-12T00:00:00.000Z"
   };
   state.notifications = [
@@ -104,13 +102,31 @@ function resetState() {
 
 function makeProfilesQuery() {
   return {
-    select: vi.fn().mockReturnThis(),
+    select: vi.fn((columns: string) => {
+      expect(columns).toBe("created_at");
+      return makeProfilesQuery();
+    }),
     eq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn(async () => ({
       data: state.profile,
       error: null
     }))
   };
+}
+
+function actorWithRbacRoles(rbacRoles: string[], overrides: Record<string, unknown> = {}) {
+  return {
+    userId: "user-1",
+    role: "student",
+    profileRole: "admin",
+    rbacStatus: "loaded",
+    rbacRoles,
+    rbacPermissions: ["notifications.view"],
+    rbacPermissionScopes: {
+      "notifications.view": ["own"]
+    },
+    ...overrides
+  } as never;
 }
 
 function makeNotificationsQuery() {
@@ -150,7 +166,7 @@ describe("notifications server queries", () => {
   });
 
   it("filters visible notifications by profile creation date", async () => {
-    const result = await listVisibleNotificationsForUser();
+    const result = await listVisibleNotificationsForUser(actorWithRbacRoles(["student"]));
 
     expect(gteCalls).toContainEqual({
       column: "published_at",
@@ -161,7 +177,7 @@ describe("notifications server queries", () => {
   });
 
   it("filters unread summary by profile creation date", async () => {
-    const result = await getUnreadNotificationsSummaryForUser();
+    const result = await getUnreadNotificationsSummaryForUser(actorWithRbacRoles(["student"]));
 
     expect(gteCalls).toContainEqual({
       column: "published_at",
@@ -173,12 +189,126 @@ describe("notifications server queries", () => {
   it("falls back to auth user creation date when profile creation date is unavailable", async () => {
     state.profile.created_at = null;
 
-    const result = await listVisibleNotificationsForUser();
+    const result = await listVisibleNotificationsForUser(actorWithRbacRoles(["student"]));
 
     expect(gteCalls).toContainEqual({
       column: "published_at",
       value: "2026-04-10T00:00:00.000Z"
     });
     expect(result.items.map((item) => item.id)).toEqual(["old-notif", "new-notif"]);
+  });
+
+  it("uses RBAC role keys instead of profile role metadata for student targeting", async () => {
+    state.profile.created_at = null;
+
+    const result = await listVisibleNotificationsForUser(actorWithRbacRoles(["teacher"], { profileRole: "student" }));
+
+    expect(result.items).toEqual([]);
+    expect(result.unreadCount).toBe(0);
+  });
+
+  it("matches teacher-targeted notifications through RBAC roles", async () => {
+    state.profile.created_at = null;
+    state.notifications = [
+      {
+        id: "teacher-notif",
+        title: "Teacher",
+        body: "Teacher notification",
+        type: "update",
+        published_at: "2026-04-12T01:00:00.000Z",
+        expires_at: null,
+        created_at: "2026-04-01T00:00:00.000Z",
+        target_roles: ["teacher"],
+        target_user_ids: []
+      }
+    ];
+
+    const result = await listVisibleNotificationsForUser(actorWithRbacRoles(["teacher"]));
+
+    expect(result.items.map((item) => item.id)).toEqual(["teacher-notif"]);
+  });
+
+  it("matches manager and admin targeting through RBAC roles", async () => {
+    state.profile.created_at = null;
+    state.notifications = [
+      {
+        id: "manager-notif",
+        title: "Manager",
+        body: "Manager notification",
+        type: "update",
+        published_at: "2026-04-12T01:00:00.000Z",
+        expires_at: null,
+        created_at: "2026-04-01T00:00:00.000Z",
+        target_roles: ["manager"],
+        target_user_ids: []
+      },
+      {
+        id: "admin-notif",
+        title: "Admin",
+        body: "Admin notification",
+        type: "update",
+        published_at: "2026-04-12T02:00:00.000Z",
+        expires_at: null,
+        created_at: "2026-04-01T00:00:00.000Z",
+        target_roles: ["admin"],
+        target_user_ids: []
+      }
+    ];
+
+    const result = await listVisibleNotificationsForUser(actorWithRbacRoles(["manager"]));
+
+    expect(result.items.map((item) => item.id)).toEqual(["manager-notif"]);
+  });
+
+  it("fails closed for role-targeted notifications when RBAC metadata is empty or errored", async () => {
+    state.profile.created_at = null;
+
+    const emptyResult = await listVisibleNotificationsForUser(actorWithRbacRoles([], { rbacStatus: "empty", profileRole: "student" }));
+    const errorResult = await listVisibleNotificationsForUser(actorWithRbacRoles([], { rbacStatus: "error", profileRole: "student" }));
+
+    expect(emptyResult.items).toEqual([]);
+    expect(errorResult.items).toEqual([]);
+  });
+
+  it("keeps explicit user-targeted notifications visible without RBAC role membership", async () => {
+    state.profile.created_at = null;
+    state.notifications = [
+      {
+        id: "direct-notif",
+        title: "Direct",
+        body: "Direct notification",
+        type: "update",
+        published_at: "2026-04-12T01:00:00.000Z",
+        expires_at: null,
+        created_at: "2026-04-01T00:00:00.000Z",
+        target_roles: ["teacher"],
+        target_user_ids: ["user-1"]
+      }
+    ];
+
+    const result = await listVisibleNotificationsForUser(actorWithRbacRoles([], { rbacStatus: "empty" }));
+
+    expect(result.items.map((item) => item.id)).toEqual(["direct-notif"]);
+  });
+
+  it("keeps all-user notifications visible for authenticated actors", async () => {
+    state.profile.created_at = null;
+    state.notifications = [
+      {
+        id: "all-notif",
+        title: "All",
+        body: "All notification",
+        type: "update",
+        published_at: "2026-04-12T01:00:00.000Z",
+        expires_at: null,
+        created_at: "2026-04-01T00:00:00.000Z",
+        target_roles: ["all"],
+        target_user_ids: []
+      }
+    ];
+
+    const result = await getUnreadNotificationsSummaryForUser(actorWithRbacRoles([], { rbacStatus: "empty" }));
+
+    expect(result.unreadCount).toBe(1);
   });
 });

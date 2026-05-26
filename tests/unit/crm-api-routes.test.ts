@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 import { AdminHttpError } from "@/lib/admin/http";
 
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const loadCrmLeadDetailMock = vi.fn();
 const markCrmLeadViewedMock = vi.fn();
 const getCrmUnreadNewRequestsCountMock = vi.fn();
@@ -15,7 +15,14 @@ const updateCrmSettingsMock = vi.fn();
 const uploadCrmBackgroundImageMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/crm/queries", () => ({
@@ -33,7 +40,7 @@ vi.mock("@/lib/crm/queries", () => ({
 describe("CRM protected API routes", () => {
   beforeEach(() => {
     vi.resetModules();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     loadCrmLeadDetailMock.mockReset();
     markCrmLeadViewedMock.mockReset();
     getCrmUnreadNewRequestsCountMock.mockReset();
@@ -46,7 +53,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("returns unread CRM summary for staff users", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     getCrmUnreadNewRequestsCountMock.mockResolvedValue(7);
 
     const { GET } = await import("@/app/api/crm/unread-summary/route");
@@ -57,7 +64,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("returns CRM settings for staff users", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     loadCrmSettingsMock.mockResolvedValue({ background_image_url: null, updated_at: null });
 
     const { GET } = await import("@/app/api/crm/settings/route");
@@ -69,7 +76,7 @@ describe("CRM protected API routes", () => {
 
   it("updates CRM background setting", async () => {
     const actor = { userId: "manager-1", role: "manager" };
-    requireStaffAdminApiMock.mockResolvedValue(actor);
+    requireAdminApiPermissionMock.mockResolvedValue(actor);
     updateCrmSettingsMock.mockResolvedValue({
       background_image_url: "/api/media/crm-background?p=background%2Fcrm-bg.jpg&v=1",
       updated_at: "2026-04-24T12:00:00.000Z"
@@ -89,7 +96,7 @@ describe("CRM protected API routes", () => {
 
   it("clears CRM background setting", async () => {
     const actor = { userId: "admin-1", role: "admin" };
-    requireStaffAdminApiMock.mockResolvedValue(actor);
+    requireAdminApiPermissionMock.mockResolvedValue(actor);
     updateCrmSettingsMock.mockResolvedValue({ background_image_url: null, updated_at: "2026-04-24T12:00:00.000Z" });
 
     const { PATCH } = await import("@/app/api/crm/settings/route");
@@ -105,7 +112,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("rejects invalid CRM background settings payload", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const { PATCH } = await import("@/app/api/crm/settings/route");
     const response = await PATCH(
@@ -120,7 +127,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("uploads CRM background image after settings update permission check", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     uploadCrmBackgroundImageMock.mockResolvedValue({ publicUrl: "/api/media/crm-background?p=background%2Fcrm-bg.jpg&v=123" });
     const formData = new URLSearchParams();
     formData.set("file", "image");
@@ -139,7 +146,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("does not upload CRM background without settings update permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
     const formData = new FormData();
     formData.set("file", new File(["image"], "crm-bg.jpg", { type: "image/jpeg" }));
 
@@ -156,7 +163,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("rejects missing and non-image CRM background uploads", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const { POST } = await import("@/app/api/crm/settings/background/route");
     const missingResponse = await POST(
@@ -181,7 +188,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("marks an unread lead as viewed when details are opened", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
     loadCrmLeadDetailMock
       .mockResolvedValueOnce({ id: "lead-1", viewed_at: null })
       .mockResolvedValueOnce({ id: "lead-1", viewed_at: "2026-04-24T10:00:00.000Z" });
@@ -198,7 +205,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("does not overwrite viewed fields when an already viewed lead is opened", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     loadCrmLeadDetailMock.mockResolvedValue({ id: "lead-1", viewed_at: "2026-04-24T10:00:00.000Z" });
 
     const { GET } = await import("@/app/api/crm/leads/[id]/route");
@@ -211,7 +218,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("updates lead status as the authenticated staff actor", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     updateCrmLeadStatusMock.mockResolvedValue({ id: "lead-1", status: "thinking" });
 
     const { PATCH } = await import("@/app/api/crm/leads/[id]/status/route");
@@ -228,7 +235,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("rejects protected CRM routes for non-staff users", async () => {
-    requireStaffAdminApiMock.mockRejectedValue(new AdminHttpError(403, "FORBIDDEN", "Admin access required"));
+    requireAdminApiPermissionMock.mockRejectedValue(new AdminHttpError(403, "FORBIDDEN", "Admin access required"));
 
     const { PATCH } = await import("@/app/api/crm/leads/[id]/status/route");
     const response = await PATCH(
@@ -244,7 +251,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("adds manager comments to lead details", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
     createCrmLeadCommentMock.mockResolvedValue({ id: "lead-1", comments: [{ id: "comment-1", body: "Позвонить завтра" }] });
 
     const { POST } = await import("@/app/api/crm/leads/[id]/comments/route");
@@ -261,7 +268,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("deletes a lead for staff users", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
     deleteCrmLeadMock.mockResolvedValue(true);
 
     const { DELETE } = await import("@/app/api/crm/leads/[id]/route");
@@ -275,7 +282,7 @@ describe("CRM protected API routes", () => {
   });
 
   it("returns 404 when deleting an unknown lead", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     deleteCrmLeadMock.mockResolvedValue(false);
 
     const { DELETE } = await import("@/app/api/crm/leads/[id]/route");

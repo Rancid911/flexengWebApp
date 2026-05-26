@@ -1,14 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const listAdminNotificationsMock = vi.fn();
 const createAdminNotificationMock = vi.fn();
 const updateAdminNotificationMock = vi.fn();
 const deleteAdminNotificationMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/admin/notifications.service", () => ({
@@ -19,7 +26,7 @@ vi.mock("@/lib/admin/notifications.service", () => ({
 }));
 
 function resetMocks() {
-  requireStaffAdminApiMock.mockReset();
+  requireAdminApiPermissionMock.mockReset();
   listAdminNotificationsMock.mockReset();
   createAdminNotificationMock.mockReset();
   updateAdminNotificationMock.mockReset();
@@ -61,7 +68,7 @@ describe("admin notifications API routes", () => {
   });
 
   it("lists notifications after notification read permission check", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
     listAdminNotificationsMock.mockResolvedValue({ items: [], total: 0, page: 2, pageSize: 10 });
 
     const { GET } = await import("@/app/api/admin/notifications/route");
@@ -72,7 +79,7 @@ describe("admin notifications API routes", () => {
   });
 
   it("does not list notifications without notification read permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { GET } = await import("@/app/api/admin/notifications/route");
     const response = await GET(new NextRequest("http://localhost/api/admin/notifications"));
@@ -83,7 +90,7 @@ describe("admin notifications API routes", () => {
   it("creates notifications after notification management permission check", async () => {
     const actor = { userId: "admin-1", role: "admin" };
     const payload = makeNotificationPayload();
-    requireStaffAdminApiMock.mockResolvedValue(actor);
+    requireAdminApiPermissionMock.mockResolvedValue(actor);
     createAdminNotificationMock.mockResolvedValue({ id: "notification-1", ...payload });
 
     const { POST } = await import("@/app/api/admin/notifications/route");
@@ -99,8 +106,43 @@ describe("admin notifications API routes", () => {
     expect(createAdminNotificationMock).toHaveBeenCalledWith(actor, payload);
   });
 
+  it("creates notifications with RBAC role-key targets", async () => {
+    const actor = { userId: "admin-1", role: "admin" };
+    const payload = { ...makeNotificationPayload(), target_roles: ["teacher"] };
+    requireAdminApiPermissionMock.mockResolvedValue(actor);
+    createAdminNotificationMock.mockResolvedValue({ id: "notification-1", ...payload });
+
+    const { POST } = await import("@/app/api/admin/notifications/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/admin/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+    );
+
+    expect(response.status).toBe(201);
+    expect(createAdminNotificationMock).toHaveBeenCalledWith(actor, payload);
+  });
+
+  it("rejects mixed all and role-key notification targets", async () => {
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+
+    const { POST } = await import("@/app/api/admin/notifications/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/admin/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...makeNotificationPayload(), target_roles: ["all", "teacher"] })
+      })
+    );
+
+    expect(response.status).toBe(400);
+    expect(createAdminNotificationMock).not.toHaveBeenCalled();
+  });
+
   it("does not parse or create notifications without notification management permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { POST } = await import("@/app/api/admin/notifications/route");
     const response = await POST(
@@ -116,7 +158,7 @@ describe("admin notifications API routes", () => {
 
   it("updates notifications after notification management permission check", async () => {
     const actor = { userId: "manager-1", role: "manager" };
-    requireStaffAdminApiMock.mockResolvedValue(actor);
+    requireAdminApiPermissionMock.mockResolvedValue(actor);
     updateAdminNotificationMock.mockResolvedValue({ id: "notification-1", title: "Updated" });
 
     const { PATCH } = await import("@/app/api/admin/notifications/[id]/route");
@@ -134,7 +176,7 @@ describe("admin notifications API routes", () => {
   });
 
   it("does not parse or update notifications without notification management permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { PATCH } = await import("@/app/api/admin/notifications/[id]/route");
     const response = await PATCH(
@@ -151,7 +193,7 @@ describe("admin notifications API routes", () => {
 
   it("deletes notifications after notification management permission check", async () => {
     const actor = { userId: "admin-1", role: "admin" };
-    requireStaffAdminApiMock.mockResolvedValue(actor);
+    requireAdminApiPermissionMock.mockResolvedValue(actor);
     deleteAdminNotificationMock.mockResolvedValue({ ok: true });
 
     const { DELETE } = await import("@/app/api/admin/notifications/[id]/route");
@@ -164,7 +206,7 @@ describe("admin notifications API routes", () => {
   });
 
   it("does not delete notifications without notification management permission", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "teacher-1", role: "teacher" });
 
     const { DELETE } = await import("@/app/api/admin/notifications/[id]/route");
     const response = await DELETE(new NextRequest("http://localhost/api/admin/notifications/notification-1", { method: "DELETE" }), {
