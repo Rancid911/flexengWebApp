@@ -37,21 +37,24 @@ export default function StudentDashboardView({
   const { lessonOfTheDay, progress, heroStats, homeworkCards, activeHomeworkCount, recommendationCards, nextBestAction, summaryStats, nextScheduledLesson } = data;
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-4 pb-8">
       {"paymentReminderPopup" in data && data.paymentReminderPopup ? <StudentPaymentReminderPanel popup={data.paymentReminderPopup} /> : null}
 
-      <section className="relative overflow-hidden rounded-[2rem] border border-[#dfe9fb] bg-[linear-gradient(135deg,#6658f5_0%,#8b74ff_56%,#9f81ff_100%)] text-white shadow-[0_18px_44px_rgba(89,71,236,0.2)]">
-        <div aria-hidden className="pointer-events-none absolute right-[-30px] top-[-40px] h-[220px] w-[220px] rounded-full bg-white/20" />
-        <div aria-hidden className="pointer-events-none absolute bottom-[-55px] right-[120px] h-[140px] w-[140px] rounded-full bg-white/20 max-sm:right-[40px]" />
-        <div className="grid gap-5 p-6 md:grid-cols-[1.35fr_0.95fr] md:p-7">
-          <div className="space-y-5">
-            <span className="inline-flex items-center gap-2 rounded-full bg-[#fff1b8] px-3 py-1.5 text-xs font-black uppercase tracking-[0.08em] text-[#8a6400]">
+      <section className="relative overflow-hidden rounded-[1.75rem] border border-[#cfe0f8] bg-[#2155d8] text-white shadow-[0_22px_52px_rgba(37,86,216,0.22)]">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[url('/images/dashboard/student-dashboard-study-hero.png')] bg-cover bg-[center_right_24%] opacity-95"
+        />
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(33,78,207,0.98)_0%,rgba(45,92,219,0.94)_32%,rgba(58,112,225,0.62)_58%,rgba(215,231,255,0.16)_100%)]" />
+        <div className="relative grid gap-6 p-5 sm:p-6 lg:grid-cols-[1.15fr_0.78fr] lg:items-center lg:p-7">
+          <div className="space-y-5 lg:max-w-[640px]">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 text-sm font-black text-[#2458d8] shadow-[0_10px_24px_rgba(18,32,59,0.12)]">
               <BookOpen className="h-3.5 w-3.5" />
               Урок дня
             </span>
             <div className="space-y-3">
-              <h1 className="text-4xl font-black tracking-[-0.06em] text-white sm:text-5xl">{lessonOfTheDay.title}</h1>
-              <p className="max-w-2xl text-sm leading-6 text-[#ecf6ff] sm:text-base">{lessonOfTheDay.description}</p>
+              <h1 className="text-4xl font-black tracking-[-0.05em] text-white sm:text-5xl lg:text-6xl">{lessonOfTheDay.title}</h1>
+              <p className="max-w-xl text-sm leading-6 text-[#edf5ff] sm:text-base">{lessonOfTheDay.description}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <MetaPill icon={<Clock3 className="h-4 w-4" />} text={lessonOfTheDay.duration} />
@@ -61,15 +64,16 @@ export default function StudentDashboardView({
             <div className="flex flex-wrap gap-3">
               <Button
                 type="button"
-                className="h-12 rounded-[1.15rem] bg-[#ffd84d] px-5 font-black text-[#6b5000] shadow-[0_14px_26px_rgba(255,216,77,0.28)] hover:bg-[#ffe78f]"
+                className="h-12 rounded-[1.1rem] bg-[#ffd229] px-6 font-black text-[#17233f] shadow-[0_16px_30px_rgba(255,210,41,0.28)] hover:bg-[#ffe174]"
                 onClick={() => router.push("/learning")}
               >
                 Продолжить
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                className="h-12 rounded-[1.15rem] border-white/35 bg-transparent px-5 font-black text-white hover:border-white/45 hover:bg-white/10 hover:text-white"
+                className="h-12 rounded-[1.1rem] border-white/35 bg-white/10 px-5 font-black text-white hover:border-white/50 hover:bg-white/16 hover:text-white"
                 onClick={() => router.push("/tests")}
               >
                 Открыть практику
@@ -77,20 +81,20 @@ export default function StudentDashboardView({
             </div>
           </div>
 
-          <Card className="border-white/20 bg-white/12 text-white shadow-none backdrop-blur-sm">
+          <Card className="rounded-[1.5rem] border-white/70 bg-white/95 text-[#12203b] shadow-[0_24px_56px_rgba(18,32,59,0.18)] backdrop-blur-sm">
             <CardContent className="space-y-5 p-5 sm:p-6">
               <div>
-                <p className="text-sm font-semibold text-[#e7f4ff]">Прогресс по теме</p>
-                <p className="mt-2 text-5xl font-black tracking-[-0.06em]">{progress.value}%</p>
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/20">
+                <p className="text-sm font-semibold text-[#66789e]">Прогресс по теме</p>
+                <p className="mt-2 text-5xl font-black tracking-[-0.06em] text-[#2d49d8]">{progress.value}%</p>
+                <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-[#e9eef7]">
                   <span
-                    className="block h-full rounded-full bg-white transition-[width] duration-500"
+                    className="block h-full rounded-full bg-[linear-gradient(90deg,#2b6fff_0%,#6b59ff_100%)] transition-[width] duration-500"
                     style={{ width: `${Math.max(0, Math.min(progress.value, 100))}%` }}
                   />
                 </div>
-                <p className="mt-3 text-sm text-[#e7f4ff]">{progress.label}</p>
+                <p className="mt-3 text-sm leading-5 text-[#66789e]">{progress.label}</p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-3 border-t border-[#e7edf8] pt-2">
                 {heroStats.map((item) => (
                   <HeroInfoCard key={item.label} label={item.label} value={item.value} />
                 ))}
@@ -100,24 +104,27 @@ export default function StudentDashboardView({
         </div>
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-[2fr_2fr_1.08fr]">
-        <Card className="rounded-[2rem] border-[#dfe9fb] bg-[linear-gradient(145deg,#ffffff_0%,#f6f9ff_100%)] shadow-[0_18px_44px_rgba(27,73,155,0.1)] lg:col-span-2 xl:col-span-3">
-          <CardContent className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[1.4fr_auto] lg:items-center">
-            <div className="rounded-[1.45rem] border border-[#cfe0f8] bg-[linear-gradient(145deg,#f7fbff_0%,#eaf4ff_52%,#f5faff_100%)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] sm:px-5">
-              <div className="space-y-1">
-                <h2 className="text-sm font-black uppercase tracking-[0.08em] text-[#6b84ab]">Следующий шаг</h2>
-                <p className="text-base font-black tracking-[-0.04em] text-[#16385f] sm:text-lg">{nextBestAction.title}</p>
-              </div>
+      <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[1.12fr_1.04fr_0.82fr]">
+        <Card className="rounded-[1.6rem] border-[#cfe0f8] bg-white shadow-[0_16px_42px_rgba(27,73,155,0.08)] lg:col-span-2 xl:col-span-3">
+          <CardContent className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#eaf4ff] text-[#1f7aff]">
+              <Sparkles className="h-6 w-6" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-[#6b84ab]">Следующий шаг</h2>
+              <p className="mt-1 text-lg font-black tracking-[-0.04em] text-[#12203b]">{nextBestAction.title}</p>
+              <p className="mt-1 max-w-3xl text-sm leading-5 text-[#6d7fa3]">{nextBestAction.description}</p>
             </div>
-            <div className="flex flex-col gap-2 lg:w-[220px]">
-              <Button type="button" className="h-10 rounded-[1rem] bg-[#1f7aff] px-4 font-black text-white hover:bg-[#1669db]" onClick={() => router.push(nextBestAction.primaryHref)}>
+            <div className="flex flex-col gap-2 sm:flex-row lg:w-[250px] lg:flex-col">
+              <Button type="button" className="h-11 rounded-[1rem] bg-[#2458e6] px-4 font-black text-white hover:bg-[#1f4ecd]" onClick={() => router.push(nextBestAction.primaryHref)}>
                 {nextBestAction.primaryLabel}
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
               {nextBestAction.secondaryHref && nextBestAction.secondaryLabel ? (
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-10 rounded-[1rem] border-[#d7e5fb] bg-white px-4 font-black text-[#1f7aff] hover:bg-[#f7fbff]"
+                  className="h-11 rounded-[1rem] border-[#d7e5fb] bg-white px-4 font-black text-[#1f7aff] hover:bg-[#f7fbff]"
                   onClick={() => router.push(nextBestAction.secondaryHref!)}
                 >
                   {nextBestAction.secondaryLabel}
@@ -127,10 +134,15 @@ export default function StudentDashboardView({
           </CardContent>
         </Card>
 
-        <Card className="rounded-[2rem] border-[#dfe9fb] bg-white shadow-[0_18px_44px_rgba(27,73,155,0.1)]">
-          <CardContent className="space-y-4 p-5 sm:p-6">
+        <Card className="rounded-[1.6rem] border-[#dfe9fb] bg-white shadow-[0_16px_42px_rgba(27,73,155,0.08)]">
+          <CardContent className="space-y-4 p-5">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-black tracking-[-0.03em] text-[#12203b]">Домашние задания</h2>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f4ebff] text-[#7c3cff]">
+                  <ClipboardCheck className="h-5 w-5" />
+                </span>
+                <h2 className="text-xl font-black tracking-[-0.03em] text-[#12203b]">Домашние задания</h2>
+              </div>
               <StatusBadge tone="warning">{`${activeHomeworkCount} активных`}</StatusBadge>
             </div>
             <div className="space-y-3">
@@ -141,7 +153,7 @@ export default function StudentDashboardView({
                       key={`${item.id}-${index}`}
                       type="button"
                       onClick={() => router.push("/homework")}
-                      className="flex w-full items-center justify-between gap-4 rounded-[1.35rem] border border-[#dfe9fb] bg-white px-4 py-4 text-left transition hover:bg-[#fafdff]"
+                      className="flex w-full items-center justify-between gap-4 rounded-[1.15rem] border border-[#dfe9fb] bg-white px-4 py-4 text-left transition hover:border-[#c7dbff] hover:bg-[#fafdff]"
                     >
                       <div>
                         <p className="font-black text-[#12203b]">{item.title}</p>
@@ -162,7 +174,7 @@ export default function StudentDashboardView({
                   ) : null}
                 </>
               ) : (
-                <div className="rounded-[1.35rem] border border-dashed border-[#dfe9fb] bg-[#f8fbff] px-4 py-5 text-sm text-[#6d7fa3]">
+                <div className="rounded-[1.15rem] border border-dashed border-[#dfe9fb] bg-[#f8fbff] px-4 py-5 text-sm text-[#6d7fa3]">
                   Активных домашних заданий пока нет.
                 </div>
               )}
@@ -170,8 +182,8 @@ export default function StudentDashboardView({
           </CardContent>
         </Card>
 
-        <Card className="rounded-[2rem] border-[#dfe9fb] bg-white shadow-[0_18px_44px_rgba(27,73,155,0.1)]">
-          <CardContent className="space-y-4 p-5 sm:p-6">
+        <Card className="rounded-[1.6rem] border-[#dfe9fb] bg-white shadow-[0_16px_42px_rgba(27,73,155,0.08)]">
+          <CardContent className="space-y-4 p-5">
             {recommendationsSlot ?? <StudentDashboardRecommendationsSection recommendationCards={recommendationCards} />}
           </CardContent>
         </Card>
@@ -194,7 +206,12 @@ export function StudentDashboardRecommendationsSection({
   return (
     <>
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-black tracking-[-0.03em] text-[#12203b]">Продолжить обучение</h2>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#e9fbf2] text-[#10a36a]">
+            <BookOpen className="h-5 w-5" />
+          </span>
+          <h2 className="text-xl font-black tracking-[-0.03em] text-[#12203b]">Продолжить обучение</h2>
+        </div>
         <StatusBadge tone="primary">Практика</StatusBadge>
       </div>
       <div className="space-y-3">
@@ -204,19 +221,19 @@ export function StudentDashboardRecommendationsSection({
               key={`${item.id}-${index}`}
               type="button"
               onClick={() => router.push(item.href)}
-              className="flex w-full items-center justify-between gap-4 rounded-[1.35rem] border border-[#dfe9fb] bg-white px-4 py-4 text-left transition hover:bg-[#fafdff]"
+              className="flex w-full items-center justify-between gap-4 rounded-[1.15rem] border border-[#dfe9fb] bg-white px-4 py-4 text-left transition hover:border-[#c7dbff] hover:bg-[#fafdff]"
             >
               <div>
                 <p className="font-black text-[#12203b]">{item.title}</p>
                 <p className="mt-1 text-sm text-[#6d7fa3]">{item.subtitle}</p>
               </div>
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#dfe9fb] bg-[#f5f9ff] text-[#587198]">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#dfe9fb] bg-[#f5f9ff] text-[#1f7aff]">
                 <ArrowRight className="h-4 w-4" />
               </span>
             </button>
           ))
         ) : (
-          <div className="rounded-[1.35rem] border border-dashed border-[#dfe9fb] bg-[#f8fbff] px-4 py-5 text-sm text-[#6d7fa3]">
+          <div className="rounded-[1.15rem] border border-dashed border-[#dfe9fb] bg-[#f8fbff] px-4 py-5 text-sm text-[#6d7fa3]">
             Когда появятся пройденные drills и тесты, здесь можно будет быстро вернуться к последним темам.
           </div>
         )}
@@ -231,19 +248,22 @@ export function StudentDashboardScheduleSection({
   nextScheduledLesson: StudentDashboardCoreData["nextScheduledLesson"];
 }) {
   return (
-    <Card className="rounded-[2rem] border-[#dfe9fb] bg-[linear-gradient(180deg,#f7fbff_0%,#ffffff_100%)] shadow-[0_18px_44px_rgba(27,73,155,0.08)] lg:col-span-2 xl:col-span-1">
-      <CardContent className="flex h-full flex-col p-4 sm:p-5">
+    <Card className="rounded-[1.6rem] border-[#f1dcae] bg-[linear-gradient(180deg,#fffaf0_0%,#ffffff_62%)] shadow-[0_16px_42px_rgba(192,134,29,0.1)] lg:col-span-2 xl:col-span-1">
+      <CardContent className="flex h-full flex-col p-5">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff1ce] text-[#e68a00]">
+              <CalendarClock className="h-5 w-5" />
+            </span>
             <h2 className="text-lg font-black tracking-[-0.03em] text-[#12203b]">Ближайшие уроки</h2>
           </div>
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#eaf4ff] text-[#1f7aff]">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#fff7e5] text-[#e68a00]">
             <CalendarClock className="h-4 w-4" />
           </span>
         </div>
 
         {nextScheduledLesson ? (
-          <div className="mt-4 flex h-full flex-col">
+          <div className="mt-4 flex h-full flex-col rounded-[1.15rem] border border-[#f2dfb5] bg-white px-4 py-4">
             <h3 className="text-lg font-black leading-tight tracking-[-0.04em] text-[#12203b]">{nextScheduledLesson.title}</h3>
             <div className="mt-3 space-y-1.5 text-sm text-[#587198]">
               <p>{formatScheduleDateLabel(nextScheduledLesson.startsAt)}</p>
@@ -256,7 +276,7 @@ export function StudentDashboardScheduleSection({
                   href={nextScheduledLesson.meetingUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[1.15rem] bg-[#1f7aff] px-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(31,122,255,0.18)] hover:bg-[#1669db]"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[1rem] bg-[#ffd229] px-4 text-sm font-black text-[#17233f] shadow-[0_10px_24px_rgba(255,210,41,0.22)] hover:bg-[#ffe174]"
                 >
                   <Link2 className="h-4 w-4" />
                   Подключиться
@@ -265,7 +285,7 @@ export function StudentDashboardScheduleSection({
             </div>
           </div>
         ) : (
-          <div className="mt-4 flex h-full flex-col">
+          <div className="mt-4 flex h-full flex-col rounded-[1.15rem] border border-dashed border-[#f2dfb5] bg-white px-4 py-4">
             <p className="text-sm leading-6 text-[#6d7fa3]">Пока уроки не назначены.</p>
           </div>
         )}
@@ -288,7 +308,7 @@ export function StudentDashboardSummaryStatsSection({
         ];
 
   return (
-    <section className="grid gap-5 xl:grid-cols-3">
+    <section className="grid gap-4 xl:grid-cols-3">
       {items.map((item) => (
         <SummaryCard
           key={item.label}
@@ -315,16 +335,16 @@ export function StudentDashboardSummaryStatsSection({
 
 function HeroInfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[1.35rem] border border-white/20 bg-white/12 px-4 py-3">
-      <p className="text-sm text-[#e7f4ff]">{label}</p>
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-white">{value}</p>
+    <div className="flex items-center justify-between gap-3 rounded-[1rem] px-1 py-1.5">
+      <p className="text-sm text-[#66789e]">{label}</p>
+      <p className="text-xl font-black tracking-[-0.04em] text-[#12203b]">{value}</p>
     </div>
   );
 }
 
 function MetaPill({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/15 px-3.5 py-2 text-sm font-bold text-[#eef7ff]">
+    <span className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/12 px-3.5 py-2 text-sm font-bold text-[#eef7ff] backdrop-blur-sm">
       {icon}
       {text}
     </span>
@@ -345,7 +365,7 @@ function StatusBadge({
         ? "bg-[#fff4df] text-[#bc7500]"
         : "bg-[#f3f6fc] text-[#60708e]";
 
-  return <span className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-black ${className}`}>{children}</span>;
+  return <span className={`inline-flex shrink-0 items-center rounded-full px-3 py-1.5 text-xs font-black ${className}`}>{children}</span>;
 }
 
 function SummaryCard({
@@ -363,16 +383,20 @@ function SummaryCard({
 }) {
   const router = useRouter();
   const card = (
-    <Card className={`rounded-[1.8rem] border-[#dfe9fb] bg-white shadow-none ${href ? "transition group-hover:border-[#b9d2ff] group-hover:shadow-[0_16px_40px_rgba(31,122,255,0.12)]" : ""}`}>
+    <Card className={`rounded-[1.45rem] border-[#dfe9fb] bg-white shadow-none ${href ? "transition group-hover:border-[#b9d2ff] group-hover:shadow-[0_16px_40px_rgba(31,122,255,0.12)]" : ""}`}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-3">
-          <p className="text-sm text-[#6d7fa3]">{label}</p>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#f0f6ff] text-[#2458e6]">
+              {icon}
+            </span>
+            <p className="text-sm text-[#6d7fa3]">{label}</p>
+          </div>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dfe9fb] bg-[#f5f9ff] px-3 py-1.5 text-sm font-bold text-[#5b6990]">
-            {icon}
             {chip}
           </span>
         </div>
-        <p className="mt-2 text-5xl font-black leading-none tracking-[-0.05em] text-[#12203b]">{value}</p>
+        <p className="mt-3 text-5xl font-black leading-none tracking-[-0.05em] text-[#12203b]">{value}</p>
       </CardContent>
     </Card>
   );
@@ -382,7 +406,7 @@ function SummaryCard({
   return (
     <button
       type="button"
-      className="group block w-full rounded-[1.8rem] text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1f7aff]"
+      className="group block w-full rounded-[1.45rem] text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1f7aff]"
       onClick={() => router.push(href)}
     >
       {card}
