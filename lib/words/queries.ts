@@ -687,7 +687,7 @@ async function loadExistingProgress(studentId: string, answers: WordSessionAnswe
       )
       .eq("student_id", studentId)
       .in("id", ids);
-    rows.push(...(((data ?? []) as StudentWordRow[]) ?? []));
+    rows.push(...((data ?? []) as StudentWordRow[]));
   }
 
   if (catalogIds.length > 0) {
@@ -698,7 +698,7 @@ async function loadExistingProgress(studentId: string, answers: WordSessionAnswe
       )
       .eq("student_id", studentId)
       .in("catalog_slug", catalogIds);
-    rows.push(...(((data ?? []) as StudentWordRow[]) ?? []));
+    rows.push(...((data ?? []) as StudentWordRow[]));
   }
 
   return rows;

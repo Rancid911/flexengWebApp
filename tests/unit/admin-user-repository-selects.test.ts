@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ADMIN_PROFILE_SELECT, readCreatedProfileById, readProfileById, type AdminSupabaseClient } from "@/lib/admin/user.repository";
 
+type SelectCall = [fields: string];
+
 function createProfilesSelectMock() {
   const query = {
     select: vi.fn(() => query),
@@ -32,7 +34,8 @@ describe("admin user repository selects", () => {
 
     expect(supabase.from).toHaveBeenCalledWith("profiles");
     expect(query.select).toHaveBeenCalledWith(ADMIN_PROFILE_SELECT);
-    expect(query.select.mock.calls[0]?.[0]).not.toContain("*");
+    const selectCalls = query.select.mock.calls as unknown as SelectCall[];
+    expect(selectCalls[0]?.[0]).not.toContain("*");
     expect(query.eq).toHaveBeenCalledWith("id", "user-1");
     expect(query.single).toHaveBeenCalledTimes(1);
   });
@@ -44,7 +47,8 @@ describe("admin user repository selects", () => {
 
     expect(supabase.from).toHaveBeenCalledWith("profiles");
     expect(query.select).toHaveBeenCalledWith(ADMIN_PROFILE_SELECT);
-    expect(query.select.mock.calls[0]?.[0]).not.toContain("*");
+    const selectCalls = query.select.mock.calls as unknown as SelectCall[];
+    expect(selectCalls[0]?.[0]).not.toContain("*");
     expect(query.eq).toHaveBeenCalledWith("id", "user-2");
     expect(query.single).toHaveBeenCalledTimes(1);
   });

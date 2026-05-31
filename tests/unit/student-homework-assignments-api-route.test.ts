@@ -1,10 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
+import type { ScheduleActor } from "@/lib/schedule/server";
+
+type MockScheduleApiActor = ScheduleActor & {
+  rbacStatus: "loaded";
+  rbacRoles: string[];
+  rbacPermissions: string[];
+  rbacPermissionScopes: Record<string, string[]>;
+};
+
 const listTeacherStudentStandaloneHomeworkMock = vi.fn();
 const createTeacherStudentStandaloneHomeworkMock = vi.fn();
 const requireScheduleApiMock = vi.hoisted(() =>
-  vi.fn(async () => ({
+  vi.fn<() => Promise<MockScheduleApiActor>>(async () => ({
     userId: "teacher-profile",
     role: "teacher",
     accessMode: "teacher_assigned",

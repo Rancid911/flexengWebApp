@@ -31,7 +31,7 @@ const { createClientMock, createRepositoryMock, writeAuditMock, repository } = v
 
   return {
     createClientMock: vi.fn(),
-    createRepositoryMock: vi.fn(() => repository),
+    createRepositoryMock: vi.fn((_client: unknown) => repository),
     writeAuditMock: vi.fn(),
     repository
   };
@@ -42,11 +42,11 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/admin/blog.repository", () => ({
-  createAdminBlogRepository: (...args: unknown[]) => createRepositoryMock(...args)
+  createAdminBlogRepository: (client: unknown) => createRepositoryMock(client)
 }));
 
 vi.mock("@/lib/admin/audit", () => ({
-  writeAudit: (...args: unknown[]) => writeAuditMock(...args)
+  writeAudit: (entry: unknown) => writeAuditMock(entry)
 }));
 
 function resetRepositoryMocks() {
@@ -143,6 +143,7 @@ describe("admin blog service", () => {
         excerpt: "Short intro",
         content: "Full content",
         status: "draft",
+        views_count: 0,
         tag_names: []
       }
     );

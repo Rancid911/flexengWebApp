@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { can, PermissionError, requirePermission } from "@/lib/permissions";
+import { can, PermissionError, requirePermission, type PermissionActor } from "@/lib/permissions";
 
 describe("permissions", () => {
   it("does not grant manager/admin permissions from profile role alone", () => {
@@ -283,7 +283,7 @@ describe("permissions", () => {
         "search.ui": [scope]
       }
     });
-    const actorsWithoutGrant = [
+    const actorsWithoutGrant: PermissionActor[] = [
       { userId: "admin-1", role: "admin" as const, rbacRoles: ["admin"], rbacPermissions: ["profile.view"], rbacPermissionScopes: { "profile.view": ["own"] } },
       { userId: "manager-1", role: "manager" as const, rbacRoles: ["manager"], rbacPermissions: ["crm.leads.view"], rbacPermissionScopes: { "crm.leads.view": ["all"] } },
       { userId: "teacher-1", role: "teacher" as const, rbacRoles: ["teacher"], rbacPermissions: ["students.view"], rbacPermissionScopes: { "students.view": ["assigned"] } },

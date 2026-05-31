@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createScheduleActor } from "@/tests/unit/helpers/actors";
+
 const createClientMock = vi.fn();
 const fromMock = vi.fn();
 const rpcMock = vi.fn();
@@ -75,13 +77,13 @@ describe("teacher dashboard agenda queries", () => {
   it("loads teacher week bundle through the user-scoped server client", async () => {
     const { getTeacherDashboardWeekLessonBundle } = await import("@/lib/teacher-workspace/dashboard-agenda.queries");
 
-    const bundle = await getTeacherDashboardWeekLessonBundle({
+    const bundle = await getTeacherDashboardWeekLessonBundle(createScheduleActor({
       role: "teacher",
       userId: "teacher-user-1",
       teacherId: "teacher-1",
       studentId: null,
       accessibleStudentIds: ["student-1"]
-    });
+    }));
 
     expect(createClientMock).toHaveBeenCalledTimes(1);
     expect(fromMock).toHaveBeenCalledWith("student_schedule_lessons");

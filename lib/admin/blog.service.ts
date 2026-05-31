@@ -20,12 +20,12 @@ import type {
 import { createClient } from "@/lib/supabase/server";
 import type { z } from "zod";
 
-type BlogPostCreatePayload = z.infer<typeof blogPostCreateSchema>;
-type BlogPostUpdatePayload = z.infer<typeof blogPostUpdateSchema>;
-type BlogCategoryCreatePayload = z.infer<typeof blogCategoryCreateSchema>;
-type BlogCategoryUpdatePayload = z.infer<typeof blogCategoryUpdateSchema>;
-type BlogTagCreatePayload = z.infer<typeof blogTagCreateSchema>;
-type BlogTagUpdatePayload = z.infer<typeof blogTagUpdateSchema>;
+type BlogPostCreatePayload = z.output<typeof blogPostCreateSchema>;
+type BlogPostUpdatePayload = z.output<typeof blogPostUpdateSchema>;
+type BlogCategoryCreatePayload = z.output<typeof blogCategoryCreateSchema>;
+type BlogCategoryUpdatePayload = z.output<typeof blogCategoryUpdateSchema>;
+type BlogTagCreatePayload = z.output<typeof blogTagCreateSchema>;
+type BlogTagUpdatePayload = z.output<typeof blogTagUpdateSchema>;
 
 type AdminBlogRepository = ReturnType<typeof createAdminBlogRepository>;
 

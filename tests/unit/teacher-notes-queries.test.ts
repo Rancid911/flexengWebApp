@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTeacherStudentNote, deleteTeacherStudentNote, getTeacherStudentNotesFeed, updateTeacherStudentNote } from "@/lib/teacher-workspace/queries";
+import { createScheduleActor } from "@/tests/unit/helpers/actors";
 
 const { assertTeacherScopeMock, createClientMock, insertMock, updateMock, deleteMock, profileLabelsRpcMock, state } = vi.hoisted(() => ({
   assertTeacherScopeMock: vi.fn(),
@@ -32,6 +33,11 @@ const { assertTeacherScopeMock, createClientMock, insertMock, updateMock, delete
     ])
   }
 }));
+
+const teacherActor = (overrides = {}) =>
+  createScheduleActor({ role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"], ...overrides });
+const adminActor = (overrides = {}) => createScheduleActor({ role: "admin", userId: "admin-user-1", teacherId: null, studentId: null, accessibleStudentIds: null, ...overrides });
+const managerActor = (overrides = {}) => createScheduleActor({ role: "manager", userId: "admin-user-1", teacherId: null, studentId: null, accessibleStudentIds: null, ...overrides });
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn()
@@ -193,7 +199,7 @@ describe("teacher note queries", () => {
   });
 
   it("loads notes with author names", async () => {
-    const notes = await getTeacherStudentNotesFeed({ role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: null }, "student-1");
+    const notes = await getTeacherStudentNotesFeed(teacherActor({ accessibleStudentIds: null }), "student-1");
 
     expect(notes[0]).toEqual(expect.objectContaining({
       body: "Existing note",
@@ -205,7 +211,7 @@ describe("teacher note queries", () => {
 
   it("creates teacher notes with actor teacher id", async () => {
     const note = await createTeacherStudentNote(
-      { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"] },
+      teacherActor(),
       "student-1",
       { body: "Teacher note" }
     );
@@ -223,7 +229,7 @@ describe("teacher note queries", () => {
 
   it("creates admin notes with student's primary teacher id", async () => {
     const note = await createTeacherStudentNote(
-      { role: "admin", userId: "admin-user-1", teacherId: null, studentId: null, accessibleStudentIds: null },
+      adminActor(),
       "student-1",
       { body: "Admin note" }
     );
@@ -241,7 +247,7 @@ describe("teacher note queries", () => {
 
     await expect(
       createTeacherStudentNote(
-        { role: "manager", userId: "admin-user-1", teacherId: null, studentId: null, accessibleStudentIds: null },
+        managerActor(),
         "student-1",
         { body: "Admin note" }
       )
@@ -252,7 +258,7 @@ describe("teacher note queries", () => {
 
   it("allows admin to update teacher notes", async () => {
     const note = await updateTeacherStudentNote(
-      { role: "admin", userId: "admin-user-1", teacherId: null, studentId: null, accessibleStudentIds: null },
+      adminActor(),
       "note-1",
       { body: "Updated by admin", visibility: "manager_visible" }
     );
@@ -268,7 +274,7 @@ describe("teacher note queries", () => {
 
   it("allows admin to delete teacher notes", async () => {
     const result = await deleteTeacherStudentNote(
-      { role: "admin", userId: "admin-user-1", teacherId: null, studentId: null, accessibleStudentIds: null },
+      adminActor(),
       "note-1"
     );
 
@@ -278,7 +284,7 @@ describe("teacher note queries", () => {
 
   it("checks teacher scope before deleting teacher notes", async () => {
     await deleteTeacherStudentNote(
-      { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"] },
+      teacherActor(),
       "note-1"
     );
 
@@ -292,7 +298,7 @@ describe("teacher note queries", () => {
   it("denies teacher note update for students outside teacher scope before write", async () => {
     await expect(
       updateTeacherStudentNote(
-        { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-2"] },
+        teacherActor({ accessibleStudentIds: ["student-2"] }),
         "note-1",
         { body: "Out of scope", visibility: "private" }
       )
@@ -310,7 +316,7 @@ describe("teacher note queries", () => {
   it("denies teacher note delete when teacher scope is missing before write", async () => {
     await expect(
       deleteTeacherStudentNote(
-        { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: null },
+        teacherActor({ accessibleStudentIds: null }),
         "note-1"
       )
     ).rejects.toMatchObject({
@@ -323,7 +329,7 @@ describe("teacher note queries", () => {
   it("denies teacher note delete when teacher scope is malformed before write", async () => {
     await expect(
       deleteTeacherStudentNote(
-        { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: "student-1" as never },
+        teacherActor({ accessibleStudentIds: "student-1" as never }),
         "note-1"
       )
     ).rejects.toMatchObject({
@@ -338,7 +344,7 @@ describe("teacher note queries", () => {
 
     await expect(
       deleteTeacherStudentNote(
-        { role: "admin", userId: "admin-user-1", teacherId: null, studentId: null, accessibleStudentIds: null },
+        adminActor(),
         "missing-note"
       )
     ).rejects.toMatchObject({

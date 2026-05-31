@@ -8,6 +8,8 @@ import {
   type AdminBlogRepositoryClient
 } from "@/lib/admin/blog.repository";
 
+type SelectCall = [fields: string];
+
 function createBlogRepositoryMock() {
   const query = {
     select: vi.fn(() => query),
@@ -48,8 +50,9 @@ describe("admin blog repository selects", () => {
     expect(client.from).toHaveBeenNthCalledWith(2, "blog_posts");
     expect(query.select).toHaveBeenNthCalledWith(1, BLOG_POST_SELECT);
     expect(query.select).toHaveBeenNthCalledWith(2, BLOG_POST_SELECT);
-    expect(query.select.mock.calls[0]?.[0]).not.toContain("*");
-    expect(query.select.mock.calls[1]?.[0]).not.toContain("*");
+    const selectCalls = query.select.mock.calls as unknown as SelectCall[];
+    expect(selectCalls[0]?.[0]).not.toContain("*");
+    expect(selectCalls[1]?.[0]).not.toContain("*");
   });
 
   it("creates blog posts with the explicit post field list", () => {
@@ -61,7 +64,8 @@ describe("admin blog repository selects", () => {
     expect(client.from).toHaveBeenCalledWith("blog_posts");
     expect(query.insert).toHaveBeenCalledWith(payload);
     expect(query.select).toHaveBeenCalledWith(BLOG_POST_SELECT);
-    expect(query.select.mock.calls[0]?.[0]).not.toContain("*");
+    const selectCalls = query.select.mock.calls as unknown as SelectCall[];
+    expect(selectCalls[0]?.[0]).not.toContain("*");
     expect(query.single).toHaveBeenCalledTimes(1);
   });
 
@@ -75,7 +79,8 @@ describe("admin blog repository selects", () => {
     expect(client.from).toHaveBeenNthCalledWith(2, "blog_tags");
     expect(query.select).toHaveBeenNthCalledWith(1, BLOG_CATEGORY_SELECT);
     expect(query.select).toHaveBeenNthCalledWith(2, BLOG_TAG_SELECT);
-    expect(query.select.mock.calls[0]?.[0]).not.toContain("*");
-    expect(query.select.mock.calls[1]?.[0]).not.toContain("*");
+    const selectCalls = query.select.mock.calls as unknown as SelectCall[];
+    expect(selectCalls[0]?.[0]).not.toContain("*");
+    expect(selectCalls[1]?.[0]).not.toContain("*");
   });
 });

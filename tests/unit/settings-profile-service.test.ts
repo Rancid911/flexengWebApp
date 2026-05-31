@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createAppActor } from "@/tests/unit/helpers/actors";
+
 const createClientMock = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -102,7 +104,7 @@ describe("settings profile service teacher preview boundary", () => {
 
     const { updateSettingsProfile } = await import("@/lib/settings/profile.service");
     await updateSettingsProfile(
-      {
+      createAppActor({
         userId: "teacher-profile-1",
         email: "teacher@example.com",
         displayName: "Teacher One",
@@ -115,7 +117,7 @@ describe("settings profile service teacher preview boundary", () => {
         studentId: "student-preview-1",
         teacherId: "teacher-1",
         accessibleStudentIds: ["student-1"]
-      },
+      }),
       {
         firstName: "Teacher",
         lastName: "One",
@@ -147,7 +149,7 @@ describe("settings profile service teacher preview boundary", () => {
 
     const { updateSettingsProfile } = await import("@/lib/settings/profile.service");
     await updateSettingsProfile(
-      {
+      createAppActor({
         userId: "student-profile-1",
         email: "student@example.com",
         displayName: "Student One",
@@ -160,7 +162,7 @@ describe("settings profile service teacher preview boundary", () => {
         studentId: "student-1",
         teacherId: null,
         accessibleStudentIds: null
-      },
+      }),
       {
         firstName: "Student",
         lastName: "One",

@@ -46,6 +46,7 @@ describe("app actor resolution", () => {
         accessibleStudentIds: ["student-1"]
       },
       {
+        rbacStatus: "loaded",
         rbacRoles: ["teacher"],
         rbacPermissions: ["students.view"],
         rbacPermissionScopes: {
@@ -78,6 +79,7 @@ describe("app actor resolution", () => {
         accessibleStudentIds: null
       },
       {
+        rbacStatus: "loaded",
         rbacRoles: ["admin"],
         rbacPermissions: ["users.manage"],
         rbacPermissionScopes: {
@@ -107,6 +109,7 @@ describe("app actor resolution", () => {
         accessibleStudentIds: null
       },
       {
+        rbacStatus: "loaded",
         rbacRoles: ["manager"],
         rbacPermissions: ["crm.leads.view"],
         rbacPermissionScopes: {
@@ -136,6 +139,7 @@ describe("app actor resolution", () => {
         accessibleStudentIds: null
       },
       {
+        rbacStatus: "loaded",
         rbacRoles: ["teacher"],
         rbacPermissions: ["students.view"],
         rbacPermissionScopes: {
@@ -165,6 +169,7 @@ describe("app actor resolution", () => {
         accessibleStudentIds: null
       },
       {
+        rbacStatus: "loaded",
         rbacRoles: [],
         rbacPermissions: ["roles.view"],
         rbacPermissionScopes: {
@@ -187,6 +192,7 @@ describe("app actor resolution", () => {
         accessibleStudentIds: null
       },
       {
+        rbacStatus: "loaded",
         rbacRoles: [],
         rbacPermissions: ["admin.dashboard.read"],
         rbacPermissionScopes: {
@@ -219,6 +225,7 @@ describe("app actor resolution", () => {
         accessibleStudentIds: ["student-1"]
       },
       {
+        rbacStatus: "loaded",
         rbacRoles: ["teacher"],
         rbacPermissions: ["students.view"],
         rbacPermissionScopes: {
@@ -325,6 +332,7 @@ describe("app actor resolution", () => {
         accessibleStudentIds: null
       },
       {
+        rbacStatus: "loaded",
         rbacRoles: ["student"],
         rbacPermissions: ["profile.view"],
         rbacPermissionScopes: {
@@ -377,6 +385,7 @@ describe("app actor resolution", () => {
         accessibleStudentIds: ["student-4"]
       },
       {
+        rbacStatus: "loaded",
         rbacRoles: ["admin"],
         rbacPermissions: ["roles.view"],
         rbacPermissionScopes: {

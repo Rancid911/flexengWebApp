@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createAppActor } from "@/tests/unit/helpers/actors";
+
 const getAppActorMock = vi.fn();
 const createClientMock = vi.fn();
 
@@ -82,7 +84,7 @@ describe("requireRealStudentWriteContext", () => {
     const { requireRealStudentWriteContext } = await import("@/lib/students/current-student");
 
     expect(
-      requireRealStudentWriteContext({
+      requireRealStudentWriteContext(createAppActor({
         userId: "student-profile-1",
         email: "student@example.com",
         displayName: "Student",
@@ -95,7 +97,7 @@ describe("requireRealStudentWriteContext", () => {
         studentId: "student-1",
         teacherId: null,
         accessibleStudentIds: null
-      })
+      }))
     ).toEqual({
       userId: "student-profile-1",
       studentId: "student-1"
@@ -106,7 +108,7 @@ describe("requireRealStudentWriteContext", () => {
     const { requireRealStudentWriteContext } = await import("@/lib/students/current-student");
 
     expect(() =>
-      requireRealStudentWriteContext({
+      requireRealStudentWriteContext(createAppActor({
         userId: "teacher-profile-1",
         email: "teacher@example.com",
         displayName: "Teacher",
@@ -119,7 +121,7 @@ describe("requireRealStudentWriteContext", () => {
         studentId: "student-preview-1",
         teacherId: "teacher-1",
         accessibleStudentIds: ["student-1"]
-      })
+      }))
     ).toThrow("Real student write context required");
   });
 
@@ -127,7 +129,7 @@ describe("requireRealStudentWriteContext", () => {
     const { requireRealStudentWriteContext } = await import("@/lib/students/current-student");
 
     expect(() =>
-      requireRealStudentWriteContext({
+      requireRealStudentWriteContext(createAppActor({
         userId: "dual-profile-1",
         email: "dual@example.com",
         displayName: "Dual Role",
@@ -140,7 +142,7 @@ describe("requireRealStudentWriteContext", () => {
         studentId: "student-1",
         teacherId: "teacher-1",
         accessibleStudentIds: ["student-2"]
-      })
+      }))
     ).toThrow("Real student write context required");
   });
 });

@@ -7,11 +7,11 @@ const routeMocks = vi.hoisted(() => ({
   redirect: vi.fn((href: string) => {
     throw new Error(`NEXT_REDIRECT:${href}`);
   }),
-  renderHomeworkOverviewRoute: vi.fn(() => <div>homework route</div>),
-  renderScheduleRoute: vi.fn(() => <div>schedule route</div>),
-  renderStudentPaymentsRoute: vi.fn(() => <div>payments route</div>),
-  renderTeacherStudentsRoute: vi.fn(() => <div>teacher students route</div>),
-  renderWordsOverviewRoute: vi.fn(() => <div>words route</div>),
+  renderHomeworkOverviewRoute: vi.fn((_searchParams?: unknown) => <div>homework route</div>),
+  renderScheduleRoute: vi.fn((_searchParams?: unknown) => <div>schedule route</div>),
+  renderStudentPaymentsRoute: vi.fn((_searchParams?: unknown) => <div>payments route</div>),
+  renderTeacherStudentsRoute: vi.fn((_searchParams?: unknown) => <div>teacher students route</div>),
+  renderWordsOverviewRoute: vi.fn((_searchParams?: unknown) => <div>words route</div>),
   requireLayoutActor: vi.fn()
 }));
 
@@ -25,23 +25,23 @@ vi.mock("@/lib/auth/request-context", () => ({
 }));
 
 vi.mock("@/features/homework/server/homework-routes", () => ({
-  renderHomeworkOverviewRoute: (...args: unknown[]) => routeMocks.renderHomeworkOverviewRoute(...args)
+  renderHomeworkOverviewRoute: (searchParams?: unknown) => routeMocks.renderHomeworkOverviewRoute(searchParams)
 }));
 
 vi.mock("@/features/payments/server/payments-route", () => ({
-  renderStudentPaymentsRoute: (...args: unknown[]) => routeMocks.renderStudentPaymentsRoute(...args)
+  renderStudentPaymentsRoute: (searchParams?: unknown) => routeMocks.renderStudentPaymentsRoute(searchParams)
 }));
 
 vi.mock("@/features/schedule/server/schedule-route", () => ({
-  renderScheduleRoute: (...args: unknown[]) => routeMocks.renderScheduleRoute(...args)
+  renderScheduleRoute: (searchParams?: unknown) => routeMocks.renderScheduleRoute(searchParams)
 }));
 
 vi.mock("@/features/teacher-workspace/server/teacher-students-route", () => ({
-  renderTeacherStudentsRoute: (...args: unknown[]) => routeMocks.renderTeacherStudentsRoute(...args)
+  renderTeacherStudentsRoute: (searchParams?: unknown) => routeMocks.renderTeacherStudentsRoute(searchParams)
 }));
 
 vi.mock("@/features/words/server/words-overview-routes", () => ({
-  renderWordsOverviewRoute: (...args: unknown[]) => routeMocks.renderWordsOverviewRoute(...args)
+  renderWordsOverviewRoute: (searchParams?: unknown) => routeMocks.renderWordsOverviewRoute(searchParams)
 }));
 
 function actorWith(permission: string, scopes: string[]) {

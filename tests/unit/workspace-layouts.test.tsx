@@ -52,7 +52,7 @@ import { resolveWorkspaceShellIntent } from "@/features/workspace-shell/model/wo
 
 const crmQueriesMock = vi.hoisted(() => ({
   loadCrmBoard: vi.fn(async () => ({ stages: [] })),
-  loadCrmSettings: vi.fn(async () => ({
+  loadCrmSettings: vi.fn(async (): Promise<{ background_image_url: string | null; updated_at: string | null }> => ({
     background_image_url: null,
     updated_at: null
   }))

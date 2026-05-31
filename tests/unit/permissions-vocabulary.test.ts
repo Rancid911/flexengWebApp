@@ -77,8 +77,8 @@ describe("permission vocabulary registry", () => {
 
   it("classifies runtime compatibility permissions as DB-backed through aliases or dedicated can() handling", () => {
     const seeded = new Set(readSeededPermissionKeys());
-    const rbacAuthoritativeKeys = new Set(rbacAuthoritativePermissionAliases.map(([permission]) => permission));
-    const dedicatedCompatibilityKeys = new Set(["students.notes.read", "students.notes.write"]);
+    const rbacAuthoritativeKeys = new Set<string>(rbacAuthoritativePermissionAliases.map(([permission]) => permission));
+    const dedicatedCompatibilityKeys = new Set<string>(["students.notes.read", "students.notes.write"]);
 
     for (const permission of runtimeCompatibilityPermissions) {
       expect(seeded.has(permission)).toBe(false);

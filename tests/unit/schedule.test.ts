@@ -12,7 +12,9 @@ import {
 import { buildStudentSchedulePreview, formatScheduleDateLabel, getScheduleStatusLabel, getStudentVisibleLessons } from "@/lib/schedule/utils";
 import { scheduleLessonMutationSchema } from "@/lib/schedule/validation";
 import { getStudentSchedulePreviewByStudentId } from "@/lib/schedule/queries";
+import type { ScheduleLessonRow } from "@/lib/schedule/mappers";
 import type { StudentScheduleLessonDto } from "@/lib/schedule/types";
+import { createScheduleActor } from "@/tests/unit/helpers/actors";
 
 const defaultAdminClientMock = {
   from: (table: string) => {
@@ -123,7 +125,7 @@ function makeQueryResult(data: unknown) {
   return builder;
 }
 
-function makeScheduleLessonRow() {
+function makeScheduleLessonRow(): ScheduleLessonRow {
   return {
     id: "lesson-1",
     student_id: "student-1",
@@ -498,13 +500,13 @@ describe("schedule helpers", () => {
     activeUserClientMock = makeSchedulePageDataClient(tableCalls);
 
     const data = await getSchedulePageDataInternal(
-      {
+      createScheduleActor({
         role: "teacher",
         userId: "teacher-profile-1",
         teacherId: "teacher-1",
         studentId: null,
         accessibleStudentIds: ["student-1"]
-      },
+      }),
       {},
       { includeFollowup: false }
     );
@@ -553,13 +555,13 @@ describe("schedule helpers", () => {
     activeUserClientMock = makeSchedulePageDataClient(tableCalls);
 
     const data = await getSchedulePageDataInternal(
-      {
+      createScheduleActor({
         role: "teacher",
         userId: "teacher-profile-1",
         teacherId: "teacher-1",
         studentId: null,
         accessibleStudentIds: ["student-1"]
-      },
+      }),
       {},
       { includeFollowup: true }
     );
@@ -584,13 +586,13 @@ describe("schedule helpers", () => {
     activeAdminClientMock = makeSchedulePageDataClient(adminTableCalls);
 
     const lesson = await createScheduleLesson(
-      {
+      createScheduleActor({
         role: "manager",
         userId: "manager-profile-1",
         studentId: null,
         teacherId: null,
         accessibleStudentIds: null
-      },
+      }),
       {
         studentId: "student-1",
         teacherId: "teacher-1",
@@ -616,13 +618,13 @@ describe("schedule helpers", () => {
     const tableCalls: string[] = [];
     activeUserClientMock = makeSchedulePageDataClient(tableCalls);
 
-    const data = await getSchedulePageDataInternal({
+    const data = await getSchedulePageDataInternal(createScheduleActor({
       role: "student",
       userId: "student-profile-1",
       studentId: "student-1",
       teacherId: null,
       accessibleStudentIds: null
-    }, {}, { includeFollowup: true });
+    }), {}, { includeFollowup: true });
 
     expect(data.role).toBe("student");
     expect(data.lessons[0]).toMatchObject({
@@ -657,13 +659,13 @@ describe("schedule helpers", () => {
   it("prefers explicit lesson-list student ids over full teacher scope for schedule options", () => {
     expect(
       resolveStudentOptionIds(
-        {
+        createScheduleActor({
           role: "teacher",
           userId: "teacher-1",
           teacherId: "teacher-1",
           studentId: null,
           accessibleStudentIds: ["student-1", "student-2", "student-3"]
-        },
+        }),
         ["student-1", "student-2"]
       )
     ).toEqual(["student-1", "student-2"]);

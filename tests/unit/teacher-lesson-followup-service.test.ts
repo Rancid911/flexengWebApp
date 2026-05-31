@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createScheduleActor } from "@/tests/unit/helpers/actors";
+
 const createClientMock = vi.fn();
 const createAdminClientMock = vi.fn();
 const userFromMock = vi.fn();
@@ -132,7 +134,7 @@ describe("teacher lesson follow-up service", () => {
     const { getTeacherLessonFollowup } = await import("@/lib/teacher-workspace/lesson-followup.service");
 
     const result = await getTeacherLessonFollowup(
-      { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"] },
+      createScheduleActor({ role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"] }),
       "lesson-1"
     );
 
@@ -149,7 +151,7 @@ describe("teacher lesson follow-up service", () => {
     const { listTeacherAssignableTests } = await import("@/lib/teacher-workspace/lesson-followup.service");
 
     const result = await listTeacherAssignableTests(
-      { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"] },
+      createScheduleActor({ role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"] }),
       "student-1"
     );
 
@@ -168,7 +170,7 @@ describe("teacher lesson follow-up service", () => {
     const { upsertTeacherLessonFollowup } = await import("@/lib/teacher-workspace/lesson-followup.service");
 
     await upsertTeacherLessonFollowup(
-      { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"] },
+      createScheduleActor({ role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"] }),
       "lesson-1",
       {
         attendanceStatus: "canceled",
@@ -190,7 +192,7 @@ describe("teacher lesson follow-up service", () => {
     const { upsertTeacherLessonFollowup } = await import("@/lib/teacher-workspace/lesson-followup.service");
 
     await upsertTeacherLessonFollowup(
-      { role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"] },
+      createScheduleActor({ role: "teacher", userId: "teacher-user-1", teacherId: "teacher-1", studentId: null, accessibleStudentIds: ["student-1"] }),
       "lesson-1",
       {
         attendanceStatus: "completed",

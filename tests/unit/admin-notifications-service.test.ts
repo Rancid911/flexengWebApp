@@ -11,7 +11,7 @@ const { createClientMock, createRepositoryMock, writeAuditMock, repository } = v
 
   return {
     createClientMock: vi.fn(),
-    createRepositoryMock: vi.fn(() => repository),
+    createRepositoryMock: vi.fn((_client: unknown) => repository),
     writeAuditMock: vi.fn(),
     repository
   };
@@ -22,11 +22,11 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/admin/notifications.repository", () => ({
-  createAdminNotificationsRepository: (...args: unknown[]) => createRepositoryMock(...args)
+  createAdminNotificationsRepository: (client: unknown) => createRepositoryMock(client)
 }));
 
 vi.mock("@/lib/admin/audit", () => ({
-  writeAudit: (...args: unknown[]) => writeAuditMock(...args)
+  writeAudit: (entry: unknown) => writeAuditMock(entry)
 }));
 
 function makeNotificationRow(overrides: Record<string, unknown> = {}) {

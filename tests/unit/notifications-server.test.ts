@@ -16,7 +16,7 @@ const { state, gteCalls } = vi.hoisted(() => ({
         expires_at: null,
         created_at: "2026-04-01T00:00:00.000Z",
         target_roles: ["student"],
-        target_user_ids: []
+        target_user_ids: [] as string[]
       },
       {
         id: "new-notif",
@@ -27,7 +27,7 @@ const { state, gteCalls } = vi.hoisted(() => ({
         expires_at: null,
         created_at: "2026-04-01T00:00:00.000Z",
         target_roles: ["student"],
-        target_user_ids: []
+        target_user_ids: [] as string[]
       }
     ],
     states: [] as Array<{ notification_id: string; read_at: string | null; dismissed_at: string | null }>
@@ -82,7 +82,7 @@ function resetState() {
       expires_at: null,
       created_at: "2026-04-01T00:00:00.000Z",
       target_roles: ["student"],
-      target_user_ids: []
+      target_user_ids: [] as string[]
     },
     {
       id: "new-notif",
@@ -93,7 +93,7 @@ function resetState() {
       expires_at: null,
       created_at: "2026-04-01T00:00:00.000Z",
       target_roles: ["student"],
-      target_user_ids: []
+      target_user_ids: [] as string[]
     }
   ];
   state.states = [];
@@ -219,7 +219,7 @@ describe("notifications server queries", () => {
         expires_at: null,
         created_at: "2026-04-01T00:00:00.000Z",
         target_roles: ["teacher"],
-        target_user_ids: []
+        target_user_ids: [] as string[]
       }
     ];
 
@@ -240,7 +240,7 @@ describe("notifications server queries", () => {
         expires_at: null,
         created_at: "2026-04-01T00:00:00.000Z",
         target_roles: ["manager"],
-        target_user_ids: []
+        target_user_ids: [] as string[]
       },
       {
         id: "admin-notif",
@@ -251,7 +251,7 @@ describe("notifications server queries", () => {
         expires_at: null,
         created_at: "2026-04-01T00:00:00.000Z",
         target_roles: ["admin"],
-        target_user_ids: []
+        target_user_ids: [] as string[]
       }
     ];
 
@@ -303,7 +303,7 @@ describe("notifications server queries", () => {
         expires_at: null,
         created_at: "2026-04-01T00:00:00.000Z",
         target_roles: ["all"],
-        target_user_ids: []
+        target_user_ids: [] as string[]
       }
     ];
 

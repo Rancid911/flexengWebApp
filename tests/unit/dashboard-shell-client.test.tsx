@@ -521,7 +521,6 @@ describe("WorkspaceShellClient", () => {
         {...baseProps}
         initialProfile={{
           ...baseProps.initialProfile,
-          rbacRoles: ["student"],
           rbacPermissions: ["profile.view", "word_cards.train"],
           rbacPermissionScopes: {
             "profile.view": ["own"],
