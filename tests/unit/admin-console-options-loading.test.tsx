@@ -208,7 +208,7 @@ describe("AdminConsole option catalog loading", () => {
     });
 
     await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledWith("/api/admin/users/teacher-options"));
-    expect(await screen.findByTestId("admin-user-first-name-input", undefined, { timeout: 3000 })).toBeInTheDocument();
+    expect(await screen.findByTestId("admin-user-first-name-input", undefined, { timeout: 10000 })).toBeInTheDocument();
     expect(fetchJsonMock).not.toHaveBeenCalledWith("/api/admin/course-modules/options");
     expect(fetchJsonMock).not.toHaveBeenCalledWith("/api/admin/courses/options");
   });

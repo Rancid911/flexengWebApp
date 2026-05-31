@@ -19,6 +19,10 @@ vi.mock("@/features/words/components/words-train-empty-state", () => ({
   WordsTrainEmptyState: () => <div data-testid="words-train-empty-state-probe" />
 }));
 
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
+
 describe("WordsTrainPage", () => {
   beforeEach(() => {
     buildWordSessionMock.mockReset();

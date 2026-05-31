@@ -8,6 +8,10 @@ vi.mock("@/lib/homework/queries", () => ({
   getHomeworkAssignmentDetail: vi.fn()
 }));
 
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
+
 describe("HomeworkDetailPage", () => {
   it("renders last submitted dates as local short date and time", async () => {
     vi.mocked(getHomeworkAssignmentDetail).mockResolvedValue({

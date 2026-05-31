@@ -160,7 +160,7 @@ describe("admin word card set API routes", () => {
     expect(updateResponse.status).toBe(200);
     expect(deleteResponse.status).toBe(200);
     expect(createAdminWordCardSetMock).toHaveBeenCalledWith(actor, createPayload);
-    expect(updateAdminWordCardSetMock).toHaveBeenCalledWith(actor, "set-1", { title: "Cafe words updated" });
+    expect(updateAdminWordCardSetMock).toHaveBeenCalledWith(actor, "set-1", { title: "Cafe words updated", is_published: false });
     expect(deleteAdminWordCardSetMock).toHaveBeenCalledWith(actor, "set-1");
   });
 

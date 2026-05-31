@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
+import { createAppActor } from "@/tests/unit/helpers/actors";
+
 const getStudentPaymentsMock = vi.fn();
 const getCurrentStudentBillingSummaryMock = vi.fn();
 const getAppActorMock = vi.fn();
@@ -20,7 +22,13 @@ vi.mock("@/lib/billing/server", () => ({
 describe("/api/payments GET", () => {
   beforeEach(() => {
     getAppActorMock.mockReset();
-    getAppActorMock.mockResolvedValue({ userId: "student-profile-1", role: "student", isStudent: true });
+    getAppActorMock.mockResolvedValue(createAppActor({
+      userId: "student-profile-1",
+      rbacPermissions: ["payments.view"],
+      rbacPermissionScopes: {
+        "payments.view": ["own"]
+      }
+    }));
     getStudentPaymentsMock.mockReset();
     getCurrentStudentBillingSummaryMock.mockReset();
   });

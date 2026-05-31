@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createScheduleActor } from "@/tests/unit/helpers/actors";
+
 type RpcResponse = {
   data: unknown;
   error: { message: string } | null;
@@ -129,7 +131,7 @@ describe("getBillingSummaryByStudentId", () => {
     const { updateStudentBillingSettings } = await import("@/lib/billing/server");
 
     await updateStudentBillingSettings(
-      { userId: "manager-1", role: "manager" } as Parameters<typeof updateStudentBillingSettings>[0],
+      createScheduleActor({ userId: "manager-1", role: "manager", accessMode: "staff_all" }),
       "student-1",
       { billingMode: "per_lesson_price", lessonPriceAmount: 2500 }
     );
@@ -193,7 +195,7 @@ describe("getBillingSummaryByStudentId", () => {
     const { createStudentBillingAdjustment } = await import("@/lib/billing/server");
 
     await createStudentBillingAdjustment(
-      { userId: "manager-1", role: "manager" } as Parameters<typeof createStudentBillingAdjustment>[0],
+      createScheduleActor({ userId: "manager-1", role: "manager", accessMode: "staff_all" }),
       "student-1",
       { unitType: "lesson", direction: "credit", value: 2, description: "Manual correction" }
     );

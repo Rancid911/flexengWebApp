@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
+import { createAppActor } from "@/tests/unit/helpers/actors";
+
 const getAppActorMock = vi.fn();
 const submitPracticeTestAttemptMock = vi.fn();
 
@@ -15,18 +17,14 @@ vi.mock("@/lib/practice/attempts", () => ({
 describe("/api/practice/attempts POST", () => {
   beforeEach(() => {
     getAppActorMock.mockReset();
-    getAppActorMock.mockResolvedValue({
+    getAppActorMock.mockResolvedValue(createAppActor({
       userId: "student-profile-1",
-      role: "student",
-      profileRole: "student",
-      isStudent: true,
       studentId: "student-1",
-      rbacRoles: ["student"],
       rbacPermissions: ["homework.submit"],
       rbacPermissionScopes: {
         "homework.submit": ["own"]
       }
-    });
+    }));
     submitPracticeTestAttemptMock.mockReset();
   });
 
@@ -46,11 +44,11 @@ describe("/api/practice/attempts POST", () => {
       new NextRequest("http://localhost/api/practice/attempts", {
         method: "POST",
         body: JSON.stringify({
-          activityId: "test_11111111-1111-1111-1111-111111111111",
+          activityId: "test_11111111-1111-4111-8111-111111111111",
           answers: [
             {
-              questionId: "22222222-2222-2222-2222-222222222222",
-              optionId: "33333333-3333-3333-3333-333333333333"
+              questionId: "22222222-2222-4222-8222-222222222222",
+              optionId: "33333333-3333-4333-8333-333333333333"
             }
           ],
           timeSpentSeconds: 42
@@ -59,11 +57,11 @@ describe("/api/practice/attempts POST", () => {
     );
 
     expect(submitPracticeTestAttemptMock).toHaveBeenCalledWith({
-      activityId: "test_11111111-1111-1111-1111-111111111111",
+      activityId: "test_11111111-1111-4111-8111-111111111111",
       answers: [
         {
-          questionId: "22222222-2222-2222-2222-222222222222",
-          optionId: "33333333-3333-3333-3333-333333333333"
+          questionId: "22222222-2222-4222-8222-222222222222",
+          optionId: "33333333-3333-4333-8333-333333333333"
         }
       ],
       timeSpentSeconds: 42
@@ -72,18 +70,14 @@ describe("/api/practice/attempts POST", () => {
   });
 
   it("submits attempts for loaded RBAC student actors with own homework submit scope", async () => {
-    getAppActorMock.mockResolvedValue({
+    getAppActorMock.mockResolvedValue(createAppActor({
       userId: "student-profile-1",
-      role: "student",
-      profileRole: "student",
-      isStudent: true,
       studentId: "student-1",
-      rbacRoles: ["student"],
       rbacPermissions: ["homework.submit"],
       rbacPermissionScopes: {
         "homework.submit": ["own"]
       }
-    });
+    }));
     submitPracticeTestAttemptMock.mockResolvedValue({
       attemptId: "attempt-1",
       score: 100,
@@ -99,11 +93,11 @@ describe("/api/practice/attempts POST", () => {
       new NextRequest("http://localhost/api/practice/attempts", {
         method: "POST",
         body: JSON.stringify({
-          activityId: "test_11111111-1111-1111-1111-111111111111",
+          activityId: "test_11111111-1111-4111-8111-111111111111",
           answers: [
             {
-              questionId: "22222222-2222-2222-2222-222222222222",
-              optionId: "33333333-3333-3333-3333-333333333333"
+              questionId: "22222222-2222-4222-8222-222222222222",
+              optionId: "33333333-3333-4333-8333-333333333333"
             }
           ],
           timeSpentSeconds: 42
@@ -116,18 +110,14 @@ describe("/api/practice/attempts POST", () => {
   });
 
   it("denies loaded RBAC student actors missing homework submit before parsing invalid JSON", async () => {
-    getAppActorMock.mockResolvedValue({
+    getAppActorMock.mockResolvedValue(createAppActor({
       userId: "student-profile-1",
-      role: "student",
-      profileRole: "student",
-      isStudent: true,
       studentId: "student-1",
-      rbacRoles: ["student"],
       rbacPermissions: ["homework.view"],
       rbacPermissionScopes: {
         "homework.view": ["own"]
       }
-    });
+    }));
 
     const { POST } = await import("@/app/api/practice/attempts/route");
     const response = await POST(
@@ -150,7 +140,7 @@ describe("/api/practice/attempts POST", () => {
       new NextRequest("http://localhost/api/practice/attempts", {
         method: "POST",
         body: JSON.stringify({
-          activityId: "test_11111111-1111-1111-1111-111111111111",
+          activityId: "test_11111111-1111-4111-8111-111111111111",
           answers: []
         })
       })
@@ -192,11 +182,11 @@ describe("/api/practice/attempts POST", () => {
       new NextRequest("http://localhost/api/practice/attempts", {
         method: "POST",
         body: JSON.stringify({
-          activityId: "test_11111111-1111-1111-1111-111111111111",
+          activityId: "test_11111111-1111-4111-8111-111111111111",
           answers: [
             {
-              questionId: "22222222-2222-2222-2222-222222222222",
-              optionId: "33333333-3333-3333-3333-333333333333"
+              questionId: "22222222-2222-4222-8222-222222222222",
+              optionId: "33333333-3333-4333-8333-333333333333"
             }
           ],
           timeSpentSeconds: 42

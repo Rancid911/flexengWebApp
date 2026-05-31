@@ -23,6 +23,10 @@ vi.mock("@/lib/auth/request-context", () => ({
   requireLayoutActor: () => requireLayoutActorMock()
 }));
 
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
+
 describe("words list pages", () => {
   beforeEach(() => {
     getDifficultWordsMock.mockReset();

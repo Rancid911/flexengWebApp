@@ -112,9 +112,11 @@ function buildTeacherDashboardWeekBundle(weekLessons: StaffScheduleLessonDto[], 
 function getTeacherDashboardBundleCacheKey(actor: ScheduleActor) {
   return JSON.stringify({
     role: actor.role,
+    accessMode: actor.accessMode,
     userId: actor.userId,
     teacherId: actor.teacherId ?? "",
-    studentId: actor.studentId ?? ""
+    studentId: actor.studentId ?? "",
+    accessibleStudentIds: actor.accessibleStudentIds
   });
 }
 
@@ -268,7 +270,7 @@ async function mapTeacherDashboardLessons(
 
 const getTeacherDashboardWeekLessonBundleBase = cache(async (cacheKey: string, nowKey: string): Promise<TeacherDashboardWeekLessonBundle> =>
   measureServerTiming("teacher-dashboard-week-bundle", async () => {
-    const actor = JSON.parse(cacheKey) as Pick<ScheduleActor, "role" | "userId" | "teacherId" | "studentId" | "accessibleStudentIds">;
+    const actor = JSON.parse(cacheKey) as Pick<ScheduleActor, "role" | "accessMode" | "userId" | "teacherId" | "studentId" | "accessibleStudentIds">;
     assertTeacherActor(actor as ScheduleActor);
     const now = new Date(nowKey);
     const { todayStart, weekEnd } = getTeacherDashboardWindow(now);

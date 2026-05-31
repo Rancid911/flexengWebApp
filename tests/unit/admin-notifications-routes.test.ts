@@ -172,7 +172,12 @@ describe("admin notifications API routes", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(updateAdminNotificationMock).toHaveBeenCalledWith(actor, "notification-1", { title: "Updated" });
+    expect(updateAdminNotificationMock).toHaveBeenCalledWith(actor, "notification-1", {
+      title: "Updated",
+      type: "update",
+      is_active: true,
+      target_roles: ["all"]
+    });
   });
 
   it("does not parse or update notifications without notification management permission", async () => {

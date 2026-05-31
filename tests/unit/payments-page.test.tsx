@@ -21,6 +21,10 @@ vi.mock("@/features/payments/components/payments-client", () => ({
   }) => <div data-testid="payments-page-probe">{JSON.stringify(props)}</div>
 }));
 
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
+
 describe("PaymentsPage", () => {
   beforeEach(() => {
     getStudentPaymentsMock.mockReset();

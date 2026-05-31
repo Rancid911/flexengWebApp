@@ -8,6 +8,10 @@ vi.mock("@/lib/progress/queries", () => ({
   getProgressHistory: vi.fn()
 }));
 
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
+
 describe("ProgressHistoryPage", () => {
   it("renders result dates as local short date and time", async () => {
     vi.mocked(getProgressHistory).mockResolvedValue([

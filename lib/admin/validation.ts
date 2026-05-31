@@ -123,6 +123,36 @@ const teacherOperationalStatusEnum = z.enum(teacherOperationalStatusOptions.map(
 const teacherCooperationTypeEnum = z.enum(teacherCooperationTypeOptions.map((option) => option.value) as ["freelance", "staff"]);
 const teacherCurrencyEnum = z.enum(teacherCurrencyOptions.map((option) => option.value) as ["RUB"]);
 
+const adminTestQuestionSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    prompt: z.string().trim().min(1).max(2000),
+    explanation: nullableString(5000),
+    question_type: z.literal("single_choice").optional().default("single_choice"),
+    placement_band: placementBandEnum.nullable().optional(),
+    sort_order: z.number().int().min(0).optional().default(0),
+    options: z
+      .array(
+        z.object({
+          id: z.string().uuid().optional(),
+          option_text: z.string().trim().min(1).max(1000),
+          is_correct: z.boolean(),
+          sort_order: z.number().int().min(0).optional().default(0)
+        })
+      )
+      .length(4)
+  })
+  .strict()
+  .superRefine((question, ctx) => {
+    if (question.options.filter((option) => option.is_correct).length !== 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "each question must contain exactly one correct option",
+        path: ["options"]
+      });
+    }
+  });
+
 const adminTestBaseSchema = z
   .object({
     lesson_id: z.string().uuid().nullable().optional(),
@@ -140,40 +170,7 @@ const adminTestBaseSchema = z
     passing_score: z.number().int().min(0).max(100).optional().default(70),
     time_limit_minutes: z.number().int().positive().nullable().optional(),
     is_published: z.boolean().optional().default(false),
-    questions: z
-      .array(
-        z
-          .object({
-            id: z.string().uuid().optional(),
-            prompt: z.string().trim().min(1).max(2000),
-            explanation: nullableString(5000),
-            question_type: z.literal("single_choice").optional().default("single_choice"),
-            placement_band: placementBandEnum.nullable().optional(),
-            sort_order: z.number().int().min(0).optional().default(0),
-            options: z
-              .array(
-                z.object({
-                  id: z.string().uuid().optional(),
-                  option_text: z.string().trim().min(1).max(1000),
-                  is_correct: z.boolean(),
-                  sort_order: z.number().int().min(0).optional().default(0)
-                })
-              )
-              .length(4)
-          })
-          .strict()
-          .superRefine((question, ctx) => {
-            if (question.options.filter((option) => option.is_correct).length !== 1) {
-              ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "each question must contain exactly one correct option",
-                path: ["options"]
-              });
-            }
-          })
-      )
-      .optional()
-      .default([])
+    questions: z.array(adminTestQuestionSchema).optional().default([])
   })
   .strict();
 
@@ -325,7 +322,23 @@ export const adminWordCardSetCreateSchema = adminWordCardSetObjectSchema.superRe
 export const adminWordCardSetUpdateSchema = adminWordCardSetObjectSchema.partial().superRefine(validatePublishedWordCardSet);
 
 export const adminTestUpdateSchema = adminTestBaseSchema
+  .omit({
+    activity_type: true,
+    assessment_kind: true,
+    lesson_reinforcement: true,
+    passing_score: true,
+    is_published: true,
+    questions: true
+  })
   .partial()
+  .extend({
+    activity_type: testActivityTypeEnum.optional(),
+    assessment_kind: testAssessmentKindEnum.optional(),
+    lesson_reinforcement: z.boolean().optional(),
+    passing_score: z.number().int().min(0).max(100).optional(),
+    is_published: z.boolean().optional(),
+    questions: z.array(adminTestQuestionSchema).optional()
+  })
   .superRefine(validateTrainerFields)
   .superRefine(validateRegularTestFields)
   .superRefine(validatePlacementFields)

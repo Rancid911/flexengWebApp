@@ -38,6 +38,10 @@ vi.mock("@/lib/server/timing", () => ({
   measureServerTiming: (...args: [string, () => Promise<unknown>]) => measureServerTimingMock(...args)
 }));
 
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
+
 describe("progress routes", () => {
   beforeEach(() => {
     getProgressByTopicsMock.mockReset();
