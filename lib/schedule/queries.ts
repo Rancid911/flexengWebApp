@@ -314,7 +314,22 @@ export async function getStudentSchedulePreviewByStudentId(studentId: string, li
 
     const teacherOptions = await measureServerTiming("schedule-preview-teachers", () =>
       repository.loadTeacherOptions(
-        { userId: "", role: "admin", accessMode: "staff_all", studentId: null, teacherId: null, accessibleStudentIds: null },
+        {
+          userId: "",
+          role: "admin",
+          profileRole: "admin",
+          accessMode: "staff_all",
+          studentId: null,
+          teacherId: null,
+          accessibleStudentIds: null,
+          rbacRoles: ["admin"],
+          rbacPermissions: ["schedule.view"],
+          rbacPermissionScopes: { "schedule.view": ["all"] },
+          rbacStatus: "loaded",
+          isStudent: false,
+          isTeacher: false,
+          isStaffAdmin: true
+        },
         Array.from(new Set(rows.map((row) => row.teacher_id)))
       )
     );

@@ -11,15 +11,26 @@ function accessModeForRole(role: UserRole): ScheduleAccessMode {
 export function createScheduleActor(overrides: Partial<ScheduleActor> = {}): ScheduleActor {
   const role = overrides.role ?? "teacher";
   const accessMode = overrides.accessMode ?? accessModeForRole(role);
+  const studentId = overrides.studentId ?? (accessMode === "student_own" ? "student-1" : null);
+  const teacherId = overrides.teacherId ?? (accessMode === "teacher_assigned" ? "teacher-1" : null);
+  const accessibleStudentIds = overrides.accessibleStudentIds ?? (accessMode === "teacher_assigned" ? ["student-1"] : null);
 
   return {
-    userId: "user-1",
+    ...overrides,
+    userId: overrides.userId ?? "user-1",
     role,
+    profileRole: overrides.profileRole ?? role,
     accessMode,
-    studentId: accessMode === "student_own" ? "student-1" : null,
-    teacherId: accessMode === "teacher_assigned" ? "teacher-1" : null,
-    accessibleStudentIds: accessMode === "teacher_assigned" ? ["student-1"] : null,
-    ...overrides
+    studentId,
+    teacherId,
+    accessibleStudentIds,
+    rbacRoles: overrides.rbacRoles ?? [role],
+    rbacPermissions: overrides.rbacPermissions ?? [],
+    rbacPermissionScopes: overrides.rbacPermissionScopes ?? {},
+    rbacStatus: overrides.rbacStatus ?? "loaded",
+    isStudent: overrides.isStudent ?? Boolean(studentId),
+    isTeacher: overrides.isTeacher ?? Boolean(teacherId),
+    isStaffAdmin: overrides.isStaffAdmin ?? accessMode === "staff_all"
   };
 }
 
