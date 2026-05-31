@@ -7,11 +7,26 @@ const routeMocks = vi.hoisted(() => ({
   redirect: vi.fn((href: string) => {
     throw new Error(`NEXT_REDIRECT:${href}`);
   }),
-  renderHomeworkOverviewRoute: vi.fn((_searchParams?: unknown) => <div>homework route</div>),
-  renderScheduleRoute: vi.fn((_searchParams?: unknown) => <div>schedule route</div>),
-  renderStudentPaymentsRoute: vi.fn((_searchParams?: unknown) => <div>payments route</div>),
-  renderTeacherStudentsRoute: vi.fn((_searchParams?: unknown) => <div>teacher students route</div>),
-  renderWordsOverviewRoute: vi.fn((_searchParams?: unknown) => <div>words route</div>),
+  renderHomeworkOverviewRoute: vi.fn((searchParams?: unknown) => {
+    void searchParams;
+    return <div>homework route</div>;
+  }),
+  renderScheduleRoute: vi.fn((searchParams?: unknown) => {
+    void searchParams;
+    return <div>schedule route</div>;
+  }),
+  renderStudentPaymentsRoute: vi.fn((searchParams?: unknown) => {
+    void searchParams;
+    return <div>payments route</div>;
+  }),
+  renderTeacherStudentsRoute: vi.fn((searchParams?: unknown) => {
+    void searchParams;
+    return <div>teacher students route</div>;
+  }),
+  renderWordsOverviewRoute: vi.fn((searchParams?: unknown) => {
+    void searchParams;
+    return <div>words route</div>;
+  }),
   requireLayoutActor: vi.fn()
 }));
 

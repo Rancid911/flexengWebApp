@@ -36,8 +36,15 @@ export function useStudentBillingSettingsState({
   const { pending: adjustmentSaving, run: runAdjustmentAction } = useAsyncAction();
 
   useEffect(() => {
-    setBillingSummary(initialBillingSummary);
-    setBillingLoading(loadOnMount && initialBillingSummary == null);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setBillingSummary(initialBillingSummary);
+      setBillingLoading(loadOnMount && initialBillingSummary == null);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [initialBillingSummary, loadOnMount]);
 
   useEffect(() => {

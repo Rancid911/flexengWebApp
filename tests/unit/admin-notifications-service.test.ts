@@ -11,7 +11,10 @@ const { createClientMock, createRepositoryMock, writeAuditMock, repository } = v
 
   return {
     createClientMock: vi.fn(),
-    createRepositoryMock: vi.fn((_client: unknown) => repository),
+    createRepositoryMock: vi.fn((client: unknown) => {
+      void client;
+      return repository;
+    }),
     writeAuditMock: vi.fn(),
     repository
   };

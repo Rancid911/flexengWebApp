@@ -59,13 +59,26 @@ export function useStudentPaymentsState({
   const canCollapsePayments = payments.length > INITIAL_VISIBLE_PAYMENTS_COUNT && !hasMorePayments;
 
   useEffect(() => {
-    setPaymentStatus(paymentStatusContext);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setPaymentStatus(paymentStatusContext);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [paymentStatusContext]);
 
   useEffect(() => {
-    setVisiblePaymentsCount(INITIAL_VISIBLE_PAYMENTS_COUNT);
-    setPayments(initialPayments);
-    setBillingSummary(initialBillingSummary);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setVisiblePaymentsCount(INITIAL_VISIBLE_PAYMENTS_COUNT);
+      setPayments(initialPayments);
+      setBillingSummary(initialBillingSummary);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [initialBillingSummary, initialPayments]);
 
   const refreshPayments = useCallback(async () => {

@@ -169,14 +169,21 @@ export function useStaffScheduleState(initialData: StaffSchedulePageData) {
   });
 
   useEffect(() => {
-    setStudents(initialData.students);
-    setTeachers(initialData.teachers);
-    setStudentCatalogRequested(false);
-    setTeacherCatalogRequested(false);
-    setStudentCatalogLoaded(!initialData.filterCatalogDeferred);
-    setTeacherCatalogLoaded(!initialData.filterCatalogDeferred);
-    setCreateCatalogReady(!initialData.filterCatalogDeferred);
-    setCreateCatalogError(null);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setStudents(initialData.students);
+      setTeachers(initialData.teachers);
+      setStudentCatalogRequested(false);
+      setTeacherCatalogRequested(false);
+      setStudentCatalogLoaded(!initialData.filterCatalogDeferred);
+      setTeacherCatalogLoaded(!initialData.filterCatalogDeferred);
+      setCreateCatalogReady(!initialData.filterCatalogDeferred);
+      setCreateCatalogError(null);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [initialData.filterCatalogDeferred, initialData.students, initialData.teachers]);
 
   useEffect(() => {

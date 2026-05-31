@@ -80,7 +80,13 @@ export function BlogLiveSearchShell({
   );
 
   useEffect(() => {
-    setQueryInput(initialQ);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setQueryInput(initialQ);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [initialQ]);
 
   useEffect(() => {
