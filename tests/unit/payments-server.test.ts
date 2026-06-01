@@ -39,6 +39,26 @@ vi.mock("@/lib/payments/yookassa", async (importOriginal) => {
   };
 });
 
+function mockPaymentTransactionAdminUpdate(error: unknown = null) {
+  const maybeSingleMock = vi.fn().mockResolvedValue({ data: { id: "tx-1" }, error });
+  const selectMock = vi.fn(() => ({ maybeSingle: maybeSingleMock }));
+  const updateEqStudentMock = vi.fn(() => ({ select: selectMock }));
+  const updateEqIdMock = vi.fn(() => ({ eq: updateEqStudentMock }));
+  const updateMock = vi.fn(() => ({ eq: updateEqIdMock }));
+  const adminClient = {
+    from: vi.fn((table: string) => {
+      if (table === "payment_transactions") {
+        return { update: updateMock };
+      }
+
+      throw new Error(`Unexpected table ${table}`);
+    })
+  };
+
+  adminClientMock.mockReturnValue(adminClient);
+  return { adminClient, updateMock, updateEqIdMock, updateEqStudentMock, selectMock, maybeSingleMock };
+}
+
 describe("student YooKassa payment service", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -72,12 +92,9 @@ describe("student YooKassa payment service", () => {
         });
       }
 
-      if (fn === "update_current_student_payment_transaction_provider_state") {
-        return Promise.resolve({ data: null, error: null });
-      }
-
       throw new Error(`Unexpected RPC ${fn}`);
     });
+    const adminUpdate = mockPaymentTransactionAdminUpdate();
     createYooKassaPaymentMock.mockResolvedValue({
       id: "provider-payment-1",
       status: "pending",
@@ -94,19 +111,22 @@ describe("student YooKassa payment service", () => {
 
     const result = await createCheckoutForCurrentStudent("plan-1");
 
-    expect(adminClientMock).not.toHaveBeenCalled();
+    expect(adminClientMock).toHaveBeenCalledTimes(1);
     expect(assertPaymentPlanBillingCompatibilityMock).toHaveBeenCalledWith("student-1", "plan-1", expect.objectContaining({ rpc: serverRpcMock }));
     expect(serverRpcMock).toHaveBeenCalledWith("create_current_student_payment_transaction", expect.objectContaining({
       p_plan_id: "plan-1",
       p_return_url: expect.stringContaining("/settings/payments?payment="),
       p_idempotence_key: expect.any(String)
     }));
-    expect(serverRpcMock).toHaveBeenCalledWith("update_current_student_payment_transaction_provider_state", expect.objectContaining({
-      p_transaction_id: expect.any(String),
-      p_provider_payment_id: "provider-payment-1",
-      p_status: "pending",
-      p_raw_status: "pending"
+    expect(serverRpcMock).toHaveBeenCalledTimes(1);
+    expect(adminUpdate.adminClient.from).toHaveBeenCalledWith("payment_transactions");
+    expect(adminUpdate.updateMock).toHaveBeenCalledWith(expect.objectContaining({
+      provider_payment_id: "provider-payment-1",
+      status: "pending",
+      raw_status: "pending"
     }));
+    expect(adminUpdate.updateEqIdMock).toHaveBeenCalledWith("id", expect.any(String));
+    expect(adminUpdate.updateEqStudentMock).toHaveBeenCalledWith("student_id", "student-1");
     expect(result).toEqual({
       transactionId: expect.any(String),
       redirectUrl: "https://pay.example/tx-1"
@@ -131,12 +151,9 @@ describe("student YooKassa payment service", () => {
         });
       }
 
-      if (fn === "update_current_student_payment_transaction_provider_state") {
-        return Promise.resolve({ data: null, error: null });
-      }
-
       throw new Error(`Unexpected RPC ${fn}`);
     });
+    const adminUpdate = mockPaymentTransactionAdminUpdate();
     getYooKassaPaymentMock.mockResolvedValue({
       id: "provider-payment-1",
       status: "succeeded",
@@ -152,17 +169,19 @@ describe("student YooKassa payment service", () => {
 
     const result = await syncCurrentStudentTransaction("tx-1");
 
-    expect(adminClientMock).not.toHaveBeenCalled();
+    expect(adminClientMock).toHaveBeenCalledTimes(1);
     expect(serverRpcMock).toHaveBeenCalledWith("load_current_student_payment_transaction_status", {
       p_transaction_id: "tx-1"
     });
-    expect(serverRpcMock).toHaveBeenCalledWith("update_current_student_payment_transaction_provider_state", expect.objectContaining({
-      p_transaction_id: "tx-1",
-      p_provider_payment_id: "provider-payment-1",
-      p_status: "succeeded",
-      p_raw_status: "succeeded",
-      p_paid_at: "2026-05-20T08:00:00.000Z"
+    expect(serverRpcMock).toHaveBeenCalledTimes(1);
+    expect(adminUpdate.updateMock).toHaveBeenCalledWith(expect.objectContaining({
+      provider_payment_id: "provider-payment-1",
+      status: "succeeded",
+      raw_status: "succeeded",
+      paid_at: "2026-05-20T08:00:00.000Z"
     }));
+    expect(adminUpdate.updateEqIdMock).toHaveBeenCalledWith("id", "tx-1");
+    expect(adminUpdate.updateEqStudentMock).toHaveBeenCalledWith("student_id", "student-1");
     expect(syncPaymentTransactionBillingMock).toHaveBeenCalledWith("tx-1", expect.objectContaining({ rpc: serverRpcMock }));
     expect(result).toMatchObject({
       transactionId: "tx-1",

@@ -12,7 +12,7 @@ import {
 import { buildStudentSchedulePreview, formatScheduleDateLabel, getScheduleStatusLabel, getStudentVisibleLessons } from "@/lib/schedule/utils";
 import { scheduleLessonMutationSchema } from "@/lib/schedule/validation";
 import { getStudentSchedulePreviewByStudentId } from "@/lib/schedule/queries";
-import type { ScheduleLessonRow } from "@/lib/schedule/mappers";
+import { buildTeacherDisplayName, type ScheduleLessonRow } from "@/lib/schedule/mappers";
 import type { StudentScheduleLessonDto } from "@/lib/schedule/types";
 import { createScheduleActor } from "@/tests/unit/helpers/actors";
 
@@ -303,6 +303,18 @@ describe("schedule helpers", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("prefers teacher first and last name over role-like display name", () => {
+    expect(
+      buildTeacherDisplayName({
+        id: "profile-teacher-1",
+        display_name: "Преподаватель",
+        first_name: "Мария",
+        last_name: "Петрова",
+        email: "teacher@example.com"
+      })
+    ).toBe("Мария Петрова");
+  });
+
   it("returns field-specific messages when lesson identifiers are missing", () => {
     const parsed = scheduleLessonMutationSchema.safeParse({
       studentId: "",
@@ -495,6 +507,80 @@ describe("schedule helpers", () => {
     expect(preview.nextLesson?.hasOutcome).toBe(false);
   });
 
+  it("uses teacher first and last name for student schedule page data", async () => {
+    activeUserClientMock = {
+      from: (table: string) => {
+        switch (table) {
+          case "student_schedule_lessons":
+            return makeQueryResult([
+              {
+                id: "lesson-1",
+                student_id: "student-1",
+                teacher_id: "teacher-1",
+                title: "Phrasal verbs with GET",
+                starts_at: "2099-06-25T14:00:00.000Z",
+                ends_at: "2099-06-25T15:00:00.000Z",
+                meeting_url: "https://example.com/meet",
+                comment: "Выполните тест по данной теме",
+                status: "scheduled",
+                created_at: null,
+                updated_at: null
+              }
+            ]);
+          case "students":
+            return makeQueryResult([
+              {
+                id: "student-1",
+                profile_id: "profile-student-1",
+                profiles: {
+                  id: "profile-student-1",
+                  display_name: "Анна Иванова",
+                  first_name: "Анна",
+                  last_name: "Иванова",
+                  email: "student@example.com"
+                }
+              }
+            ]);
+          case "teachers":
+            return makeQueryResult([
+              {
+                id: "teacher-1",
+                profile_id: "profile-teacher-1",
+                profiles: {
+                  id: "profile-teacher-1",
+                  display_name: "Преподаватель",
+                  first_name: "Мария",
+                  last_name: "Петрова",
+                  email: "teacher@example.com"
+                }
+              }
+            ]);
+          case "lesson_attendance":
+          case "lesson_outcomes":
+            return makeQueryResult([]);
+          default:
+            throw new Error(`Unexpected table: ${table}`);
+        }
+      }
+    };
+
+    const data = await getSchedulePageDataInternal(
+      createScheduleActor({
+        role: "student",
+        userId: "student-profile-1",
+        studentId: "student-1",
+        teacherId: null,
+        accessibleStudentIds: null
+      }),
+      {},
+      { includeFollowup: true }
+    );
+
+    expect(data.role).toBe("student");
+    expect(data.nextLesson?.teacherName).toBe("Мария Петрова");
+    expect(data.lessons[0]?.teacherName).toBe("Мария Петрова");
+  });
+
   it("keeps staff schedule page data lightweight when follow-up enrichment is disabled", async () => {
     const tableCalls: string[] = [];
     activeUserClientMock = makeSchedulePageDataClient(tableCalls);
@@ -519,6 +605,89 @@ describe("schedule helpers", () => {
     });
     expect(tableCalls).not.toContain("lesson_attendance");
     expect(tableCalls).not.toContain("lesson_outcomes");
+  });
+
+  it("loads teacher student options from scope even when there are no lessons in the current window", async () => {
+    const tableCalls: string[] = [];
+    const rpcCalls: unknown[][] = [];
+    activeUserClientMock = {
+      rpc: async (...args: unknown[]) => {
+        rpcCalls.push(args);
+        if (args[0] === "get_schedule_teacher_options") {
+          return {
+            data: [{ id: "teacher-1", label: "Мария Петрова" }],
+            error: null
+          };
+        }
+
+        return {
+          data: [{ id: "student-1", label: "Анна Иванова" }],
+          error: null
+        };
+      },
+      from: (table: string) => {
+        tableCalls.push(table);
+        switch (table) {
+          case "student_schedule_lessons":
+          case "lesson_attendance":
+          case "lesson_outcomes":
+            return makeQueryResult([]);
+          case "students":
+            return makeQueryResult([
+              {
+                id: "student-1",
+                profile_id: "profile-student-1",
+                profiles: {
+                  id: "profile-student-1",
+                  display_name: "Анна Иванова",
+                  first_name: "Анна",
+                  last_name: "Иванова",
+                  email: "student@example.com"
+                }
+              }
+            ]);
+          case "teachers":
+            return makeQueryResult([
+              {
+                id: "teacher-1",
+                profile_id: "profile-teacher-1",
+                profiles: {
+                  id: "profile-teacher-1",
+                  display_name: "Мария Петрова",
+                  first_name: "Мария",
+                  last_name: "Петрова",
+                  email: "teacher@example.com"
+                }
+              }
+            ]);
+          default:
+            throw new Error(`Unexpected table: ${table}`);
+        }
+      }
+    };
+
+    const data = await getSchedulePageDataInternal(
+      createScheduleActor({
+        role: "teacher",
+        userId: "teacher-profile-1",
+        teacherId: "teacher-1",
+        studentId: null,
+        accessibleStudentIds: ["student-1"]
+      }),
+      {},
+      { includeFollowup: false }
+    );
+
+    expect(data.role).toBe("teacher");
+    expect(data.lessons).toEqual([]);
+    expect(data.students).toEqual([{ id: "student-1", label: "Анна Иванова" }]);
+    expect(data.teachers).toEqual([{ id: "teacher-1", label: "Мария Петрова" }]);
+    expect(data.filterCatalogDeferred).toBe(false);
+    expect(data.teacherLocked).toBe(true);
+    expect(rpcCalls).toContainEqual(["get_schedule_student_options", { p_student_ids: ["student-1"] }]);
+    expect(rpcCalls).toContainEqual(["get_schedule_teacher_options", { p_teacher_ids: ["teacher-1"] }]);
+    expect(tableCalls).not.toContain("students");
+    expect(tableCalls).not.toContain("teachers");
   });
 
   it("maps staff schedule lessons with explicit lightweight enrichment", async () => {

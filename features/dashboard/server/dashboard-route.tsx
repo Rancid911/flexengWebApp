@@ -2,10 +2,10 @@ import { Suspense } from "react";
 
 import AdminDashboardView from "@/features/dashboard/components/admin-dashboard-view";
 import StaffDashboardView from "@/features/dashboard/components/staff-dashboard-view";
-import TeacherDashboardView, { TeacherDashboardAttentionSection, TeacherDashboardRosterSection } from "@/features/dashboard/components/teacher-dashboard-view";
+import TeacherDashboardView, { TeacherDashboardAttentionSection } from "@/features/dashboard/components/teacher-dashboard-view";
 import { renderStudentDashboardRoute } from "@/features/dashboard/server/student-dashboard-route";
 import { getAdminDashboardMetrics } from "@/lib/admin/dashboard-metrics";
-import { requireLayoutActor, resolveDefaultWorkspace, type AppActor } from "@/lib/auth/request-context";
+import { requireAppActor, requireLayoutActor, resolveDefaultWorkspace, type AppActor } from "@/lib/auth/request-context";
 import { ScheduleHttpError } from "@/lib/schedule/http";
 import { resolveScheduleActor } from "@/lib/schedule/server";
 import { measureServerTiming } from "@/lib/server/timing";
@@ -24,22 +24,6 @@ async function TeacherDashboardAttentionSlot({ actor }: { actor: AppActor }) {
   } catch {}
 
   return <TeacherDashboardAttentionSection lessons={lessons} />;
-}
-
-async function TeacherDashboardRosterSlot({
-  actor,
-  weekLessons
-}: {
-  actor: AppActor;
-  weekLessons: Awaited<ReturnType<typeof getTeacherDashboardWeekLessonBundle>>["weekLessons"];
-}) {
-  let students: Awaited<ReturnType<typeof getTeacherDashboardStudentRosterSummary>> = [];
-  try {
-    const rosterActor = await resolveScheduleActor(actor, "teacherScope");
-    students = await getTeacherDashboardStudentRosterSummary(rosterActor, { weekLessons });
-  } catch {}
-
-  return <TeacherDashboardRosterSection students={students} />;
 }
 
 export async function renderDashboardRoute() {
@@ -69,10 +53,15 @@ export async function renderDashboardRoute() {
     try {
       const weekActor = await resolveScheduleActor(actor, "contextOnly");
       const weekBundle = await getTeacherDashboardWeekLessonBundle(weekActor);
+      const fullActor = await measureServerTiming("dashboard-route-full-context", () => requireAppActor());
+      const rosterActor = await resolveScheduleActor(fullActor, "teacherScope");
+      const students = await getTeacherDashboardStudentRosterSummary(rosterActor, {
+        weekLessons: weekBundle.weekLessons
+      });
       const data = composeTeacherDashboardData({
         todayLessons: weekBundle.todayLessons,
         weekLessons: weekBundle.weekLessons,
-        students: []
+        students
       });
       teacherDashboardResult = {
         profileLinked: true,
@@ -92,15 +81,10 @@ export async function renderDashboardRoute() {
     return teacherDashboardResult.profileLinked ? (
       <TeacherDashboardView
         data={teacherDashboardResult.data}
-        studentRosterCount={null}
+        studentRosterCount={teacherDashboardResult.data.students.length}
         attentionQueueSlot={
           <Suspense fallback={<TeacherDashboardAttentionSection lessons={[]} />}>
             <TeacherDashboardAttentionSlot actor={actor} />
-          </Suspense>
-        }
-        studentRosterSlot={
-          <Suspense fallback={<TeacherDashboardRosterSection students={[]} />}>
-            <TeacherDashboardRosterSlot actor={actor} weekLessons={teacherDashboardResult.data.weekLessons} />
           </Suspense>
         }
       />

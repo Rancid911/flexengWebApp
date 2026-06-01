@@ -55,7 +55,7 @@ Key tables and RPCs:
 - `student_billing_accounts`: billing mode and lesson price configuration.
 - `student_billing_ledger`: credits, debits, payment credits and lesson charges.
 - `student_payment_reminder_state` and `admin_payment_reminder_settings`: reminder lifecycle.
-- RPCs include `create_current_student_payment_transaction`, `update_current_student_payment_transaction_provider_state`, `load_current_student_payment_transaction_status`, `get_accessible_student_billing_summary` and `get_student_dashboard_payment_reminder_inputs`.
+- RPCs include `create_current_student_payment_transaction`, `load_current_student_payment_transaction_status`, `get_accessible_student_billing_summary` and `get_student_dashboard_payment_reminder_inputs`; provider-state writes use the privileged payment service boundary.
 
 ## Access Control
 
@@ -64,7 +64,7 @@ Key tables and RPCs:
 - Student billing reads use `billing.view` scoped to own/assigned/all student context.
 - Billing settings and manual ledger adjustments use `billing.adjust`.
 - Page/API guards run before payment and billing services.
-- Webhook processing is the intentional provider/internal exception and uses privileged access listed in `docs/service-role-inventory.md`.
+- Provider-state writes and webhook processing are intentional provider/internal exceptions and use privileged access listed in `docs/service-role-inventory.md`.
 - RLS/RPC behavior requires target DB verification; see `docs/access-control/rls-rpc.md` and `docs/access-control/verification-status.md`.
 
 ## State And Lifecycle

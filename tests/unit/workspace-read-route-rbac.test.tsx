@@ -89,7 +89,7 @@ describe("workspace read route RBAC guards", () => {
   it.each([
     ["schedule", () => import("@/app/(workspace)/(shared-zone)/schedule/page").then((module) => module.default({ searchParams: Promise.resolve({}) }))],
     ["homework", () => import("@/app/(workspace)/(shared-zone)/homework/page").then((module) => module.default())],
-    ["words", () => import("@/app/(workspace)/(shared-zone)/words/my/page").then((module) => module.default())],
+    ["words", () => import("@/app/(workspace)/(shared-zone)/words/page").then((module) => module.default())],
     ["payments", () => import("@/app/(workspace)/(student-zone)/settings/payments/page").then((module) => module.default({ searchParams: Promise.resolve({}) }))],
     ["teacher students", () => import("@/app/(workspace)/(teacher-zone)/students/page").then((module) => module.default({ searchParams: Promise.resolve({}) }))]
   ])("denies %s when RBAC metadata is empty", async (_name, renderPage) => {
@@ -108,8 +108,8 @@ describe("workspace read route RBAC guards", () => {
     ["schedule", actorWith("schedule.view", ["own"]), () => import("@/app/(workspace)/(shared-zone)/schedule/page").then((module) => module.default({ searchParams: Promise.resolve({}) }))],
     ["homework", actorWith("homework.view", ["assigned"]), () => import("@/app/(workspace)/(shared-zone)/homework/page").then((module) => module.default())],
     ["progress", actorWith("student_progress.view", ["all"]), () => import("@/app/(workspace)/(shared-zone)/progress/page").then((module) => module.default())],
-    ["words train", actorWith("word_cards.train", ["own"]), () => import("@/app/(workspace)/(shared-zone)/words/my/page").then((module) => module.default())],
-    ["words demo", actorWith("word_cards.demo_train", ["own_demo"]), () => import("@/app/(workspace)/(shared-zone)/words/my/page").then((module) => module.default())],
+    ["words train", actorWith("word_cards.train", ["own"]), () => import("@/app/(workspace)/(shared-zone)/words/page").then((module) => module.default())],
+    ["words demo", actorWith("word_cards.demo_train", ["own_demo"]), () => import("@/app/(workspace)/(shared-zone)/words/page").then((module) => module.default())],
     ["payments", actorWith("billing.view", ["own"]), () => import("@/app/(workspace)/(student-zone)/settings/payments/page").then((module) => module.default({ searchParams: Promise.resolve({}) }))],
     ["teacher students", actorWith("students.view", ["assigned"]), () => import("@/app/(workspace)/(teacher-zone)/students/page").then((module) => module.default({ searchParams: Promise.resolve({}) }))]
   ])("allows %s when RBAC grants the matching permission and scope", async (name, actor, renderPage) => {
@@ -128,7 +128,7 @@ describe("workspace read route RBAC guards", () => {
     ["schedule", () => import("@/app/(workspace)/(shared-zone)/schedule/page").then((module) => module.default({ searchParams: Promise.resolve({}) }))],
     ["homework", () => import("@/app/(workspace)/(shared-zone)/homework/page").then((module) => module.default())],
     ["progress", () => import("@/app/(workspace)/(shared-zone)/progress/page").then((module) => module.default())],
-    ["words", () => import("@/app/(workspace)/(shared-zone)/words/my/page").then((module) => module.default())],
+    ["words", () => import("@/app/(workspace)/(shared-zone)/words/page").then((module) => module.default())],
     ["payments", () => import("@/app/(workspace)/(student-zone)/settings/payments/page").then((module) => module.default({ searchParams: Promise.resolve({}) }))],
     ["teacher students", () => import("@/app/(workspace)/(teacher-zone)/students/page").then((module) => module.default({ searchParams: Promise.resolve({}) }))]
   ])("denies %s when loaded RBAC metadata lacks the route permission", async (_name, renderPage) => {

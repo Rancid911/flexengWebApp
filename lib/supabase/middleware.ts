@@ -13,12 +13,7 @@ const PROTECTED_APP_PREFIXES = [
   "/practice",
   "/progress",
   "/homework",
-  "/learning",
-  "/student-dashboard",
-  "/words",
-  "/flashcards",
-  "/assignments",
-  "/tests"
+  "/words"
 ];
 const PROTECTED_API_PREFIXES = [
   "/api/admin/",

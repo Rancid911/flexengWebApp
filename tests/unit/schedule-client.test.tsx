@@ -153,7 +153,7 @@ describe("ScheduleClient", () => {
     render(<ScheduleClient initialData={makeStudentData()} />);
 
     expect(screen.getByText("Все будущие уроки в одном месте")).toBeInTheDocument();
-    expect(screen.getByTestId("student-schedule-hero")).toHaveClass("bg-[linear-gradient(135deg,#2D284A_0%,#3E3762_46%,#4A4476_100%)]");
+    expect(screen.getByTestId("student-schedule-hero")).toHaveClass("bg-[#2155d8]");
     expect(screen.getAllByText("Speaking club")).toHaveLength(2);
     expect(screen.getByText("Запланирован")).toHaveClass("bg-sky-50", "text-sky-700");
     expect(screen.getByRole("link", { name: "Подключиться" })).toHaveClass("bg-[#1f7aff]");

@@ -8,7 +8,7 @@ describe("middleware auth zoning", () => {
     expect(isProtectedAppPath("/schedule")).toBe(true);
     expect(isProtectedAppPath("/students/student-1")).toBe(true);
     expect(isProtectedAppPath("/search")).toBe(false);
-    expect(isProtectedAppPath("/student-dashboard")).toBe(true);
+    expect(isProtectedAppPath("/student-dashboard")).toBe(false);
     expect(isProtectedAppPath("/articles")).toBe(false);
   });
 

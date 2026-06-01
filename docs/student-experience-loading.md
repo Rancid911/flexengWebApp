@@ -6,13 +6,13 @@
 - `client_interaction` remains reserved for filters, query-param follow-up and mutation refresh.
 
 ## Canonical student patterns
-- `dashboard` and `student-dashboard`: shared route assembly via `renderStudentDashboardRoute()`, with `core summary` plus separate `payment reminder` section.
+- `dashboard`: shared route assembly via `renderStudentDashboardRoute()`, with `core summary` plus separate `payment reminder` section.
 - `settings/payments`: narrow-loader `Promise.all` assembly for billing summary, payments list, plans and payment status context.
 - `progress`: reference implementation for summary-first student loading.
 
 ## User-scoped companion paths
 - `settings/payments`: billing summary uses the actor-scoped `get_accessible_student_billing_summary(...)` RPC through the user-scoped server client.
-- `student-dashboard`: payment reminder state is isolated from the core dashboard payload and loads through an actor-scoped reminder RPC.
+- `dashboard`: payment reminder state is isolated from the core dashboard payload and loads through an actor-scoped reminder RPC.
 
 ## Future RPC/view candidates
 - `student dashboard`: `student_words` counts and consolidated progress/test/mistakes aggregates

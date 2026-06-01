@@ -5,6 +5,7 @@ import { isStudentScheduleActor, isTeacherScheduleActor, type ScheduleActor } fr
 import type { StaffScheduleFilters, ScheduleLessonMutationPayload, ScheduleTeacherOptionDto, ScheduleStudentOptionDto } from "@/lib/schedule/types";
 import {
   buildDisplayName,
+  buildTeacherDisplayName,
   mapStudentRowsToOptionsWithProfiles,
   mapTeacherRowsToOptionsWithProfiles,
   readProfileRelation,
@@ -84,7 +85,7 @@ export function createScheduleRepository(client: ScheduleRepositoryClient) {
       const teacherRows = (teachersResponse.data ?? []) as EntityWithProfileRow[];
       if (teacherRows.length === 0) return new Map<string, string>();
 
-      return new Map<string, string>(teacherRows.map((row) => [row.id, buildDisplayName(readProfileRelation(row.profiles), "Преподаватель")]));
+      return new Map<string, string>(teacherRows.map((row) => [row.id, buildTeacherDisplayName(readProfileRelation(row.profiles))]));
     },
 
     async loadAttendanceByLessonIds(lessonIds: string[]) {
@@ -187,15 +188,34 @@ export function createScheduleRepository(client: ScheduleRepositoryClient) {
 
     async searchStudentOptions(actor: ScheduleActor, search: string | null | undefined, limit: number): Promise<ScheduleStudentOptionDto[]> {
       const effectiveLimit = Math.max(1, Math.min(limit, 100));
+      const teacherAccessibleIds = isTeacherScheduleActor(actor) ? actor.accessibleStudentIds ?? [] : null;
+
+      if (teacherAccessibleIds && !search && typeof client.rpc === "function") {
+        if (teacherAccessibleIds.length === 0) return [];
+        const rpcResponse = await client.rpc("get_schedule_student_options", {
+          p_student_ids: teacherAccessibleIds.slice(0, effectiveLimit)
+        });
+
+        if (!rpcResponse.error) {
+          return ((rpcResponse.data ?? []) as ScheduleOptionLabelRpcRow[]).map((row) => ({
+            id: row.id,
+            label: row.label ?? "Ученик"
+          }));
+        }
+
+        if (!isScheduleOptionRpcUnavailable(rpcResponse.error.message)) {
+          throw new ScheduleHttpError(500, "SCHEDULE_LOOKUP_FAILED", "Failed to search students", rpcResponse.error.message);
+        }
+      }
+
       let query = client.from("students").select(PROFILE_LABEL_SELECT).order("created_at", { ascending: true }).limit(effectiveLimit);
 
       if (isStudentScheduleActor(actor)) {
         if (!actor.studentId) return [];
         query = query.eq("id", actor.studentId);
       } else if (isTeacherScheduleActor(actor)) {
-        const accessibleIds = actor.accessibleStudentIds ?? [];
-        if (accessibleIds.length === 0) return [];
-        query = query.in("id", accessibleIds);
+        if (teacherAccessibleIds?.length === 0) return [];
+        query = query.in("id", teacherAccessibleIds ?? []);
       }
 
       const matchingProfileIds = search ? await this.searchProfileIds(search, effectiveLimit) : null;

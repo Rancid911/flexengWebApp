@@ -132,29 +132,22 @@ $$;
 
 do $$
 declare
-  v_missing_crm_public_select text;
+  v_public_crm_select_policies text;
 begin
-  select case
-    when exists (
-      select 1
-      from pg_policies policy
-      where policy.schemaname = 'storage'
-        and policy.tablename = 'objects'
-        and policy.policyname = 'crm_assets_public_select'
-        and policy.cmd = 'SELECT'
-        and policy.roles && array['public'::name]
-        and coalesce(policy.qual, '') like '%bucket_id = ''crm-assets''%'
-    )
-    then null
-    else 'crm_assets_public_select'
-  end
-  into v_missing_crm_public_select;
+  select string_agg(policy.policyname, ', ' order by policy.policyname)
+  into v_public_crm_select_policies
+  from pg_policies policy
+  where policy.schemaname = 'storage'
+    and policy.tablename = 'objects'
+    and policy.cmd = 'SELECT'
+    and policy.roles && array['public'::name]
+    and coalesce(policy.qual, '') like '%bucket_id = ''crm-assets''%';
 
-  if v_missing_crm_public_select is not null then
-    raise exception 'Storage metadata smoke failed: missing expected crm-assets public select policy: %', v_missing_crm_public_select;
+  if v_public_crm_select_policies is not null then
+    raise exception 'Storage metadata smoke failed: crm-assets public select/listing policies remain active: %', v_public_crm_select_policies;
   end if;
 
-  raise notice 'Storage metadata smoke: crm-assets public select policy is active as currently documented';
+  raise notice 'Storage metadata smoke: crm-assets has no public select/listing policy';
 end;
 $$;
 

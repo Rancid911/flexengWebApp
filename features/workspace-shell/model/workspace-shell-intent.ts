@@ -58,14 +58,7 @@ export function resolveWorkspaceShellIntent(pathname: string | null | undefined)
     };
   }
 
-  if (
-    matchesPathPrefix(normalizedPathname, "/student-dashboard") ||
-    matchesPathPrefix(normalizedPathname, "/settings/payments") ||
-    matchesPathPrefix(normalizedPathname, "/assignments") ||
-    matchesPathPrefix(normalizedPathname, "/flashcards") ||
-    matchesPathPrefix(normalizedPathname, "/learning") ||
-    matchesPathPrefix(normalizedPathname, "/tests")
-  ) {
+  if (matchesPathPrefix(normalizedPathname, "/settings/payments")) {
     return {
       shellVariant: "student",
       utilitySlots: getWorkspaceUtilitySlots("student")

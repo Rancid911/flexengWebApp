@@ -6,7 +6,7 @@ export function WordsSubnav({ active }: { active: WordsSubnavItem }) {
   return (
     <StudentSubnav
       items={[
-        { href: "/words/my", label: "Карточки", active: active === "my" },
+        { href: "/words", label: "Карточки", active: active === "my" },
         { href: "/words/review", label: "Повторение", active: active === "review" },
         { href: "/words/new", label: "Новые", active: active === "new" },
         { href: "/words/difficult", label: "Сложные", active: active === "difficult" }

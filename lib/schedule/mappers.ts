@@ -86,6 +86,14 @@ export function buildDisplayName(
   return profile.display_name || [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email || fallback;
 }
 
+export function buildTeacherDisplayName(
+  profile: Pick<ProfileLabelRow, "display_name" | "first_name" | "last_name" | "email"> | undefined,
+  fallback = "Преподаватель"
+) {
+  if (!profile) return fallback;
+  return [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.display_name || profile.email || fallback;
+}
+
 export function readProfileRelation(value: ProfileLabelRow | ProfileLabelRow[] | null | undefined): ProfileLabelRow | undefined {
   if (Array.isArray(value)) {
     return value[0] ?? undefined;
@@ -104,7 +112,7 @@ export function mapStudentRowsToOptionsWithProfiles(studentRows: EntityWithProfi
 export function mapTeacherRowsToOptionsWithProfiles(teacherRows: EntityWithProfileRow[]): ScheduleTeacherOptionDto[] {
   return teacherRows.map((row) => ({
     id: row.id,
-    label: buildDisplayName(readProfileRelation(row.profiles), "Преподаватель")
+    label: buildTeacherDisplayName(readProfileRelation(row.profiles))
   }));
 }
 

@@ -39,7 +39,7 @@ const serviceRoleAllowlist = new Map([
   ["lib/admin/audit.ts", { count: 1, classification: "final: audit log writes" }],
   ["lib/admin/user.repository.ts", { count: 1, classification: "final: Supabase Auth admin operations" }],
   ["lib/media/service.ts", { count: 2, classification: "final: backend-mediated media proxy/storage access" }],
-  ["lib/payments/server.ts", { count: 1, classification: "provider/system: YooKassa webhook processing" }],
+  ["lib/payments/server.ts", { count: 1, classification: "provider/system: YooKassa provider-state and webhook processing" }],
   ["lib/supabase/admin.ts", { count: 1, classification: "factory: service-role client definition" }],
 ]);
 

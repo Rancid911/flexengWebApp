@@ -34,7 +34,7 @@ import PracticeSubtopicLoading from "@/app/(workspace)/(shared-zone)/practice/to
 import ScheduleLoading from "@/app/(workspace)/(shared-zone)/schedule/loading";
 import ProfileSettingsLoading from "@/app/(workspace)/(shared-zone)/settings/profile/loading";
 import DifficultWordsLoading from "@/app/(workspace)/(shared-zone)/words/difficult/loading";
-import MyWordsLoading from "@/app/(workspace)/(shared-zone)/words/my/loading";
+import WordsLoading from "@/app/(workspace)/(shared-zone)/words/loading";
 import NewWordsLoading from "@/app/(workspace)/(shared-zone)/words/new/loading";
 import ReviewWordsLoading from "@/app/(workspace)/(shared-zone)/words/review/loading";
 import WordsTopicLoading from "@/app/(workspace)/(shared-zone)/words/topics/[topicSlug]/loading";
@@ -43,7 +43,6 @@ import SearchZoneLayout from "@/app/(workspace)/(search-zone)/layout";
 import SharedZoneLayout from "@/app/(workspace)/(shared-zone)/layout";
 import StaffZoneLayout from "@/app/(workspace)/(staff-zone)/layout";
 import StudentZoneLayout from "@/app/(workspace)/(student-zone)/layout";
-import StudentDashboardLoading from "@/app/(workspace)/(student-zone)/student-dashboard/loading";
 import PaymentSettingsLoading from "@/app/(workspace)/(student-zone)/settings/payments/loading";
 import TeacherZoneLayout from "@/app/(workspace)/(teacher-zone)/layout";
 import StudentProfileLoading from "@/app/(workspace)/(teacher-zone)/students/[studentId]/loading";
@@ -184,7 +183,6 @@ describe("route layouts", () => {
     expect(resolveWorkspaceShellIntent("/crm").shellVariant).toBe("staff");
     expect(resolveWorkspaceShellIntent("/students").shellVariant).toBe("teacher");
     expect(resolveWorkspaceShellIntent("/students/student-1").shellVariant).toBe("teacher");
-    expect(resolveWorkspaceShellIntent("/student-dashboard").shellVariant).toBe("student");
     expect(resolveWorkspaceShellIntent("/settings/payments").shellVariant).toBe("student");
     expect(resolveWorkspaceShellIntent("/dashboard").shellVariant).toBe("shared");
     expect(resolveWorkspaceShellIntent("/schedule").shellVariant).toBe("shared");
@@ -297,7 +295,6 @@ describe("route layouts", () => {
       "app/(workspace)/(staff-zone)/crm/loading.tsx",
       "app/(workspace)/(shared-zone)/settings/profile/loading.tsx",
       "app/(workspace)/(student-zone)/settings/payments/loading.tsx",
-      "app/(workspace)/(student-zone)/student-dashboard/loading.tsx",
       "app/(workspace)/(shared-zone)/homework/loading.tsx",
       "app/(workspace)/(shared-zone)/homework/[id]/loading.tsx",
       "app/(workspace)/(shared-zone)/homework/active/loading.tsx",
@@ -312,7 +309,7 @@ describe("route layouts", () => {
       "app/(workspace)/(shared-zone)/practice/topics/loading.tsx",
       "app/(workspace)/(shared-zone)/practice/topics/[topic]/loading.tsx",
       "app/(workspace)/(shared-zone)/practice/topics/[topic]/[subtopic]/loading.tsx",
-      "app/(workspace)/(shared-zone)/words/my/loading.tsx",
+      "app/(workspace)/(shared-zone)/words/loading.tsx",
       "app/(workspace)/(shared-zone)/words/review/loading.tsx",
       "app/(workspace)/(shared-zone)/words/new/loading.tsx",
       "app/(workspace)/(shared-zone)/words/difficult/loading.tsx",
@@ -347,7 +344,7 @@ describe("route layouts", () => {
       PracticeTopicsLoading,
       PracticeTopicLoading,
       PracticeSubtopicLoading,
-      MyWordsLoading,
+      WordsLoading,
       ReviewWordsLoading,
       NewWordsLoading,
       DifficultWordsLoading,
@@ -363,7 +360,6 @@ describe("route layouts", () => {
       AdminTeacherProfileLoading,
       CrmLoading,
       ProfileSettingsLoading,
-      StudentDashboardLoading,
       PaymentSettingsLoading
     ];
 

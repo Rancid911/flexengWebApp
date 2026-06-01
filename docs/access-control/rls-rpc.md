@@ -29,6 +29,21 @@ Application guards decide whether a request should reach a service. RLS and RPCs
 
 `/api/search` is optional-auth hybrid. The search RPC can be executable by `anon` for public search, but unauthenticated execution must return public-only rows. Authenticated private expansion is derived from `auth.uid()` plus DB RBAC/linked scope. Client-supplied privileged parameters must not upgrade visibility.
 
+## Intentional Authenticated RPC Grants
+
+Some `SECURITY DEFINER` read-model RPCs remain executable by `authenticated` because the app calls them with the user-scoped server client and the functions enforce DB RBAC internally. Do not revoke these grants without a dedicated service-role refactor:
+
+- `admin_dashboard_metrics(timestamptz)` requires `roles.view:all` inside the function and is also behind the `/api/admin/dashboard/metrics` permission guard.
+- `admin_list_payment_control(integer, text, text, integer, integer)` and `admin_payment_control_stats(integer, text, text)` require `payments.view:all` or `payments.manage:all` inside the functions and are also behind the `/api/admin/payments-control` permission guard.
+- Current-student checkout/status RPCs such as `create_current_student_payment_transaction(uuid, uuid, text, text)` and `load_current_student_payment_transaction_status(uuid)` remain current-user scoped through `auth.uid()`.
+- Teacher, schedule, billing summary and profile-label read RPCs remain authenticated-executable only when they derive visibility from `auth.uid()` plus `app_private.*` helpers.
+
+Provider-state payment mutation is not part of this intentional direct-RPC surface. `update_current_student_payment_transaction_provider_state(...)` is called through the privileged payment service boundary, and direct `authenticated` execute is revoked.
+
+Live policies still reference legacy `public.current_student_id()`, `public.current_teacher_id()`, `public.get_my_role()`, `public.is_admin_or_manager()` and `public.is_teacher()` helpers. These helpers must remain executable by `authenticated` until those policies are migrated to `app_private.*`; keep `anon` closed.
+
+A future cleanup may move more calls to a documented service-role boundary and grant direct execute only to `service_role`, but that is a broader security design change and must update `docs/service-role-inventory.md` plus architecture enforcement.
+
 ## Verification
 
 Use `docs/rls-smoke-harness.md` for live verification instructions:

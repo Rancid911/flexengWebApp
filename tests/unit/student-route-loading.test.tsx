@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomeworkPage from "@/app/(workspace)/(shared-zone)/homework/page";
 import PracticePage from "@/app/(workspace)/(shared-zone)/practice/page";
-import WordsMyPage from "@/app/(workspace)/(shared-zone)/words/my/page";
+import WordsPage from "@/app/(workspace)/(shared-zone)/words/page";
 import WordTopicPage from "@/app/(workspace)/(shared-zone)/words/topics/[topicSlug]/page";
 
 const navigationMocks = vi.hoisted(() => ({
@@ -140,7 +140,7 @@ describe("student route loading", () => {
       { slug: "travel", title: "Путешествия", description: "Travel", availableCount: 3, difficultCount: 1 }
     ]);
 
-    const result = await WordsMyPage();
+    const result = await WordsPage();
 
     expect(getWordsOverviewSummaryMock).toHaveBeenCalledTimes(1);
     expect(getWordTopicSummariesMock).toHaveBeenCalledTimes(1);

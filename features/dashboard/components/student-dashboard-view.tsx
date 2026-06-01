@@ -65,7 +65,7 @@ export default function StudentDashboardView({
               <Button
                 type="button"
                 className="h-12 rounded-[1.1rem] bg-[#ffd229] px-6 font-black text-[#17233f] shadow-[0_16px_30px_rgba(255,210,41,0.28)] hover:bg-[#ffe174]"
-                onClick={() => router.push("/learning")}
+                onClick={() => router.push("/practice")}
               >
                 Продолжить
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -74,7 +74,7 @@ export default function StudentDashboardView({
                 type="button"
                 variant="outline"
                 className="h-12 rounded-[1.1rem] border-white/35 bg-white/10 px-5 font-black text-white hover:border-white/50 hover:bg-white/16 hover:text-white"
-                onClick={() => router.push("/tests")}
+                onClick={() => router.push("/practice")}
               >
                 Открыть практику
               </Button>
@@ -308,7 +308,7 @@ export function StudentDashboardSummaryStatsSection({
         ];
 
   return (
-    <section className="grid gap-4 xl:grid-cols-3">
+    <section className="grid gap-4 xl:grid-cols-[1.12fr_1.04fr_0.82fr]">
       {items.map((item) => (
         <SummaryCard
           key={item.label}

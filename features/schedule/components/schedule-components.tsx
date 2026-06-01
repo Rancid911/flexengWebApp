@@ -43,15 +43,12 @@ export function StudentScheduleView({ data }: { data: Extract<SchedulePageData, 
     <div className="space-y-5 pb-8">
       <section
         data-testid="student-schedule-hero"
-        className="relative overflow-hidden rounded-[2rem] border border-[#6F679F] bg-[linear-gradient(135deg,#2D284A_0%,#3E3762_46%,#4A4476_100%)] p-6 text-white shadow-[0_20px_48px_rgba(25,18,46,0.28)]"
+        className="relative overflow-hidden rounded-[1.75rem] border border-[#cfe0f8] bg-[#2155d8] p-6 text-white shadow-[0_22px_52px_rgba(37,86,216,0.22)]"
       >
-        <div className="hero-blob hero-blob-a" />
-        <div className="hero-blob hero-blob-b" />
-        <div className="hero-blob hero-blob-c" />
-        <div className="hero-blob hero-blob-d" />
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(33,78,207,0.98)_0%,rgba(45,92,219,0.94)_42%,rgba(58,112,225,0.72)_100%)]" />
         <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-3">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-white/90">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#2458d8] shadow-[0_10px_24px_rgba(18,32,59,0.12)]">
               <CalendarClock className="h-3.5 w-3.5" />
               Расписание
             </span>
@@ -63,18 +60,18 @@ export function StudentScheduleView({ data }: { data: Extract<SchedulePageData, 
             </div>
           </div>
 
-          <Card className="min-w-[280px] rounded-[1.6rem] border-white/15 bg-[#403A67]/72 text-white shadow-none backdrop-blur-sm">
+          <Card className="min-w-[280px] rounded-[1.5rem] border-white/70 bg-white/95 text-[#12203b] shadow-[0_24px_56px_rgba(18,32,59,0.18)] backdrop-blur-sm">
             <CardContent className="space-y-2 p-5">
-              <p className="text-sm font-semibold text-white/80">Ближайший урок</p>
+              <p className="text-sm font-semibold text-[#66789e]">Ближайший урок</p>
               {data.nextLesson ? (
                 <>
                   <p className="text-2xl font-black tracking-[-0.04em]">{data.nextLesson.title}</p>
-                  <p className="text-sm text-white/85">{formatScheduleDateLabel(data.nextLesson.startsAt)}</p>
-                  <p className="text-sm text-white/85">{formatScheduleTimeRange(data.nextLesson.startsAt, data.nextLesson.endsAt)}</p>
-                  <p className="text-sm text-white/75">Преподаватель: {data.nextLesson.teacherName}</p>
+                  <p className="text-sm text-[#6d7fa3]">{formatScheduleDateLabel(data.nextLesson.startsAt)}</p>
+                  <p className="text-sm text-[#6d7fa3]">{formatScheduleTimeRange(data.nextLesson.startsAt, data.nextLesson.endsAt)}</p>
+                  <p className="text-sm text-[#66789e]">Преподаватель: {data.nextLesson.teacherName}</p>
                 </>
               ) : (
-                <p className="text-sm text-white/85">Пока нет новых уроков. Как только преподаватель назначит занятие, оно появится здесь.</p>
+                <p className="text-sm text-[#6d7fa3]">Пока нет новых уроков. Как только преподаватель назначит занятие, оно появится здесь.</p>
               )}
             </CardContent>
           </Card>
@@ -82,14 +79,14 @@ export function StudentScheduleView({ data }: { data: Extract<SchedulePageData, 
       </section>
 
       {groupedLessons.length === 0 ? (
-        <Card className="rounded-[2rem] border-dashed border-[#ded8ff] bg-[#f7f4ff] shadow-none">
+        <Card className="rounded-[1.6rem] border-dashed border-[#dfe9fb] bg-[#f8fbff] shadow-none">
           <CardContent className="flex flex-col items-start gap-3 p-8">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#6658f5] shadow-sm">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#1f7aff] shadow-sm">
               <CalendarClock className="h-5 w-5" />
             </span>
             <div className="space-y-1">
-              <h2 className="text-xl font-black tracking-[-0.04em] text-slate-900">Пока уроки не назначены</h2>
-              <p className="max-w-xl text-sm text-slate-600">Когда преподаватель или менеджер создаст новые занятия, они появятся в этом разделе автоматически.</p>
+              <h2 className="text-xl font-black tracking-[-0.04em] text-[#12203b]">Пока уроки не назначены</h2>
+              <p className="max-w-xl text-sm text-[#6d7fa3]">Когда преподаватель или менеджер создаст новые занятия, они появятся в этом разделе автоматически.</p>
             </div>
           </CardContent>
         </Card>
@@ -97,8 +94,8 @@ export function StudentScheduleView({ data }: { data: Extract<SchedulePageData, 
         groupedLessons.map((group) => (
           <section key={group.key} className="space-y-3">
             <div className="flex items-center gap-3">
-              <h2 className="text-xl font-black tracking-[-0.04em] text-slate-900">{group.label}</h2>
-              <span className="text-sm text-slate-500">{group.lessons.length} урока</span>
+              <h2 className="text-xl font-black tracking-[-0.04em] text-[#12203b]">{group.label}</h2>
+              <span className="text-sm text-[#6d7fa3]">{group.lessons.length} урока</span>
             </div>
             <div className="grid gap-4">
               {group.lessons.map((lesson) => (
@@ -114,23 +111,23 @@ export function StudentScheduleView({ data }: { data: Extract<SchedulePageData, 
 
 function StudentLessonCard({ lesson }: { lesson: StudentScheduleLessonDto }) {
   return (
-    <Card className="rounded-[1.8rem] border-[#dfe9fb] bg-white shadow-[0_14px_30px_rgba(15,23,42,0.04)]">
+    <Card className="rounded-[1.6rem] border-[#dfe9fb] bg-white shadow-[0_16px_42px_rgba(27,73,155,0.08)]">
       <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className={cn("inline-flex items-center rounded-full px-3 py-1 text-xs font-black", getStudentStatusBadgeClass(getScheduleStatusTone(lesson.status)))}>
               {getScheduleStatusLabel(lesson.status)}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f3f6fc] px-3 py-1 text-xs font-bold text-[#60708e]">
               <Clock3 className="h-3.5 w-3.5" />
               {formatScheduleTimeRange(lesson.startsAt, lesson.endsAt)}
             </span>
           </div>
           <div>
-            <h3 className="text-xl font-black tracking-[-0.04em] text-slate-900">{lesson.title}</h3>
-            <p className="mt-1 text-sm text-slate-600">Преподаватель: {lesson.teacherName}</p>
+            <h3 className="text-xl font-black tracking-[-0.04em] text-[#12203b]">{lesson.title}</h3>
+            <p className="mt-1 text-sm text-[#6d7fa3]">Преподаватель: {lesson.teacherName}</p>
           </div>
-          {lesson.comment ? <p className="max-w-3xl text-sm leading-6 text-slate-600">{lesson.comment}</p> : null}
+          {lesson.comment ? <p className="max-w-3xl text-sm leading-6 text-[#6d7fa3]">{lesson.comment}</p> : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -139,13 +136,13 @@ function StudentLessonCard({ lesson }: { lesson: StudentScheduleLessonDto }) {
               href={lesson.meetingUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[#1f7aff] px-4 text-sm font-black text-white shadow-[0_12px_24px_rgba(31,122,255,0.2)] transition hover:bg-[#1669db]"
+              className="inline-flex h-11 items-center gap-2 rounded-[1rem] bg-[#1f7aff] px-4 text-sm font-black text-white shadow-[0_12px_24px_rgba(31,122,255,0.2)] transition hover:bg-[#1669db]"
             >
               <Video className="h-4 w-4" />
               Подключиться
             </a>
           ) : (
-            <span className="inline-flex h-11 items-center rounded-2xl bg-slate-100 px-4 text-sm font-semibold text-slate-500">
+            <span className="inline-flex h-11 items-center rounded-[1rem] bg-[#f3f6fc] px-4 text-sm font-semibold text-[#60708e]">
               Ссылка появится позже
             </span>
           )}

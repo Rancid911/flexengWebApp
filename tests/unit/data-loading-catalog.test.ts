@@ -7,7 +7,6 @@ describe("data loading catalog", () => {
   it("keeps the required route inventory covered", () => {
     expect(DATA_LOADING_CATALOG.map((entry) => entry.route)).toEqual([
       "/dashboard",
-      "/student-dashboard",
       "/schedule",
       "/admin/payments",
       "/settings/payments",
@@ -18,11 +17,7 @@ describe("data loading catalog", () => {
       "/settings/profile",
       "/words/*",
       "/admin",
-      "/search",
-      "/learning",
-      "/tests",
-      "/assignments",
-      "/flashcards"
+      "/search"
     ]);
   });
 
@@ -56,10 +51,8 @@ describe("data loading catalog", () => {
       "nextBestAction",
       "schedulePreview"
     ]);
-    expect(STUDENT_EXPERIENCE_LOADING_CATALOG.redirectOnlyRoutes).toEqual(["/learning", "/assignments", "/flashcards", "/tests"]);
     expect(STUDENT_EXPERIENCE_LOADING_CATALOG.routes.map((entry) => entry.route)).toEqual([
       "/dashboard",
-      "/student-dashboard",
       "/homework",
       "/homework/[id]",
       "/practice",
@@ -73,7 +66,7 @@ describe("data loading catalog", () => {
       "/progress/*",
       "/settings/payments",
       "/words/*",
-      "/words/my",
+      "/words",
       "/words/review",
       "/words/new"
     ]);

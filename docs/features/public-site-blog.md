@@ -16,7 +16,7 @@ Global documentation lives in `docs/README.md`, `docs/access-control/README.md`,
 
 ## User Flows
 
-- Guest opens marketing pages such as `/`, `/about`, `/faq` and `/support`.
+- Guest opens `/`; marketing subsections are addressed by anchors such as `/#how-it-works`, `/#faq` and `/#lead-form`.
 - Guest opens `/articles` and filters/searches published blog posts by query, category, tag and sort.
 - Guest opens `/articles/[slug]` and sees a published article plus related posts.
 - Guest submits a public lead form through `/api/leads`.

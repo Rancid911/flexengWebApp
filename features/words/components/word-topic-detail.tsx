@@ -10,7 +10,7 @@ import { WordsSubnav } from "@/features/words/components/words-subnav";
 export function WordTopicDetail({ detail }: { detail: WordTopicDetailData }) {
   return (
     <div className="space-y-6 pb-8">
-      <Link href="/words/my" className="inline-flex items-center gap-2 text-sm font-black text-[#1f7aff]">
+      <Link href="/words" className="inline-flex items-center gap-2 text-sm font-black text-[#1f7aff]">
         <ArrowLeft className="h-4 w-4" />
         Назад к темам
       </Link>

@@ -28,7 +28,7 @@ Global access rules are documented in `docs/access-control/README.md`, `docs/acc
 
 - `/homework`, `/homework/active`, `/homework/completed`, `/homework/overdue`, `/homework/[id]` are workspace routes guarded by `requireWorkspaceRouteAccess("homework")`.
 - `/practice`, `/practice/catalog`, `/practice/recommended`, `/practice/topics`, `/practice/topics/[topic]`, `/practice/topics/[topic]/[subtopic]`, `/practice/mistakes`, `/practice/favorites`, `/practice/activity/[activityId]` are workspace practice routes.
-- `/tests` and `/learning` redirect into the practice experience.
+- Removed legacy student aliases no longer redirect into practice; use `/practice` directly.
 - Teacher/student profile homework and placement controls are documented with students/teachers.
 - Practice overview uses section-level Suspense fallbacks for independent recommendation/topic cards.
 

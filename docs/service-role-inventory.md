@@ -47,7 +47,7 @@ The first low-risk cleanup pilot is intentionally conservative:
 - Request context profile identity, RBAC metadata and linked actor scope now use the user-scoped server client/RPC path.
 - Billing summary reads now use `get_accessible_student_billing_summary(...)` through a user-scoped server client; billing settings, adjustments, payment sync and lesson charges remain privileged in `lib/billing/server.ts`.
 - Admin payment-control summary list, reminder settings, manual reminder send, and automatic sync now use user-scoped access.
-- Current-student YooKassa checkout/status paths now use user-scoped RPCs; provider webhook processing remains privileged.
+- Current-student YooKassa checkout/status paths use user-scoped RPCs for transaction creation/loading, while provider-state updates and provider webhook processing remain privileged.
 - Search now uses the user-scoped server client to call `search_documents_query_for_actor(...)`; the RPC remains actor-scoped and server-mediated.
 
 PR10A removes one low-risk service-role read and adds enforcement so future service-role growth is blocked unless explicitly classified.
@@ -59,7 +59,7 @@ PR10A removes one low-risk service-role read and adds enforcement so future serv
 | `lib/admin/audit.ts` | 1 | final keep | Admin audit writes remain privileged and failure-tolerant. |
 | `lib/admin/user.repository.ts` | 1 | final keep | Supabase Auth admin create/update/delete remains privileged; admin user table writes are user-scoped. |
 | `lib/media/service.ts` | 2 | final keep | Backend-mediated media proxy uses one explicit service-role client per media loader. |
-| `lib/payments/server.ts` | 1 | provider/system keep | YooKassa webhook processing remains privileged for provider event storage, transaction sync and billing side effects. |
+| `lib/payments/server.ts` | 1 | provider/system keep | YooKassa provider-state updates and webhook processing remain privileged for transaction sync, provider event storage and billing side effects. |
 | `lib/supabase/admin.ts` | 1 | factory | Service-role client factory definition. |
 
 ## Final PR10 Boundary

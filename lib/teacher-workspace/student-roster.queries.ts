@@ -96,19 +96,18 @@ export async function getTeacherDashboardStudentRosterSummary(
 ) {
   return measureServerTiming("teacher-dashboard-student-roster", async () => {
     assertTeacherActor(actor);
-    const userClient = await createClient();
-    const repository = createTeacherStudentRosterRepository(userClient);
     const weekLessons = options?.weekLessons ?? (await getTeacherDashboardWeekLessonBundle(actor)).weekLessons;
 
     let scopedStudentIds: string[] | undefined;
     if (isTeacherScopedActor(actor)) {
-      const lessonStudentIds = Array.from(new Set(weekLessons.map((lesson) => lesson.studentId).filter(Boolean)));
-      scopedStudentIds = Array.from(new Set([...(actor.accessibleStudentIds ?? []), ...lessonStudentIds]));
+      scopedStudentIds = Array.from(new Set(actor.accessibleStudentIds ?? []));
       if (scopedStudentIds.length === 0) {
         return [];
       }
     }
 
+    const userClient = await createClient();
+    const repository = createTeacherStudentRosterRepository(userClient);
     const [studentsResponse, homeworkResponse] = await Promise.all([
       repository.loadStudents(scopedStudentIds),
       repository.loadActiveHomeworkCounts(scopedStudentIds ?? [])

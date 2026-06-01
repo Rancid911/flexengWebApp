@@ -33,12 +33,11 @@ import PracticeSubtopicLoading from "@/app/(workspace)/(shared-zone)/practice/to
 import ScheduleLoading from "@/app/(workspace)/(shared-zone)/schedule/loading";
 import ProfileSettingsLoading from "@/app/(workspace)/(shared-zone)/settings/profile/loading";
 import DifficultWordsLoading from "@/app/(workspace)/(shared-zone)/words/difficult/loading";
-import MyWordsLoading from "@/app/(workspace)/(shared-zone)/words/my/loading";
+import WordsLoading from "@/app/(workspace)/(shared-zone)/words/loading";
 import NewWordsLoading from "@/app/(workspace)/(shared-zone)/words/new/loading";
 import ReviewWordsLoading from "@/app/(workspace)/(shared-zone)/words/review/loading";
 import WordsTopicLoading from "@/app/(workspace)/(shared-zone)/words/topics/[topicSlug]/loading";
 import WordsTrainLoading from "@/app/(workspace)/(shared-zone)/words/train/loading";
-import StudentDashboardLoading from "@/app/(workspace)/(student-zone)/student-dashboard/loading";
 import PaymentSettingsLoading from "@/app/(workspace)/(student-zone)/settings/payments/loading";
 import StudentProfileLoading from "@/app/(workspace)/(teacher-zone)/students/[studentId]/loading";
 import StudentsLoading from "@/app/(workspace)/(teacher-zone)/students/loading";
@@ -52,7 +51,6 @@ import {
   WorkspacePracticeLibraryLoadingSkeleton,
   WorkspacePracticeOverviewLoadingSkeleton,
   WorkspacePracticeTopicLoadingSkeleton,
-  WorkspaceStudentDashboardLoadingSkeleton,
   WorkspaceStudentPaymentsLoadingSkeleton,
   WorkspaceWordsLibraryLoadingSkeleton,
   WorkspaceWordsTrainerLoadingSkeleton
@@ -97,7 +95,6 @@ describe("workspace loading skeleton boundaries", () => {
     const contract = readProjectFile("docs/workspace-loading-skeleton-contract.md");
     const requiredRoutes = [
       "/dashboard",
-      "/student-dashboard",
       "/schedule",
       "/students",
       "/students/[studentId]",
@@ -119,7 +116,7 @@ describe("workspace loading skeleton boundaries", () => {
       "/practice/topics/[topic]",
       "/practice/topics/[topic]/[subtopic]",
       "/practice/activity/[activityId]",
-      "/words/my",
+      "/words",
       "/words/train",
       "/search",
       "/articles",
@@ -170,7 +167,6 @@ describe("workspace loading skeleton boundaries", () => {
 
   it("renders new screen-accurate skeleton components without shell ownership", () => {
     const skeletonComponents = [
-      WorkspaceStudentDashboardLoadingSkeleton,
       WorkspaceStudentPaymentsLoadingSkeleton,
       WorkspaceAdminDirectoryLoadingSkeleton,
       WorkspaceAdminProfileLoadingSkeleton,
@@ -218,13 +214,12 @@ describe("workspace loading skeleton boundaries", () => {
       PracticeTopicsLoading,
       PracticeTopicLoading,
       PracticeSubtopicLoading,
-      MyWordsLoading,
+      WordsLoading,
       ReviewWordsLoading,
       NewWordsLoading,
       DifficultWordsLoading,
       WordsTopicLoading,
       WordsTrainLoading,
-      StudentDashboardLoading,
       StudentsLoading,
       StudentProfileLoading,
       AdminLoading,
@@ -270,7 +265,7 @@ describe("workspace loading skeleton boundaries", () => {
       "app/(workspace)/(shared-zone)/homework/overdue/loading.tsx"
     ];
     const wordsLibraryRoutes = [
-      "app/(workspace)/(shared-zone)/words/my/loading.tsx",
+      "app/(workspace)/(shared-zone)/words/loading.tsx",
       "app/(workspace)/(shared-zone)/words/review/loading.tsx",
       "app/(workspace)/(shared-zone)/words/new/loading.tsx",
       "app/(workspace)/(shared-zone)/words/difficult/loading.tsx",

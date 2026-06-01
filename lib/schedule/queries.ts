@@ -264,15 +264,30 @@ export async function getSchedulePageDataInternal(
       },
       repository
     );
-    const { students, teachers } = await measureServerTiming("schedule-filter-catalog-deferred", async () =>
-      buildOptionsFromLessons(mapped as StaffScheduleLessonDto[], filters, actor)
-    );
+    const { students, teachers, filterCatalogDeferred } = await measureServerTiming("schedule-filter-catalog-deferred", async () => {
+      if (isTeacherScheduleActor(actor)) {
+        const [studentOptions, teacherOptions] = await Promise.all([
+          repository.searchStudentOptions(actor, null, SCHEDULE_FILTER_SEARCH_LIMIT),
+          repository.loadTeacherOptions(actor)
+        ]);
+        return {
+          students: studentOptions,
+          teachers: teacherOptions,
+          filterCatalogDeferred: false
+        };
+      }
+
+      return {
+        ...buildOptionsFromLessons(mapped as StaffScheduleLessonDto[], filters, actor),
+        filterCatalogDeferred: true
+      };
+    });
     return {
       role: getStaffScheduleRole(actor),
       lessons: mapped as StaffScheduleLessonDto[],
       students,
       teachers,
-      filterCatalogDeferred: true,
+      filterCatalogDeferred,
       filters: getTeacherScopedFilters(actor, filters),
       teacherLocked: isTeacherScheduleActor(actor)
     } satisfies StaffSchedulePageData;

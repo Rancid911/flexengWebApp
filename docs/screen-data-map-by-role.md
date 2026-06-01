@@ -215,10 +215,10 @@
   - `homework_assignments`
   - `homework_items`
 
-### `/words/my`
+### `/words`
 
 - Route:
-  - [words/my/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/words/my/page.tsx)
+  - [words/page.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/app/(workspace)/(shared-zone)/words/page.tsx)
   - [words-overview-routes.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/words/server/words-overview-routes.tsx)
   - [words-list-routes.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/words/server/words-list-routes.tsx)
   - [words-overview.tsx](/Users/anton/Desktop/Флексенг/6.%20Инфра-ра/Pencil/dashboard-next/dashboard-next-next16/features/words/components/words-overview.tsx)
@@ -337,13 +337,10 @@
   - for student enrollment-restricted documents:
     - `student_course_enrollments`
 
-### Redirect-only student routes
+### Removed student legacy aliases
 
-- `/flashcards` -> `/words`
-- `/assignments` -> `/homework`
-- `/tests` -> `/practice`
-- `/learning` -> `/practice`
-- Собственных DB-запросов нет.
+- `/flashcards`, `/assignments`, `/tests` and `/learning` no longer exist.
+- Use `/words`, `/homework` and `/practice` directly.
 
 ## Teacher
 

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import DashboardPage from "@/app/(workspace)/(shared-zone)/dashboard/page";
 
 const requireLayoutActorMock = vi.fn();
+const requireAppActorMock = vi.fn();
 const renderStudentDashboardRouteMock = vi.fn();
 const resolveScheduleActorMock = vi.fn();
 const getTeacherDashboardAttentionQueueMock = vi.fn();
@@ -12,6 +13,7 @@ const getTeacherDashboardStudentRosterSummaryMock = vi.fn();
 const getAdminDashboardMetricsMock = vi.fn();
 
 vi.mock("@/lib/auth/request-context", () => ({
+  requireAppActor: () => requireAppActorMock(),
   requireLayoutActor: () => requireLayoutActorMock(),
   resolveDefaultWorkspace: (actor: { isStaffAdmin?: boolean; isTeacher?: boolean; isStudent?: boolean; profileRole?: string | null }) => {
     if (actor.isStaffAdmin) return actor.profileRole === "admin" ? "admin" : "manager";
@@ -79,6 +81,7 @@ vi.mock("@/features/dashboard/components/teacher-dashboard-view", () => ({
 describe("DashboardPage", () => {
   beforeEach(() => {
     requireLayoutActorMock.mockReset();
+    requireAppActorMock.mockReset();
     renderStudentDashboardRouteMock.mockReset();
     resolveScheduleActorMock.mockReset();
     getTeacherDashboardAttentionQueueMock.mockReset();
@@ -104,61 +107,98 @@ describe("DashboardPage", () => {
   });
 
   it("prefers teacher workspace for dual-role teacher+student actor", async () => {
-    const actor = {
+    const layoutActor = {
       userId: "user-1",
       profileRole: "student",
       isStudent: true,
       isTeacher: true,
       isStaffAdmin: false
     };
-    requireLayoutActorMock.mockResolvedValue(actor);
+    const fullActor = {
+      ...layoutActor,
+      accessibleStudentIds: ["student-1"]
+    };
+    requireLayoutActorMock.mockResolvedValue(layoutActor);
+    requireAppActorMock.mockResolvedValue(fullActor);
     resolveScheduleActorMock.mockResolvedValueOnce({
       role: "teacher",
       userId: "user-1",
       teacherId: "teacher-1",
       studentId: "student-1",
       accessibleStudentIds: null
+    }).mockResolvedValueOnce({
+      role: "teacher",
+      userId: "user-1",
+      teacherId: "teacher-1",
+      studentId: "student-1",
+      accessibleStudentIds: ["student-1"]
     });
     getTeacherDashboardWeekLessonBundleMock.mockResolvedValue({ todayLessons: [], weekLessons: [], attentionQueue: [] });
+    getTeacherDashboardStudentRosterSummaryMock.mockResolvedValue([{ studentId: "student-1" }]);
     getTeacherDashboardAttentionQueueMock.mockResolvedValue([]);
     const result = await DashboardPage();
 
     expect(renderStudentDashboardRouteMock).not.toHaveBeenCalled();
-    expect(resolveScheduleActorMock).toHaveBeenCalledWith(actor, "contextOnly");
-    expect(resolveScheduleActorMock).not.toHaveBeenCalledWith(actor, "teacherScope");
+    expect(requireAppActorMock).toHaveBeenCalledTimes(1);
+    expect(resolveScheduleActorMock).toHaveBeenCalledWith(layoutActor, "contextOnly");
+    expect(resolveScheduleActorMock).toHaveBeenCalledWith(fullActor, "teacherScope");
     expect(getTeacherDashboardWeekLessonBundleMock).toHaveBeenCalled();
-    expect(getTeacherDashboardStudentRosterSummaryMock).not.toHaveBeenCalled();
-    expect((result as { props: { data: { students: unknown[] }; studentRosterCount: unknown; studentRosterSlot: unknown } }).props.data.students).toEqual([]);
-    expect((result as { props: { studentRosterCount: unknown } }).props.studentRosterCount).toBeNull();
-    expect((result as { props: { studentRosterSlot: unknown } }).props.studentRosterSlot).toBeTruthy();
+    expect(getTeacherDashboardStudentRosterSummaryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ accessibleStudentIds: ["student-1"] }),
+      { weekLessons: [] }
+    );
+    expect((result as { props: { data: { students: unknown[] }; studentRosterCount: unknown; studentRosterSlot: unknown } }).props.data.students).toEqual([{ studentId: "student-1" }]);
+    expect((result as { props: { studentRosterCount: unknown } }).props.studentRosterCount).toBe(1);
+    expect((result as { props: { studentRosterSlot: unknown } }).props.studentRosterSlot).toBeUndefined();
     expect(result).toBeTruthy();
   });
 
-  it("does not await teacher roster before returning the teacher dashboard", async () => {
-    const actor = {
+  it("loads teacher roster before returning the teacher dashboard", async () => {
+    const layoutActor = {
       userId: "teacher-user-1",
       profileRole: "teacher",
       isStudent: false,
       isTeacher: true,
       isStaffAdmin: false
     };
-    requireLayoutActorMock.mockResolvedValue(actor);
+    const fullActor = {
+      ...layoutActor,
+      accessibleStudentIds: ["student-1", "student-2"]
+    };
+    requireLayoutActorMock.mockResolvedValue(layoutActor);
+    requireAppActorMock.mockResolvedValue(fullActor);
     resolveScheduleActorMock.mockResolvedValueOnce({
       role: "teacher",
       userId: "teacher-user-1",
       teacherId: "teacher-1",
       studentId: null,
       accessibleStudentIds: null
+    }).mockResolvedValueOnce({
+      role: "teacher",
+      userId: "teacher-user-1",
+      teacherId: "teacher-1",
+      studentId: null,
+      accessibleStudentIds: ["student-1", "student-2"]
     });
     getTeacherDashboardWeekLessonBundleMock.mockResolvedValue({ todayLessons: [], weekLessons: [], attentionQueue: [] });
+    getTeacherDashboardStudentRosterSummaryMock.mockResolvedValue([{ studentId: "student-1" }, { studentId: "student-2" }]);
 
     const result = await DashboardPage();
 
     expect(getTeacherDashboardWeekLessonBundleMock).toHaveBeenCalledTimes(1);
-    expect(resolveScheduleActorMock).not.toHaveBeenCalledWith(actor, "teacherScope");
-    expect(getTeacherDashboardStudentRosterSummaryMock).not.toHaveBeenCalled();
-    expect((result as { props: { data: { students: unknown[] }; studentRosterSlot: unknown } }).props.data.students).toEqual([]);
-    expect((result as { props: { studentRosterSlot: unknown } }).props.studentRosterSlot).toBeTruthy();
+    expect(requireAppActorMock).toHaveBeenCalledTimes(1);
+    expect(resolveScheduleActorMock).toHaveBeenCalledWith(layoutActor, "contextOnly");
+    expect(resolveScheduleActorMock).toHaveBeenCalledWith(fullActor, "teacherScope");
+    expect(getTeacherDashboardStudentRosterSummaryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ accessibleStudentIds: ["student-1", "student-2"] }),
+      { weekLessons: [] }
+    );
+    expect((result as { props: { data: { students: unknown[] }; studentRosterCount: unknown; studentRosterSlot: unknown } }).props.data.students).toEqual([
+      { studentId: "student-1" },
+      { studentId: "student-2" }
+    ]);
+    expect((result as { props: { studentRosterCount: unknown } }).props.studentRosterCount).toBe(2);
+    expect((result as { props: { studentRosterSlot: unknown } }).props.studentRosterSlot).toBeUndefined();
   });
 
   it("renders staff dashboard for manager actor", async () => {

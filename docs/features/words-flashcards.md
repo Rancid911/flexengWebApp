@@ -5,7 +5,7 @@ Audience: engineers, product maintainers, learning content maintainers, security
 Owner area: words-flashcards  
 Last reviewed: 2026-05-25  
 Source of truth: feature summary; current code/tests remain implementation source  
-Related code: `app/(workspace)/(shared-zone)/words/`, `app/(workspace)/(student-zone)/flashcards/page.tsx`, `app/api/words/sessions/complete/route.ts`, `app/api/admin/word-card-sets/`, `features/words/`, `lib/words/`, `lib/admin/word-card-sets.service.ts`, `lib/admin/word-card-sets.repository.ts`  
+Related code: `app/(workspace)/(shared-zone)/words/`, `app/api/words/sessions/complete/route.ts`, `app/api/admin/word-card-sets/`, `features/words/`, `lib/words/`, `lib/admin/word-card-sets.service.ts`, `lib/admin/word-card-sets.repository.ts`  
 Related tests: `tests/unit/words-flashcards.test.ts`, `tests/unit/words-list-pages.test.tsx`, `tests/unit/words-train-page.test.tsx`, `tests/unit/words-session-complete-route.test.ts`, `tests/unit/words-session-complete-service.test.ts`, `tests/unit/admin-word-card-sets.test.ts`, `tests/unit/admin-word-card-sets-service.test.ts`
 
 ## Overview
@@ -16,19 +16,16 @@ Global documentation lives in `docs/README.md`, `docs/access-control/README.md`,
 
 ## User Flows
 
-- Student opens `/words`, which redirects to `/words/my`.
+- Student opens `/words`, which renders the cards overview.
 - Student reviews all words, due review words, new words, difficult words or a topic detail.
 - Student starts `/words/train` with optional mode/topic/set/limit query params.
 - Student completes a training session; answers update own `student_words` progress and create review history.
 - Admin manages word card sets and items from the admin console.
-- `/flashcards` redirects to `/words` for student-zone compatibility.
 
 ## Routes And UI
 
-- `/words` redirects to `/words/my` after `requireWorkspaceRouteAccess("words")`.
-- `/words/my`, `/words/review`, `/words/new`, `/words/difficult`, `/words/topics/[topicSlug]` render list/topic pages.
+- `/words`, `/words/review`, `/words/new`, `/words/difficult`, `/words/topics/[topicSlug]` render list/topic pages after `requireWorkspaceRouteAccess("words")`.
 - `/words/train` renders the flashcard trainer or empty state.
-- `/flashcards` redirects to `/words`.
 - Admin word-card management is part of the admin console documented in `docs/features/admin-users-content.md`.
 
 ## APIs And Server Actions
@@ -103,5 +100,5 @@ Coverage gaps:
 ## Known Limitations
 
 - Some loaders intentionally fail soft when optional word schema is missing.
-- `/flashcards` is a compatibility redirect rather than a separate product surface.
+- Removed legacy flashcards alias no longer redirects into words; use `/words` directly.
 - Full security closure depends on live RLS smoke outside this documentation PR.

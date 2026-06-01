@@ -125,7 +125,7 @@ export function FlashcardTrainer({ session }: { session: WordSession }) {
                 Изучить ещё слова
                 <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href="/words/my" className="inline-flex min-h-11 items-center rounded-xl border border-[#dde2e9] px-4 py-2 text-sm font-black text-slate-700">
+              <Link href="/words" className="inline-flex min-h-11 items-center rounded-xl border border-[#dde2e9] px-4 py-2 text-sm font-black text-slate-700">
                 Вернуться в карточки
               </Link>
             </div>
@@ -217,7 +217,7 @@ function TrainerHeader({ title, progress, side }: { title: string; progress: str
         <h1 className="text-2xl font-black tracking-tight text-slate-900">Карточка {progress}</h1>
         <p className="text-sm text-slate-500">Сторона: {side}</p>
       </div>
-      <Link href="/words/my" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#dde2e9] px-4 py-2 text-sm font-black text-slate-700">
+      <Link href="/words" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#dde2e9] px-4 py-2 text-sm font-black text-slate-700">
         <ArrowLeft className="h-4 w-4" />
         Выйти
       </Link>

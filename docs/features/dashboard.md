@@ -5,8 +5,8 @@ Audience: engineers, product maintainers, support, security reviewers
 Owner area: dashboard  
 Last reviewed: 2026-05-25  
 Source of truth: feature summary; current code/tests remain implementation source  
-Related code: `app/(workspace)/(shared-zone)/dashboard/page.tsx`, `app/(workspace)/(student-zone)/student-dashboard/page.tsx`, `app/api/admin/dashboard/metrics/route.ts`, `features/dashboard/`, `lib/dashboard/`, `lib/admin/dashboard-metrics.ts`, `lib/teacher-workspace/queries.ts`  
-Related tests: `tests/unit/dashboard-page.test.tsx`, `tests/unit/student-dashboard-page.test.tsx`, `tests/unit/student-dashboard-route.test.tsx`, `tests/unit/student-dashboard.test.ts`, `tests/unit/student-dashboard-view.test.tsx`, `tests/unit/teacher-dashboard-view.test.tsx`, `tests/unit/admin-dashboard-metrics.test.ts`, `tests/unit/admin-dashboard-metrics-server.test.ts`, `tests/unit/dashboard-cache.test.ts`
+Related code: `app/(workspace)/(shared-zone)/dashboard/page.tsx`, `app/api/admin/dashboard/metrics/route.ts`, `features/dashboard/`, `lib/dashboard/`, `lib/admin/dashboard-metrics.ts`, `lib/teacher-workspace/queries.ts`  
+Related tests: `tests/unit/dashboard-page.test.tsx`, `tests/unit/student-dashboard-route.test.tsx`, `tests/unit/student-dashboard.test.ts`, `tests/unit/student-dashboard-view.test.tsx`, `tests/unit/teacher-dashboard-view.test.tsx`, `tests/unit/admin-dashboard-metrics.test.ts`, `tests/unit/admin-dashboard-metrics-server.test.ts`, `tests/unit/dashboard-cache.test.ts`
 
 ## Overview
 
@@ -16,7 +16,7 @@ Global documentation lives in `docs/README.md`, `docs/access-control/README.md`,
 
 ## User Flows
 
-- Students open `/dashboard` or `/student-dashboard` and see homework, placement, practice, words, schedule preview and payment reminder context.
+- Students open `/dashboard` and see homework, placement, practice, words, schedule preview and payment reminder context.
 - Teachers open `/dashboard` and see today/week lessons, attention queue and roster summary when their teacher profile is linked.
 - Admin users open `/dashboard` and see admin metrics from the dashboard metrics RPC.
 - Manager/staff users without a specialized branch see the staff dashboard shell.
@@ -24,7 +24,6 @@ Global documentation lives in `docs/README.md`, `docs/access-control/README.md`,
 ## Routes And UI
 
 - `/dashboard` renders `renderDashboardRoute()` and branches by `resolveDefaultWorkspace(actor)`.
-- `/student-dashboard` renders the same student dashboard assembly directly for the student-zone legacy/current entry point.
 - `app/(workspace)/(shared-zone)/dashboard/loading.tsx` provides the dashboard route fallback.
 - Student dashboard sections use Suspense for secondary recommendation, schedule and summary data.
 - Teacher dashboard uses Suspense for attention queue and roster sections.

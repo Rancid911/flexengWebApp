@@ -18,6 +18,7 @@ import type { AccessMode } from "@/lib/supabase/access";
 
 export const CURRENT_STUDENT_CHECKOUT_ACCESS_MODE: AccessMode = "user_scoped";
 export const CURRENT_STUDENT_TRANSACTION_SYNC_ACCESS_MODE: AccessMode = "user_scoped";
+export const PAYMENT_PROVIDER_STATE_ACCESS_MODE: AccessMode = "privileged";
 export const PAYMENT_WEBHOOK_ACCESS_MODE: AccessMode = "privileged";
 
 type CurrentStudentPaymentTransactionRow = {
@@ -41,12 +42,64 @@ type CurrentStudentPaymentStatusRow = {
   created_at: string | null;
 };
 
+type PaymentProviderStateUpdate = {
+  transactionId: string;
+  studentId: string;
+  providerPaymentId: string | null;
+  providerPayload: unknown;
+  status: string;
+  rawStatus: string;
+  paidAt?: string | null;
+  confirmationUrl?: string | null;
+  paymentMethodId?: string | null;
+  isReusablePaymentMethod?: boolean | null;
+};
+
 function normalizeWebhookEventId(eventType: string, providerPaymentId: string) {
   return `${eventType}:${providerPaymentId}`;
 }
 
 function getWebhookToken() {
   return process.env.YOOKASSA_WEBHOOK_SECRET ?? "";
+}
+
+function getPrivilegedPaymentClient() {
+  return createAdminClient();
+}
+
+async function updatePaymentTransactionProviderState(update: PaymentProviderStateUpdate) {
+  void PAYMENT_PROVIDER_STATE_ACCESS_MODE;
+  const payload: Record<string, unknown> = {
+    provider_payload: update.providerPayload,
+    status: update.status,
+    raw_status: update.rawStatus,
+    paid_at: update.paidAt ?? null,
+    confirmation_url: update.confirmationUrl ?? null,
+    payment_method_id: update.paymentMethodId ?? null,
+    is_reusable_payment_method: update.isReusablePaymentMethod ?? null
+  };
+
+  if (update.providerPaymentId) {
+    payload.provider_payment_id = update.providerPaymentId;
+  }
+
+  const { data, error } = await getPrivilegedPaymentClient()
+    .from("payment_transactions")
+    .update(payload)
+    .eq("id", update.transactionId)
+    .eq("student_id", update.studentId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return { error };
+  }
+
+  if (!data) {
+    return { error: { message: "Payment transaction not found" } };
+  }
+
+  return { error: null };
 }
 
 export async function createCheckoutForCurrentStudent(planId: string) {
@@ -93,16 +146,17 @@ export async function createCheckoutForCurrentStudent(planId: string) {
     });
 
     const update = mapYooKassaPaymentToTransactionUpdate(payment);
-    const { error: updateError } = await supabase.rpc("update_current_student_payment_transaction_provider_state", {
-      p_transaction_id: transactionId,
-      p_provider_payment_id: payment.id,
-      p_provider_payload: payment,
-      p_status: update.status,
-      p_raw_status: update.raw_status,
-      p_paid_at: update.paid_at,
-      p_confirmation_url: update.confirmation_url,
-      p_payment_method_id: update.payment_method_id,
-      p_is_reusable_payment_method: update.is_reusable_payment_method
+    const { error: updateError } = await updatePaymentTransactionProviderState({
+      transactionId,
+      studentId: transaction.student_id,
+      providerPaymentId: payment.id,
+      providerPayload: payment,
+      status: update.status,
+      rawStatus: update.raw_status,
+      paidAt: update.paid_at,
+      confirmationUrl: update.confirmation_url,
+      paymentMethodId: update.payment_method_id,
+      isReusablePaymentMethod: update.is_reusable_payment_method
     });
 
     if (updateError) {
@@ -114,16 +168,17 @@ export async function createCheckoutForCurrentStudent(planId: string) {
       redirectUrl: payment.confirmation?.confirmation_url ?? returnUrl
     };
   } catch (error) {
-    await supabase.rpc("update_current_student_payment_transaction_provider_state", {
-      p_transaction_id: transactionId,
-      p_provider_payment_id: null,
-      p_provider_payload: null,
-      p_status: "failed",
-      p_raw_status: "provider_error",
-      p_paid_at: null,
-      p_confirmation_url: null,
-      p_payment_method_id: null,
-      p_is_reusable_payment_method: null
+    await updatePaymentTransactionProviderState({
+      transactionId,
+      studentId: transaction.student_id,
+      providerPaymentId: null,
+      providerPayload: null,
+      status: "failed",
+      rawStatus: "provider_error",
+      paidAt: null,
+      confirmationUrl: null,
+      paymentMethodId: null,
+      isReusablePaymentMethod: null
     });
     throw error;
   }
@@ -149,16 +204,17 @@ export async function syncCurrentStudentTransaction(transactionId: string): Prom
     const payment = await getYooKassaPayment(String(transaction.provider_payment_id));
     const update = mapYooKassaPaymentToTransactionUpdate(payment);
 
-    const { error: updateError } = await supabase.rpc("update_current_student_payment_transaction_provider_state", {
-      p_transaction_id: transactionId,
-      p_provider_payment_id: payment.id,
-      p_provider_payload: payment,
-      p_status: update.status,
-      p_raw_status: update.raw_status,
-      p_paid_at: update.paid_at,
-      p_confirmation_url: update.confirmation_url,
-      p_payment_method_id: update.payment_method_id,
-      p_is_reusable_payment_method: update.is_reusable_payment_method
+    const { error: updateError } = await updatePaymentTransactionProviderState({
+      transactionId,
+      studentId: transaction.student_id,
+      providerPaymentId: payment.id,
+      providerPayload: payment,
+      status: update.status,
+      rawStatus: update.raw_status,
+      paidAt: update.paid_at,
+      confirmationUrl: update.confirmation_url,
+      paymentMethodId: update.payment_method_id,
+      isReusablePaymentMethod: update.is_reusable_payment_method
     });
 
     if (updateError) {
@@ -199,7 +255,7 @@ export async function processYooKassaWebhook(payload: unknown, requestToken: str
     throw new AdminHttpError(400, "INVALID_WEBHOOK_PAYLOAD", "Invalid webhook payload");
   }
 
-  const admin = createAdminClient();
+  const admin = getPrivilegedPaymentClient();
   const eventId = normalizeWebhookEventId(eventType, providerPaymentId);
   const payloadHash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 
