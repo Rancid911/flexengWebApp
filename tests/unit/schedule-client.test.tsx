@@ -156,7 +156,7 @@ describe("ScheduleClient", () => {
     expect(screen.getByTestId("student-schedule-hero")).toHaveClass("bg-[#2155d8]");
     expect(screen.getAllByText("Speaking club")).toHaveLength(2);
     expect(screen.getByText("Запланирован")).toHaveClass("bg-sky-50", "text-sky-700");
-    expect(screen.getByRole("link", { name: "Подключиться" })).toHaveClass("bg-[#1f7aff]");
+    expect(screen.getByRole("link", { name: "Подключиться" })).toHaveClass("bg-[#ffd229]");
   });
 
   it("shows student empty state when no lessons exist", () => {
