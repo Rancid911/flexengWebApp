@@ -57,7 +57,7 @@ describe("/api/admin/users POST", () => {
     toUserDtoMock.mockReset();
   });
 
-  it("creates a teacher record so the new teacher appears in teacher options", async () => {
+  it("creates a teacher through the auth provisioning trigger and updates its profile", async () => {
     requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const profileSelectSingleMock = vi.fn().mockResolvedValue({
@@ -73,16 +73,17 @@ describe("/api/admin/users POST", () => {
       error: null
     });
 
-    const teachersUpsertMock = vi.fn().mockResolvedValue({ error: null });
-    const profilesUpsertMock = vi.fn().mockResolvedValue({ error: null });
+    const profilesUpdateEqMock = vi.fn().mockResolvedValue({ error: null });
+    const profilesUpdateMock = vi.fn(() => ({ eq: profilesUpdateEqMock }));
+    const authCreateUserMock = vi.fn().mockResolvedValue({
+      data: { user: { id: "teacher-profile-1" } },
+      error: null
+    });
 
     const authSupabase = {
       auth: {
         admin: {
-          createUser: vi.fn().mockResolvedValue({
-            data: { user: { id: "teacher-profile-1" } },
-            error: null
-          }),
+          createUser: authCreateUserMock,
           deleteUser: vi.fn(),
           updateUserById: vi.fn()
         }
@@ -93,18 +94,12 @@ describe("/api/admin/users POST", () => {
       from: vi.fn((table: string) => {
         if (table === "profiles") {
           return {
-            upsert: profilesUpsertMock,
+            update: profilesUpdateMock,
             select: vi.fn(() => ({
               eq: vi.fn(() => ({
                 single: profileSelectSingleMock
               }))
             }))
-          };
-        }
-
-        if (table === "teachers") {
-          return {
-            upsert: teachersUpsertMock
           };
         }
 
@@ -178,7 +173,18 @@ describe("/api/admin/users POST", () => {
     expect(response.status).toBe(201);
     expect(createServerClientMock).toHaveBeenCalledTimes(1);
     expect(createAdminClientMock).toHaveBeenCalledTimes(1);
-    expect(teachersUpsertMock).toHaveBeenCalledWith({ profile_id: "teacher-profile-1" }, { onConflict: "profile_id" });
+    expect(authCreateUserMock).toHaveBeenCalledWith({
+      email: "teacher@example.com",
+      password: "Password123!",
+      email_confirm: true,
+      app_metadata: { provision_role: "teacher" }
+    });
+    expect(profilesUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      role: "teacher",
+      first_name: "New",
+      last_name: "Teacher"
+    }));
+    expect(profilesUpdateEqMock).toHaveBeenCalledWith("id", "teacher-profile-1");
     expect(invalidateFullAppActorCacheMock).toHaveBeenCalledWith("teacher-profile-1");
   });
 

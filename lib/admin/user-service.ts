@@ -6,15 +6,12 @@ import {
   assignPrimaryTeacher,
   createAdminAuthUserClient,
   createAuthUser,
-  createStudentDetailsRow,
   deleteAuthUserById,
   deleteAuthUserByIdSafely,
   deleteProfileById,
-  deleteProfileRowForRollback,
   deleteStudentBillingAccount,
   deleteStudentDetailsByProfileId,
   deleteTeacherRecordForProfile,
-  ensureTeacherRecordForProfile,
   hydrateCreatedAdminUser,
   readCreatedProfileById,
   readHydratedAdminUserByProfileId,
@@ -24,19 +21,25 @@ import {
   resolveTeacherProfileIdForTeacher,
   updateAuthUserById,
   updateProfileById,
+  updateProvisionedProfile,
+  updateProvisionedStudentDetails,
   updateStudentDetailsByProfileId,
-  upsertProfileRow,
   upsertStudentBillingAccount,
   type AdminAuthSupabaseClient,
   type AdminUserTableClient
 } from "@/lib/admin/user.repository";
-import type { AdminActor, AdminUserRole } from "@/lib/admin/types";
+import type { AdminActor, AdminUserDto, AdminUserRole } from "@/lib/admin/types";
 import { adminUserCreateSchema, adminUserUpdateSchema } from "@/lib/admin/validation";
 import { invalidateFullAppActorCache } from "@/lib/auth/request-context";
 import { createClient } from "@/lib/supabase/server";
 
 type AdminUserCreateInput = z.infer<typeof adminUserCreateSchema>;
 type AdminUserUpdateInput = z.infer<typeof adminUserUpdateSchema>;
+
+function isExistingAuthEmailError(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("email_exists") || normalized.includes("already registered") || normalized.includes("already been registered");
+}
 
 async function createAuthAndProfile(
   authClient: AdminAuthSupabaseClient,
@@ -52,16 +55,19 @@ async function createAuthAndProfile(
 ) {
   const { data: authData, error: authError } = await createAuthUser(authClient, payload);
   if (authError) {
+    if (isExistingAuthEmailError(authError.message)) {
+      throw new AdminHttpError(409, "USER_EMAIL_EXISTS", "User with this email already exists");
+    }
     throw new AdminHttpError(400, "AUTH_USER_CREATE_FAILED", "Failed to create auth user", authError.message);
   }
 
   const userId = authData.user?.id;
   if (!userId) throw new AdminHttpError(500, "AUTH_USER_CREATE_FAILED", "Auth user was not returned");
 
-  const { error: profileError } = await upsertProfileRow(tableClient, { id: userId, ...payload });
+  const { error: profileError } = await updateProvisionedProfile(tableClient, { id: userId, ...payload });
   if (profileError) {
     await deleteAuthUserByIdSafely(authClient, userId);
-    throw new AdminHttpError(500, "PROFILE_CREATE_FAILED", "Failed to create profile", profileError.message);
+    throw new AdminHttpError(500, "PROFILE_CREATE_FAILED", "Failed to update provisioned profile", profileError.message);
   }
 
   return userId;
@@ -79,52 +85,48 @@ export async function createAdminUser(actor: AdminActor, payload: AdminUserCreat
     role: payload.role
   });
 
-  if (payload.role === "teacher") {
-    await ensureTeacherRecordForProfile(tableClient, profileId);
-  }
-
-  if (payload.role === "student") {
-    const { data: studentRow, error: studentError } = await createStudentDetailsRow(tableClient, {
-      profileId,
-      birthDate: payload.birth_date,
-      englishLevel: payload.english_level,
-      targetLevel: payload.target_level,
-      learningGoal: payload.learning_goal,
-      notes: payload.notes
-    });
-    if (studentError) {
-      await deleteProfileRowForRollback(tableClient, profileId);
-      await deleteAuthUserById(authClient, profileId);
-      throw new AdminHttpError(500, "USER_CREATE_FAILED", "Failed to create student details", studentError.message);
-    }
-
-    let assignedTeacherProfileId: string | null = null;
-    if (payload.assigned_teacher_id) {
-      assignedTeacherProfileId = await resolveTeacherProfileIdForTeacher(tableClient, payload.assigned_teacher_id);
-      await assignPrimaryTeacher(tableClient, String(studentRow.id), payload.assigned_teacher_id);
-    }
-
-    if (payload.billing_mode) {
-      const { error: billingError } = await upsertStudentBillingAccount(tableClient, {
-        studentId: String(studentRow.id),
-        billingMode: payload.billing_mode,
-        lessonPriceAmount: payload.lesson_price_amount ?? null,
-        updatedByProfileId: actor.userId
+  let assignedTeacherProfileId: string | null = null;
+  let dto: AdminUserDto;
+  try {
+    if (payload.role === "student") {
+      const { data: studentRow, error: studentError } = await updateProvisionedStudentDetails(tableClient, {
+        profileId,
+        birthDate: payload.birth_date,
+        englishLevel: payload.english_level,
+        targetLevel: payload.target_level,
+        learningGoal: payload.learning_goal,
+        notes: payload.notes
       });
-      if (billingError) {
-        throw new AdminHttpError(500, "USER_CREATE_FAILED", "Failed to create billing settings", billingError.message);
+      if (studentError) {
+        throw new AdminHttpError(500, "USER_CREATE_FAILED", "Failed to update provisioned student details", studentError.message);
+      }
+
+      if (payload.assigned_teacher_id) {
+        assignedTeacherProfileId = await resolveTeacherProfileIdForTeacher(tableClient, payload.assigned_teacher_id);
+        await assignPrimaryTeacher(tableClient, String(studentRow.id), payload.assigned_teacher_id);
+      }
+
+      if (payload.billing_mode) {
+        const { error: billingError } = await upsertStudentBillingAccount(tableClient, {
+          studentId: String(studentRow.id),
+          billingMode: payload.billing_mode,
+          lessonPriceAmount: payload.lesson_price_amount ?? null,
+          updatedByProfileId: actor.userId
+        });
+        if (billingError) {
+          throw new AdminHttpError(500, "USER_CREATE_FAILED", "Failed to create billing settings", billingError.message);
+        }
       }
     }
 
-    if (assignedTeacherProfileId) {
-      await invalidateFullAppActorCache(assignedTeacherProfileId);
-    }
+    const { data: profile, error: profileError } = await readCreatedProfileById(tableClient, profileId);
+    if (profileError) throw new AdminHttpError(500, "USER_CREATE_FAILED", "Failed to read created profile", profileError.message);
+
+    dto = await hydrateCreatedAdminUser(tableClient, profile as Record<string, unknown>, "USER_CREATE_FAILED");
+  } catch (error) {
+    await deleteAuthUserByIdSafely(authClient, profileId);
+    throw error;
   }
-
-  const { data: profile, error: profileError } = await readCreatedProfileById(tableClient, profileId);
-  if (profileError) throw new AdminHttpError(500, "USER_CREATE_FAILED", "Failed to read created profile", profileError.message);
-
-  const dto = await hydrateCreatedAdminUser(tableClient, profile as Record<string, unknown>, "USER_CREATE_FAILED");
 
   await writeAudit({
     actorUserId: actor.userId,
@@ -134,6 +136,9 @@ export async function createAdminUser(actor: AdminActor, payload: AdminUserCreat
     after: dto
   });
 
+  if (assignedTeacherProfileId) {
+    await invalidateFullAppActorCache(assignedTeacherProfileId);
+  }
   await invalidateFullAppActorCache(profileId);
 
   return dto;

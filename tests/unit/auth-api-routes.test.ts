@@ -73,6 +73,24 @@ describe("auth BFF API routes", () => {
     expect(auth.signUp).toHaveBeenCalledWith({ email: "new@example.com", password: "secret" });
   });
 
+  it("does not forward caller-supplied provisioning metadata during public signup", async () => {
+    const auth = buildAuthMock();
+    createClientMock.mockResolvedValue({ auth });
+
+    const { POST } = await import("@/app/api/auth/signup/route");
+    const response = await POST(
+      jsonRequest("http://localhost/api/auth/signup", {
+        email: "new@example.com",
+        password: "secret",
+        role: "admin",
+        app_metadata: { provision_role: "admin" }
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(auth.signUp).toHaveBeenCalledWith({ email: "new@example.com", password: "secret" });
+  });
+
   it("requests password reset with a backend-generated recovery redirect", async () => {
     const auth = buildAuthMock();
     createClientMock.mockResolvedValue({ auth });

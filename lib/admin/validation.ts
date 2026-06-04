@@ -368,18 +368,6 @@ export const adminUserCreateSchema = z
   .superRefine((value, ctx) => {
     if (value.role !== "student") return;
 
-    if (!value.birth_date) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "birth_date is required for student", path: ["birth_date"] });
-    }
-    if (!value.english_level) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "english_level is required for student", path: ["english_level"] });
-    }
-    if (!value.target_level) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "target_level is required for student", path: ["target_level"] });
-    }
-    if (!value.learning_goal) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "learning_goal is required for student", path: ["learning_goal"] });
-    }
     if (value.billing_mode === "per_lesson_price" && (value.lesson_price_amount == null || value.lesson_price_amount <= 0)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "lesson_price_amount is required for per_lesson_price", path: ["lesson_price_amount"] });
     }

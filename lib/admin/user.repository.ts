@@ -26,12 +26,15 @@ export const createAdminUserRepositoryClient = createAdminAuthUserClient;
 
 export async function createAuthUser(
   supabase: AdminAuthSupabaseClient,
-  payload: { email: string; password: string }
+  payload: { email: string; password: string; role: AdminUserRole }
 ) {
   return await supabase.auth.admin.createUser({
     email: payload.email,
     password: payload.password,
-    email_confirm: true
+    email_confirm: true,
+    app_metadata: {
+      provision_role: payload.role
+    }
   });
 }
 
@@ -44,10 +47,17 @@ export async function deleteAuthUserById(supabase: AdminAuthSupabaseClient, user
 }
 
 export async function deleteAuthUserByIdSafely(supabase: AdminAuthSupabaseClient, userId: string) {
-  await supabase.auth.admin.deleteUser(userId).catch(() => undefined);
+  try {
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+    if (error) {
+      console.error("ADMIN_USER_ROLLBACK_FAILED", { userId, message: error.message });
+    }
+  } catch (error) {
+    console.error("ADMIN_USER_ROLLBACK_FAILED", { userId, error });
+  }
 }
 
-export async function upsertProfileRow(
+export async function updateProvisionedProfile(
   supabase: AdminUserTableClient,
   payload: {
     id: string;
@@ -58,9 +68,9 @@ export async function upsertProfileRow(
     role: AdminUserRole;
   }
 ) {
-  return await supabase.from("profiles").upsert(
-    {
-      id: payload.id,
+  return await supabase
+    .from("profiles")
+    .update({
       email: payload.email,
       first_name: payload.first_name,
       last_name: payload.last_name,
@@ -68,9 +78,8 @@ export async function upsertProfileRow(
       phone: payload.phone,
       role: payload.role,
       status: "active"
-    },
-    { onConflict: "id" }
-  );
+    })
+    .eq("id", payload.id);
 }
 
 export async function readProfileById(supabase: AdminUserTableClient, userId: string) {
@@ -89,7 +98,7 @@ export async function deleteProfileById(supabase: AdminUserTableClient, userId: 
   return await supabase.from("profiles").delete().eq("id", userId);
 }
 
-export async function createStudentDetailsRow(
+export async function updateProvisionedStudentDetails(
   supabase: AdminUserTableClient,
   payload: {
     profileId: string;
@@ -102,14 +111,14 @@ export async function createStudentDetailsRow(
 ) {
   return await supabase
     .from("students")
-    .insert({
-      profile_id: payload.profileId,
+    .update({
       birth_date: payload.birthDate,
       english_level: payload.englishLevel,
       target_level: payload.targetLevel,
       learning_goal: payload.learningGoal,
       notes: payload.notes
     })
+    .eq("profile_id", payload.profileId)
     .select("id")
     .single();
 }
@@ -153,10 +162,6 @@ export async function upsertStudentBillingAccount(
 
 export async function deleteStudentBillingAccount(supabase: AdminUserTableClient, studentId: string) {
   return await supabase.from("student_billing_accounts").delete().eq("student_id", studentId);
-}
-
-export async function deleteProfileRowForRollback(supabase: AdminUserTableClient, profileId: string) {
-  await supabase.from("profiles").delete().eq("id", profileId);
 }
 
 export async function ensureTeacherRecordForProfile(supabase: AdminUserTableClient, profileId: string) {

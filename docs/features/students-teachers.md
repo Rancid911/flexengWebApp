@@ -71,6 +71,8 @@ Key tables/concepts:
 ## State And Lifecycle
 
 - Student and teacher rows link application users to academic identities.
+- New Auth users are provisioned by the database auth trigger: public signup defaults to `student`, while guarded Auth Admin creation may supply `app_metadata.provision_role`. The trigger creates the profile, matching RBAC role and linked student/teacher identity in the Auth insert transaction.
+- Public signup never accepts a caller-supplied privileged role. Student academic fields may remain incomplete until later profile onboarding.
 - Assigned student scope controls teacher visibility.
 - Notes can be created, updated and deleted by authorized staff/teachers.
 - Placement assignment can be assigned/cancelled.

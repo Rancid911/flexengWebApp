@@ -69,7 +69,8 @@ Key areas:
 
 ## State And Lifecycle
 
-- User creation creates Auth user, profile row and role-specific linked rows where needed.
+- User creation sends a trusted `app_metadata.provision_role` through the guarded Auth Admin boundary. The database auth trigger atomically creates the profile, matching RBAC role and role-specific linked identity; the admin service then fills optional profile/student details and deletes the Auth user if post-provisioning setup fails.
+- Student academic fields such as birth date, current/target level and learning goal are optional during account creation and can be completed later.
 - User update may update profile, Auth email/password, student details, assigned teacher and billing settings.
 - User delete removes linked rows/profile and then Auth user.
 - Admin test lifecycle must account for existing attempts before destructive question edits.

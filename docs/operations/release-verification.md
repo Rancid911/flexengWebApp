@@ -51,6 +51,7 @@ Use `npm run test:unit` for the full unit suite when time allows.
 
 - Public: `/`, `/articles`, `/search`.
 - Auth: `/login`, `/dashboard`, `/schedule`, `/students`, `/crm`, `/admin`, `/settings/profile`, `/settings/payments`.
+- User provisioning: run `supabase/sql-editor/user_provisioning_metadata_smoke.sql` and expect its passing status, then run `supabase/sql-editor/user_provisioning_repair_report.sql` and expect no rows. Verify public signup produces matching `profiles`, `user_roles` and `students` rows, and guarded admin creation produces the requested linked identity.
 - Search: guest `/api/search?q=english`, authenticated workspace search and `/search`.
 - Media: own avatar route and CRM background route with authorized account.
 

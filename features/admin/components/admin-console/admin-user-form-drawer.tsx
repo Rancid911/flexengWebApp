@@ -156,7 +156,6 @@ export function AdminUserFormDrawer({
                   className={cn(fieldErrors.english_level && "border-red-500")}
                   value={form.english_level}
                   onChange={(event) => setForm("english_level", event.target.value)}
-                  required
                 >
                   <option value="" disabled>
                     Выберите уровень
@@ -173,7 +172,6 @@ export function AdminUserFormDrawer({
                   className={cn(fieldErrors.target_level && "border-red-500")}
                   value={form.target_level}
                   onChange={(event) => setForm("target_level", event.target.value)}
-                  required
                 >
                   <option value="" disabled>
                     Выберите уровень
@@ -190,7 +188,6 @@ export function AdminUserFormDrawer({
                   value={form.learning_goal}
                   onChange={(event) => setForm("learning_goal", event.target.value)}
                   className={cn(fieldErrors.learning_goal && "border-red-500")}
-                  required
                 />
               </FormField>
               <FormField

@@ -19,7 +19,7 @@ export function mapUiErrorMessage(rawMessage: unknown, fallback = ""): string {
   if (includesAny(normalized, ["email not confirmed"])) {
     return "Подтвердите email перед входом.";
   }
-  if (includesAny(normalized, ["already registered", "already been registered", "user already registered"])) {
+  if (includesAny(normalized, ["already registered", "already been registered", "user already registered", "user with this email already exists"])) {
     return "Пользователь с таким email уже существует.";
   }
   if (includesAny(normalized, ["invalid email"])) {
@@ -96,6 +96,8 @@ export function mapUiErrorByCode(code: unknown, fallback = ""): string {
       return "Недостаточно прав для выполнения действия.";
     case "VALIDATION_ERROR":
       return "Проверьте корректность заполнения полей.";
+    case "USER_EMAIL_EXISTS":
+      return "Пользователь с таким email уже существует.";
     case "INTERNAL_ERROR":
       return "Внутренняя ошибка сервера. Попробуйте позже.";
     case "NOTIFICATIONS_FETCH_FAILED":
