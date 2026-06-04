@@ -72,6 +72,10 @@ Key tables/concepts:
 
 - Student and teacher rows link application users to academic identities.
 - New Auth users are provisioned by the database auth trigger: public signup defaults to `student`, while guarded Auth Admin creation may supply `app_metadata.provision_role`. The trigger creates the profile, matching RBAC role and linked student/teacher identity in the Auth insert transaction.
+- Auth email is the identity source of truth; `profiles.email` is a normalized, unique read-model copy maintained by an Auth trigger.
+- A profile may have at most one RBAC role and cannot have both student and teacher linked identities. Linked identities must match the profile role.
+- Phone remains a non-unique contact field because shared family and operational contacts are supported; non-empty stored values use the canonical `+7XXXXXXXXXX` form.
+- The phone format constraint is introduced as `NOT VALID` during rollout so legacy exceptions can be classified and repaired before final validation; it still protects new and changed rows.
 - Public signup never accepts a caller-supplied privileged role. Student academic fields may remain incomplete until later profile onboarding.
 - Assigned student scope controls teacher visibility.
 - Notes can be created, updated and deleted by authorized staff/teachers.

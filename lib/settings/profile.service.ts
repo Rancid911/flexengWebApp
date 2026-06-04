@@ -5,6 +5,7 @@ import { HttpError } from "@/lib/server/http";
 import { runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
 import { createClient } from "@/lib/supabase/server";
 import type { SettingsProfileDto, SettingsProfileUpdateInput, SettingsProfileUpdateResult } from "@/lib/settings/profile.types";
+import { toRuPhoneStorage } from "@/lib/phone";
 
 type ProfileRow = {
   first_name: string | null;
@@ -148,10 +149,15 @@ async function updateProfileFields(
   userId: string,
   input: SettingsProfileUpdateInput
 ) {
+  const normalizedPhone = input.phone.trim() === "" ? "" : toRuPhoneStorage(input.phone);
+  if (normalizedPhone === null) {
+    throw new HttpError(400, "VALIDATION_ERROR", "phone must match +7XXXXXXXXXX");
+  }
+
   const profilePayload = {
     first_name: input.firstName,
     last_name: input.lastName,
-    phone: input.phone
+    phone: normalizedPhone
   };
 
   const { error: profileUpdateError } = await supabase.from("profiles").update(profilePayload).eq("id", userId);
@@ -240,8 +246,6 @@ export async function updateSettingsProfile(actor: AppActor, input: SettingsProf
     if (pendingEmail) {
       hasEmailPendingConfirmation = true;
     } else {
-      const { error: profileEmailError } = await supabase.from("profiles").update({ email: authEmail }).eq("id", userId);
-      if (profileEmailError) throw new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", `email:${profileEmailError.message}`);
       applied.email = true;
     }
   }

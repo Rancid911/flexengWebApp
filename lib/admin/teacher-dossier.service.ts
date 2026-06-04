@@ -24,6 +24,7 @@ import {
   teacherWorkFormatUpdateSchema
 } from "@/lib/admin/validation";
 import { invalidateFullAppActorCache } from "@/lib/auth/request-context";
+import { isExistingAuthEmailError } from "@/lib/auth/email";
 import { createClient } from "@/lib/supabase/server";
 
 type TeacherBasicInfoInput = z.infer<typeof teacherBasicInfoUpdateSchema>;
@@ -96,20 +97,22 @@ export async function updateTeacherBasicInfo(actor: AdminActor, teacherId: strin
     first_name: input.first_name,
     last_name: input.last_name,
     display_name: nextDisplayName,
-    email: input.email,
     phone: input.phone
   };
-
-  const profileUpdate = await repository.updateProfile(teacher.profile_id, profilePatch);
-  if (profileUpdate.error) {
-    throw new AdminHttpError(500, "TEACHER_PROFILE_UPDATE_FAILED", "Failed to update teacher profile", profileUpdate.error.message);
-  }
 
   if (input.email !== profile.email) {
     const authUpdate = await updateTeacherAuthEmail(teacher.profile_id, input.email);
     if (authUpdate.error) {
+      if (isExistingAuthEmailError(authUpdate.error.message)) {
+        throw new AdminHttpError(409, "USER_EMAIL_EXISTS", "User with this email already exists");
+      }
       throw new AdminHttpError(500, "TEACHER_AUTH_UPDATE_FAILED", "Failed to update teacher auth email", authUpdate.error.message);
     }
+  }
+
+  const profileUpdate = await repository.updateProfile(teacher.profile_id, profilePatch);
+  if (profileUpdate.error) {
+    throw new AdminHttpError(500, "TEACHER_PROFILE_UPDATE_FAILED", "Failed to update teacher profile", profileUpdate.error.message);
   }
 
   await upsertDossier(repository, {

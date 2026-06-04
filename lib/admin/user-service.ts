@@ -31,15 +31,11 @@ import {
 import type { AdminActor, AdminUserDto, AdminUserRole } from "@/lib/admin/types";
 import { adminUserCreateSchema, adminUserUpdateSchema } from "@/lib/admin/validation";
 import { invalidateFullAppActorCache } from "@/lib/auth/request-context";
+import { isExistingAuthEmailError } from "@/lib/auth/email";
 import { createClient } from "@/lib/supabase/server";
 
 type AdminUserCreateInput = z.infer<typeof adminUserCreateSchema>;
 type AdminUserUpdateInput = z.infer<typeof adminUserUpdateSchema>;
-
-function isExistingAuthEmailError(message: string) {
-  const normalized = message.toLowerCase();
-  return normalized.includes("email_exists") || normalized.includes("already registered") || normalized.includes("already been registered");
-}
 
 async function createAuthAndProfile(
   authClient: AdminAuthSupabaseClient,
@@ -168,15 +164,9 @@ export async function updateAdminUser(actor: AdminActor, userId: string, payload
   const profilePatch: Record<string, unknown> = {};
   if (first_name !== undefined) profilePatch.first_name = first_name;
   if (last_name !== undefined) profilePatch.last_name = last_name;
-  if (email !== undefined) profilePatch.email = email;
   if (phone !== undefined) profilePatch.phone = phone;
   if (first_name !== undefined || last_name !== undefined) {
     profilePatch.display_name = `${first_name ?? beforeProfile.first_name ?? ""} ${last_name ?? beforeProfile.last_name ?? ""}`.trim();
-  }
-
-  if (Object.keys(profilePatch).length > 0) {
-    const { error: profileUpdateError } = await updateProfileById(tableClient, userId, profilePatch);
-    if (profileUpdateError) throw new AdminHttpError(500, "USER_UPDATE_FAILED", "Failed to update profile", profileUpdateError.message);
   }
 
   if (email !== undefined || (password != null && password.trim().length > 0)) {
@@ -185,7 +175,17 @@ export async function updateAdminUser(actor: AdminActor, userId: string, payload
     if (password != null && password.trim().length > 0) authPatch.password = password;
     const authClient = createAdminAuthUserClient();
     const { error: authError } = await updateAuthUserById(authClient, userId, authPatch);
-    if (authError) throw new AdminHttpError(500, "USER_UPDATE_FAILED", "Failed to update auth user", authError.message);
+    if (authError) {
+      if (email !== undefined && isExistingAuthEmailError(authError.message)) {
+        throw new AdminHttpError(409, "USER_EMAIL_EXISTS", "User with this email already exists");
+      }
+      throw new AdminHttpError(500, "USER_UPDATE_FAILED", "Failed to update auth user", authError.message);
+    }
+  }
+
+  if (Object.keys(profilePatch).length > 0) {
+    const { error: profileUpdateError } = await updateProfileById(tableClient, userId, profilePatch);
+    if (profileUpdateError) throw new AdminHttpError(500, "USER_UPDATE_FAILED", "Failed to update profile", profileUpdateError.message);
   }
 
   if (beforeProfile.role === "student") {

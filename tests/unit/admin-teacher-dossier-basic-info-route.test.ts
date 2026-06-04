@@ -155,12 +155,12 @@ describe("PATCH /api/admin/teachers/[teacherId]/dossier/basic-info", () => {
       first_name: "Мария",
       last_name: "Петрова",
       display_name: "Мария Петрова",
-      email: "new-teacher@example.com",
       phone: "+79990000000"
     });
     expect(mocks.profileUpdateEqMock).toHaveBeenCalledWith("id", "profile-1");
     expect(createAdminUserRepositoryClientMock).toHaveBeenCalledTimes(1);
     expect(updateAuthUserByIdMock).toHaveBeenCalledWith(mocks.adminSupabase, "profile-1", { email: "new-teacher@example.com" });
+    expect(updateAuthUserByIdMock.mock.invocationCallOrder[0]).toBeLessThan(mocks.profileUpdateMock.mock.invocationCallOrder[0]);
     expect(mocks.dossierUpsertMock).toHaveBeenCalledWith(
       {
         teacher_id: "teacher-1",
@@ -207,6 +207,21 @@ describe("PATCH /api/admin/teachers/[teacherId]/dossier/basic-info", () => {
     expect(updateAuthUserByIdMock).not.toHaveBeenCalled();
     expect(mocks.profileUpdateMock).toHaveBeenCalled();
     expect(mocks.dossierUpsertMock).toHaveBeenCalled();
+  });
+
+  it("returns a conflict and does not update the profile when the auth email already exists", async () => {
+    const mocks = createSupabaseMock();
+    createClientMock.mockResolvedValue(mocks.supabase);
+    createAdminUserRepositoryClientMock.mockReturnValue(mocks.adminSupabase);
+    updateAuthUserByIdMock.mockResolvedValue({ error: { message: "User already registered" } });
+
+    const { PATCH } = await import("@/app/api/admin/teachers/[teacherId]/dossier/basic-info/route");
+    const response = await PATCH(createRequest(validPayload), { params: Promise.resolve({ teacherId: "teacher-1" }) });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "USER_EMAIL_EXISTS" });
+    expect(mocks.profileUpdateMock).not.toHaveBeenCalled();
+    expect(mocks.dossierUpsertMock).not.toHaveBeenCalled();
   });
 
   it("returns validation error for invalid role, timezone, email and phone", async () => {

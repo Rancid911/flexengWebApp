@@ -91,6 +91,22 @@ describe("auth BFF API routes", () => {
     expect(auth.signUp).toHaveBeenCalledWith({ email: "new@example.com", password: "secret" });
   });
 
+  it("returns the same neutral response when public signup reports an existing email", async () => {
+    const auth = buildAuthMock();
+    auth.signUp.mockResolvedValue({
+      data: { session: null },
+      error: { message: "User already registered" }
+    });
+    createClientMock.mockResolvedValue({ auth });
+
+    const { POST } = await import("@/app/api/auth/signup/route");
+    const response = await POST(jsonRequest("http://localhost/api/auth/signup", { email: "USER@EXAMPLE.COM", password: "secret" }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, hasSession: false });
+    expect(auth.signUp).toHaveBeenCalledWith({ email: "user@example.com", password: "secret" });
+  });
+
   it("requests password reset with a backend-generated recovery redirect", async () => {
     const auth = buildAuthMock();
     createClientMock.mockResolvedValue({ auth });

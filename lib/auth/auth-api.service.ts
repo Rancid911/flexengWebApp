@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { HttpError, validationError } from "@/lib/server/http";
 import { runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
+import { isExistingAuthEmailError, normalizeEmail } from "@/lib/auth/email";
 
 type AuthJsonPayload = Record<string, unknown>;
 
@@ -30,10 +31,6 @@ function readRequiredString(payload: AuthJsonPayload, key: string, label: string
     throw validationError(`${label} is required`);
   }
   return value;
-}
-
-function normalizeEmail(value: string) {
-  return value.trim().toLowerCase();
 }
 
 function toAuthHttpError(error: { message?: string } | null | undefined, fallback: string) {
@@ -77,6 +74,9 @@ export async function signUpWithPasswordFromRequest(request: Request) {
   );
 
   if (error) {
+    if (isExistingAuthEmailError(error.message)) {
+      return { hasSession: false };
+    }
     throw toAuthHttpError(error, "Registration failed");
   }
 

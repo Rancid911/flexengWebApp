@@ -185,4 +185,48 @@ describe("settings profile service teacher preview boundary", () => {
       { onConflict: "profile_id" }
     );
   });
+
+  it("rejects a noncanonical phone before writing profile fields", async () => {
+    const { client, profileBuilder } = createSettingsClientMock({
+      userId: "student-profile-1",
+      email: "student@example.com"
+    });
+    createClientMock.mockResolvedValue(client);
+
+    const { updateSettingsProfile } = await import("@/lib/settings/profile.service");
+    await expect(
+      updateSettingsProfile(
+        createAppActor({
+          userId: "student-profile-1",
+          email: "student@example.com",
+          displayName: "Student One",
+          profileRole: "student",
+          role: "student",
+          capabilities: ["student"],
+          isStudent: true,
+          isTeacher: false,
+          isStaffAdmin: false,
+          studentId: "student-1",
+          teacherId: null,
+          accessibleStudentIds: null
+        }),
+        {
+          firstName: "Student",
+          lastName: "One",
+          phone: "123",
+          birthDate: "",
+          email: "student@example.com",
+          currentPassword: "",
+          nextPassword: "",
+          profileDirty: true,
+          emailDirty: false,
+          passwordDirty: false,
+          avatarDelete: false,
+          avatarFile: null
+        }
+      )
+    ).rejects.toMatchObject({ status: 400, code: "VALIDATION_ERROR" });
+
+    expect(profileBuilder.update).not.toHaveBeenCalled();
+  });
 });
