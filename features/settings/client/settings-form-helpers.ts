@@ -81,9 +81,7 @@ export function validateSettingsForm(input: SettingsValidationInput): SettingsVa
   if (!trimmedFirstName) fieldErrors.firstName = "Введите имя";
   if (!trimmedLastName) fieldErrors.lastName = "Введите фамилию";
   if (!isValidRuPhone(input.phone) || !normalizedPhone) fieldErrors.phone = "Телефон должен быть в формате +7 (999) 999 99 99";
-  if (!normalizedEmail) {
-    fieldErrors.email = "Введите email";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+  if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
     fieldErrors.email = "Некорректный формат email";
   }
 
@@ -132,7 +130,7 @@ export function getSettingsDirtyState({
     trimmedLastName !== snapshot.lastName ||
     normalizedPhoneValue !== snapshot.phone ||
     (birthDate || "") !== (snapshot.birthDate || "");
-  const emailDirty = normalizedEmail !== snapshot.email && normalizedEmail !== pendingEmailAwaitingConfirm;
+  const emailDirty = normalizedEmail !== "" && normalizedEmail !== snapshot.email && normalizedEmail !== pendingEmailAwaitingConfirm;
 
   return {
     avatarDirty,

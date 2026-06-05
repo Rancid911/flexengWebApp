@@ -209,24 +209,31 @@ export function SettingsAvatarCropPanel(props: SettingsFormState) {
 }
 
 export function SettingsEmailSection(props: SettingsFormState) {
-  const { fieldErrors, newEmail, pendingEmailAwaitingConfirm, setNewEmail } = props;
+  const { fieldErrors, newEmail, pendingEmailAwaitingConfirm, profileEmail, setNewEmail } = props;
 
   return (
     <div className="space-y-3 rounded-xl border border-border p-4">
       <h3 className="text-base font-semibold">Сменить email</h3>
-      <FormField
-        label="Новый email"
-        error={fieldErrors.email}
-        hint={pendingEmailAwaitingConfirm ? `Ожидает подтверждения: ${pendingEmailAwaitingConfirm}` : undefined}
-      >
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">Текущий email</p>
+        <p className="text-sm text-muted-foreground">{profileEmail}</p>
+      </div>
+      <FormField label="Новый email" error={fieldErrors.email}>
         <Input
           data-testid="settings-email-input"
           type="email"
+          placeholder="Введите новый email"
           value={newEmail}
           onChange={(event) => setNewEmail(event.target.value)}
           className={cn(fieldErrors.email && "border-red-500")}
         />
       </FormField>
+      {pendingEmailAwaitingConfirm ? (
+        <div className="space-y-1 text-sm text-muted-foreground">
+          <p>Ожидает подтверждения: {pendingEmailAwaitingConfirm}</p>
+          <p>Email будет изменён только после подтверждения по ссылке из письма.</p>
+        </div>
+      ) : null}
     </div>
   );
 }

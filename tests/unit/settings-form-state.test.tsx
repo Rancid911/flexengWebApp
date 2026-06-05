@@ -1,7 +1,8 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { saveSettingsProfile, useSettingsFormState } from "@/features/settings/client/use-settings-form-state";
+import { SettingsEmailSection } from "@/features/settings/components/settings-sections";
 
 const replaceMock = vi.fn();
 const refreshMock = vi.fn();
@@ -67,8 +68,27 @@ describe("useSettingsFormState", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/settings/profile", expect.any(Object));
     expect(result.current.firstName).toBe("Ann");
     expect(result.current.lastName).toBe("Lee");
-    expect(result.current.newEmail).toBe("student@example.com");
+    expect(result.current.profileEmail).toBe("student@example.com");
+    expect(result.current.newEmail).toBe("");
     expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("loads pending email separately from the new email draft", async () => {
+    fetchMock.mockResolvedValue(
+      okJson({
+        ...profileResponse,
+        pendingEmail: "new@example.com"
+      })
+    );
+    const { result } = renderHook(() => useSettingsFormState());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.profileEmail).toBe("student@example.com");
+    expect(result.current.pendingEmailAwaitingConfirm).toBe("new@example.com");
+    expect(result.current.newEmail).toBe("");
   });
 
   it("saves changed profile fields through one settings API form-data request", async () => {
@@ -146,7 +166,7 @@ describe("useSettingsFormState", () => {
     expect(fetchMock).not.toHaveBeenCalledWith("/api/auth/password/update", expect.anything());
   });
 
-  it("keeps pending email visible after Supabase requires confirmation", async () => {
+  it("stores pending email and clears the draft after Supabase requires confirmation", async () => {
     fetchMock.mockResolvedValue(okJson(profileResponse));
     const { result } = renderHook(() => useSettingsFormState());
 
@@ -183,7 +203,8 @@ describe("useSettingsFormState", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.newEmail).toBe("new@example.com");
+      expect(result.current.profileEmail).toBe("student@example.com");
+      expect(result.current.newEmail).toBe("");
       expect(result.current.pendingEmailAwaitingConfirm).toBe("new@example.com");
       expect(result.current.saveMessage).toBe("Письмо подтверждения отправлено на новый email. Перейдите по ссылке из письма.");
     });
@@ -226,9 +247,159 @@ describe("useSettingsFormState", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.newEmail).toBe("fallback@example.com");
+      expect(result.current.profileEmail).toBe("student@example.com");
+      expect(result.current.newEmail).toBe("");
       expect(result.current.pendingEmailAwaitingConfirm).toBe("fallback@example.com");
     });
+  });
+
+  it("does not treat empty new email as an email update during profile-only saves", async () => {
+    fetchMock.mockResolvedValue(okJson(profileResponse));
+    const { result } = renderHook(() => useSettingsFormState());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValueOnce(
+      okJson({
+        profile: {
+          ...profileResponse,
+          profile: {
+            ...profileResponse.profile,
+            firstName: "Anna"
+          }
+        },
+        applied: {
+          profile: true,
+          avatar: false,
+          email: false,
+          password: false
+        },
+        avatarMessage: "",
+        hasAppliedChanges: true,
+        hasEmailPendingConfirmation: false
+      })
+    );
+
+    act(() => {
+      result.current.setFirstName("Anna");
+      result.current.setNewEmail("");
+    });
+
+    await act(async () => {
+      await result.current.handleSaveAll({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+    });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/settings/profile",
+        expect.objectContaining({
+          method: "PATCH",
+          body: expect.any(FormData)
+        })
+      );
+    });
+    const patchBody = fetchMock.mock.calls[0]?.[1]?.body as FormData;
+    expect(patchBody.get("emailDirty")).toBe("false");
+    expect(result.current.fieldErrors.email).toBeUndefined();
+  });
+
+  it("does not send a new email update when draft equals the pending email", async () => {
+    fetchMock.mockResolvedValue(
+      okJson({
+        ...profileResponse,
+        pendingEmail: "new@example.com"
+      })
+    );
+    const { result } = renderHook(() => useSettingsFormState());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    fetchMock.mockClear();
+
+    act(() => {
+      result.current.setNewEmail("new@example.com");
+    });
+
+    await act(async () => {
+      await result.current.handleSaveAll({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.saveMessage).toBe("Нет изменений");
+  });
+
+  it("updates confirmed email and clears pending state after an immediate email change", async () => {
+    fetchMock.mockResolvedValue(okJson(profileResponse));
+    const { result } = renderHook(() => useSettingsFormState());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValueOnce(
+      okJson({
+        profile: {
+          ...profileResponse,
+          email: "confirmed@example.com",
+          pendingEmail: ""
+        },
+        applied: {
+          profile: false,
+          avatar: false,
+          email: true,
+          password: false
+        },
+        avatarMessage: "",
+        hasAppliedChanges: true,
+        hasEmailPendingConfirmation: false
+      })
+    );
+
+    act(() => {
+      result.current.setNewEmail("confirmed@example.com");
+    });
+
+    await act(async () => {
+      await result.current.handleSaveAll({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+    });
+
+    await waitFor(() => {
+      expect(result.current.profileEmail).toBe("confirmed@example.com");
+      expect(result.current.newEmail).toBe("");
+      expect(result.current.pendingEmailAwaitingConfirm).toBe("");
+    });
+  });
+
+  it("renders the confirmed email display, one draft input, and pending status", async () => {
+    fetchMock.mockResolvedValue(
+      okJson({
+        ...profileResponse,
+        pendingEmail: "new@example.com"
+      })
+    );
+    const { result } = renderHook(() => useSettingsFormState());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    render(<SettingsEmailSection {...result.current} />);
+
+    expect(screen.getByText("Текущий email")).toBeInTheDocument();
+    expect(screen.getByText("student@example.com")).toBeInTheDocument();
+    expect(screen.getByText("Новый email")).toBeInTheDocument();
+    const emailInput = screen.getByTestId("settings-email-input") as HTMLInputElement;
+    expect(emailInput).toHaveAttribute("placeholder", "Введите новый email");
+    expect(emailInput.value).toBe("");
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getByText("Ожидает подтверждения: new@example.com")).toBeInTheDocument();
+    expect(screen.getByText("Email будет изменён только после подтверждения по ссылке из письма.")).toBeInTheDocument();
   });
 
   it("shows structured duplicate email errors under the email field", async () => {

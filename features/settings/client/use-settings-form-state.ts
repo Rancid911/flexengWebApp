@@ -68,7 +68,7 @@ export function useSettingsFormState() {
   const [lastName, setLastName] = useState(runtimeSnapshot?.lastName ?? "");
   const [phone, setPhone] = useState(runtimeSnapshot?.phone ? normalizeRuPhoneInput(runtimeSnapshot.phone) : "+7 ");
   const [birthDate, setBirthDate] = useState(runtimeSnapshot?.birthDate ?? "");
-  const [newEmail, setNewEmail] = useState(runtimeSnapshot?.email ?? "");
+  const [newEmail, setNewEmail] = useState("");
   const [pendingEmailAwaitingConfirm, setPendingEmailAwaitingConfirm] = useState(runtimeSnapshot?.pendingEmailAwaitingConfirm ?? "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [nextPassword, setNextPassword] = useState("");
@@ -166,7 +166,7 @@ export function useSettingsFormState() {
 
         setUserId(result.userId);
         setProfileEmail(result.email);
-        setNewEmail(result.pendingEmail || result.email);
+        setNewEmail("");
         setPendingEmailAwaitingConfirm(result.pendingEmail);
         if (result.cachedAvatarUrl) {
           setAvatarUrl(result.cachedAvatarUrl);
@@ -317,7 +317,7 @@ export function useSettingsFormState() {
         if (emailDirty && result?.hasEmailPendingConfirmation && nextProfile) {
           const pendingEmail = nextProfile.pendingEmail || normalizedEmail;
           setPendingEmailAwaitingConfirm(pendingEmail);
-          setNewEmail(pendingEmail);
+          setNewEmail("");
           syncSettingsRuntimeCache({ pendingEmailAwaitingConfirm: pendingEmail });
           nextPendingEmail = pendingEmail;
           hasEmailPendingConfirmation = true;
@@ -325,7 +325,7 @@ export function useSettingsFormState() {
 
         if (result?.applied.email && nextProfile) {
           setProfileEmail(nextProfile.email);
-          setNewEmail(nextProfile.email);
+          setNewEmail("");
           setPendingEmailAwaitingConfirm("");
           syncProfileCache({ email: nextProfile.email });
           syncSettingsRuntimeCache({ email: nextProfile.email, pendingEmailAwaitingConfirm: "" });
@@ -503,6 +503,7 @@ export function useSettingsFormState() {
     pendingAvatarDelete,
     pendingEmailAwaitingConfirm,
     phone,
+    profileEmail,
     profileSectionError,
     resetCrop,
     saveMessage,

@@ -283,6 +283,55 @@ describe("auth BFF API routes", () => {
     expect(clearRecoveryMarkerMock).not.toHaveBeenCalled();
   });
 
+  it("maps Supabase same-password recovery reset errors to the next password field", async () => {
+    const auth = buildAuthMock();
+    verifyRecoveryMarkerMock.mockResolvedValue(true);
+    auth.updateUser.mockResolvedValue({
+      error: {
+        code: "same_password",
+        message: "New password should be different from the old password."
+      }
+    });
+    createClientMock.mockResolvedValue({ auth });
+
+    const { POST } = await import("@/app/api/auth/password/reset/route");
+    const response = await POST(jsonRequest("http://localhost/api/auth/password/reset", { nextPassword: "NewPassword123!" }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AUTH_PASSWORD_ERROR",
+      message: "Password reset failed",
+      details: {
+        fieldErrors: {
+          nextPassword: ["Новый пароль должен отличаться от текущего."]
+        }
+      }
+    });
+    expect(auth.updateUser).toHaveBeenCalledWith({ password: "NewPassword123!" });
+    expect(clearRecoveryMarkerMock).not.toHaveBeenCalled();
+  });
+
+  it("maps unknown recovery reset update errors to a safe form-level error", async () => {
+    const auth = buildAuthMock();
+    verifyRecoveryMarkerMock.mockResolvedValue(true);
+    auth.updateUser.mockResolvedValue({ error: { message: "Unexpected provider failure" } });
+    createClientMock.mockResolvedValue({ auth });
+
+    const { POST } = await import("@/app/api/auth/password/reset/route");
+    const response = await POST(jsonRequest("http://localhost/api/auth/password/reset", { nextPassword: "NewPassword123!" }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AUTH_PASSWORD_ERROR",
+      message: "Password reset failed",
+      details: {
+        formErrors: ["Не удалось обновить пароль. Запросите новую ссылку восстановления или попробуйте позже."]
+      }
+    });
+    expect(auth.updateUser).toHaveBeenCalledWith({ password: "NewPassword123!" });
+    expect(clearRecoveryMarkerMock).not.toHaveBeenCalled();
+  });
+
   it("retires the mixed password update endpoint without changing passwords", async () => {
     const auth = buildAuthMock();
     createClientMock.mockResolvedValue({ auth });

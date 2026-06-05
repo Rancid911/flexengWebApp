@@ -99,6 +99,48 @@ describe("ResetPasswordPageClient", () => {
     expect(screen.queryByText("Проверьте корректность пароля.")).not.toBeInTheDocument();
   });
 
+  it("shows Supabase same-password backend errors instead of password requirements", async () => {
+    await renderReadyResetPage();
+    fetchMock.mockResolvedValueOnce(
+      errorJson(400, {
+        code: "AUTH_PASSWORD_ERROR",
+        message: "Password reset failed",
+        details: {
+          fieldErrors: {
+            nextPassword: ["Новый пароль должен отличаться от текущего."]
+          }
+        }
+      })
+    );
+
+    fireEvent.change(screen.getByLabelText("Новый пароль"), { target: { value: "TestPassword123!" } });
+    fireEvent.change(screen.getByLabelText("Повторите пароль"), { target: { value: "TestPassword123!" } });
+    fireEvent.click(screen.getByRole("button", { name: "Обновить пароль" }));
+
+    expect(await screen.findByText("Новый пароль должен отличаться от текущего.")).toBeInTheDocument();
+    expect(screen.queryByText("Проверьте требования к новому паролю.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Проверьте корректность пароля.")).not.toBeInTheDocument();
+  });
+
+  it("shows backend form-level reset errors", async () => {
+    await renderReadyResetPage();
+    fetchMock.mockResolvedValueOnce(
+      errorJson(400, {
+        code: "AUTH_PASSWORD_ERROR",
+        message: "Password reset failed",
+        details: {
+          formErrors: ["Не удалось обновить пароль. Запросите новую ссылку восстановления или попробуйте позже."]
+        }
+      })
+    );
+
+    fireEvent.change(screen.getByLabelText("Новый пароль"), { target: { value: "TestPassword123!" } });
+    fireEvent.change(screen.getByLabelText("Повторите пароль"), { target: { value: "TestPassword123!" } });
+    fireEvent.click(screen.getByRole("button", { name: "Обновить пароль" }));
+
+    expect(await screen.findByText("Не удалось обновить пароль. Запросите новую ссылку восстановления или попробуйте позже.")).toBeInTheDocument();
+  });
+
   it("shows the recovery context backend error", async () => {
     await renderReadyResetPage();
     fetchMock.mockResolvedValueOnce(

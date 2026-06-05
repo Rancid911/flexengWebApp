@@ -6,6 +6,11 @@ import { clearRecoveryMarker, verifyRecoveryMarker } from "@/lib/auth/recovery-m
 import { getPasswordPolicyErrors } from "@/lib/auth/password-policy";
 
 type AuthJsonPayload = Record<string, unknown>;
+type AuthProviderError = {
+  message?: string;
+  code?: string;
+  error_code?: string;
+};
 
 export type AuthUserSummary = {
   id: string;
@@ -63,21 +68,59 @@ function toPasswordFieldError(error: { message?: string } | null | undefined, fa
   return new HttpError(400, "AUTH_PASSWORD_ERROR", message);
 }
 
-function toRecoveryPasswordFieldError(error: { message?: string } | null | undefined, fallback: string) {
+function getAuthProviderErrorCode(error: AuthProviderError | null | undefined) {
+  return (error?.code || error?.error_code || "").toLowerCase();
+}
+
+function isSamePasswordError(normalizedMessage: string, normalizedCode: string) {
+  return (
+    normalizedCode === "same_password" ||
+    normalizedMessage.includes("different from the old password") ||
+    normalizedMessage.includes("same password") ||
+    normalizedMessage.includes("same as old") ||
+    normalizedMessage.includes("same as current") ||
+    normalizedMessage.includes("same as previous")
+  );
+}
+
+function isWeakPasswordPolicyError(normalizedMessage: string, normalizedCode: string) {
+  return (
+    normalizedCode.includes("weak_password") ||
+    normalizedMessage.includes("weak") ||
+    normalizedMessage.includes("too short") ||
+    normalizedMessage.includes("password should be at least") ||
+    normalizedMessage.includes("password must") ||
+    normalizedMessage.includes("password should contain") ||
+    normalizedMessage.includes("password policy") ||
+    normalizedMessage.includes("password requirements")
+  );
+}
+
+function toRecoveryPasswordFieldError(error: AuthProviderError | null | undefined, fallback: string) {
   const message = error?.message || fallback;
   const normalized = message.toLowerCase();
+  const normalizedCode = getAuthProviderErrorCode(error);
 
   if (normalized.includes("nonce") || normalized.includes("reauth") || normalized.includes("recent") || normalized.includes("session")) {
     return new HttpError(401, "REAUTHENTICATION_REQUIRED", "Сессия устарела. Войдите заново и повторите попытку.");
   }
-  if (normalized.includes("weak") || normalized.includes("password")) {
+  if (isSamePasswordError(normalized, normalizedCode)) {
+    return new HttpError(400, "AUTH_PASSWORD_ERROR", "Password reset failed", {
+      fieldErrors: {
+        nextPassword: ["Новый пароль должен отличаться от текущего."]
+      }
+    });
+  }
+  if (isWeakPasswordPolicyError(normalized, normalizedCode)) {
     return new HttpError(400, "AUTH_PASSWORD_ERROR", "Password reset failed", {
       fieldErrors: {
         nextPassword: ["Проверьте требования к новому паролю."]
       }
     });
   }
-  return new HttpError(400, "AUTH_PASSWORD_ERROR", message);
+  return new HttpError(400, "AUTH_PASSWORD_ERROR", "Password reset failed", {
+    formErrors: ["Не удалось обновить пароль. Запросите новую ссылку восстановления или попробуйте позже."]
+  });
 }
 
 function passwordFieldRequiredError(fieldName: "currentPassword" | "nextPassword", message: string): never {
