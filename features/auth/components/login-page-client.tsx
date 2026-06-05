@@ -123,7 +123,7 @@ export default function LoginPage() {
               />
             </div>
             {error ? <p id={errorId} className="text-sm text-rose-600">{error}</p> : null}
-            {confirmError ? <p id={confirmErrorId} className="text-sm text-rose-600">Ссылка подтверждения недействительна или устарела.</p> : null}
+            {confirmError ? <p id={confirmErrorId} className="text-sm text-rose-600">Ссылка подтверждения недействительна или срок её действия истёк. Попробуйте войти или запросите письмо повторно.</p> : null}
             <Button
               data-testid="login-submit"
               type="submit"

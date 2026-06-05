@@ -19,6 +19,27 @@ describe("/auth/confirm", () => {
     setRecoveryMarkerMock.mockReset();
   });
 
+  it("redirects successful signup email token confirmations to dashboard", async () => {
+    const auth = {
+      exchangeCodeForSession: vi.fn(),
+      verifyOtp: vi.fn(() => Promise.resolve({ error: null })),
+      getUser: vi.fn()
+    };
+    createClientMock.mockResolvedValue({ auth });
+
+    const { GET } = await import("@/app/auth/confirm/route");
+    const response = await GET(
+      new Request("https://app.example.com/auth/confirm?token_hash=signup-token&type=email&next=/dashboard")
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://app.example.com/dashboard");
+    expect(auth.verifyOtp).toHaveBeenCalledTimes(1);
+    expect(auth.verifyOtp).toHaveBeenCalledWith({ type: "email", token_hash: "signup-token" });
+    expect(auth.exchangeCodeForSession).not.toHaveBeenCalled();
+    expect(auth.getUser).not.toHaveBeenCalled();
+  });
+
   it("redirects successful account email confirmation back to settings profile", async () => {
     const auth = {
       exchangeCodeForSession: vi.fn(() => Promise.resolve({ error: null })),
@@ -35,6 +56,78 @@ describe("/auth/confirm", () => {
     expect(auth.exchangeCodeForSession).toHaveBeenCalledWith("confirm-code");
     expect(auth.getUser).not.toHaveBeenCalled();
     expect(setRecoveryMarkerMock).not.toHaveBeenCalled();
+  });
+
+  it("redirects missing token confirmation attempts to the login confirmation error", async () => {
+    const auth = {
+      exchangeCodeForSession: vi.fn(),
+      verifyOtp: vi.fn(),
+      getUser: vi.fn()
+    };
+    createClientMock.mockResolvedValue({ auth });
+
+    const { GET } = await import("@/app/auth/confirm/route");
+    const response = await GET(new Request("https://app.example.com/auth/confirm?type=email&next=/dashboard"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://app.example.com/login?error=auth_confirm_failed");
+    expect(auth.verifyOtp).not.toHaveBeenCalled();
+    expect(auth.exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  it("redirects missing confirmation type attempts to the login confirmation error", async () => {
+    const auth = {
+      exchangeCodeForSession: vi.fn(),
+      verifyOtp: vi.fn(),
+      getUser: vi.fn()
+    };
+    createClientMock.mockResolvedValue({ auth });
+
+    const { GET } = await import("@/app/auth/confirm/route");
+    const response = await GET(new Request("https://app.example.com/auth/confirm?token_hash=signup-token&next=/dashboard"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://app.example.com/login?error=auth_confirm_failed");
+    expect(auth.verifyOtp).not.toHaveBeenCalled();
+    expect(auth.exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  it("redirects Supabase token verification errors to the login confirmation error", async () => {
+    const auth = {
+      exchangeCodeForSession: vi.fn(),
+      verifyOtp: vi.fn(() => Promise.resolve({ error: { message: "Token has expired or is invalid" } })),
+      getUser: vi.fn()
+    };
+    createClientMock.mockResolvedValue({ auth });
+
+    const { GET } = await import("@/app/auth/confirm/route");
+    const response = await GET(
+      new Request("https://app.example.com/auth/confirm?token_hash=expired-token&type=email&next=/dashboard")
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://app.example.com/login?error=auth_confirm_failed");
+    expect(auth.verifyOtp).toHaveBeenCalledTimes(1);
+    expect(auth.verifyOtp).toHaveBeenCalledWith({ type: "email", token_hash: "expired-token" });
+    expect(auth.exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the public root for unsafe successful redirect targets", async () => {
+    const auth = {
+      exchangeCodeForSession: vi.fn(),
+      verifyOtp: vi.fn(() => Promise.resolve({ error: null })),
+      getUser: vi.fn()
+    };
+    createClientMock.mockResolvedValue({ auth });
+
+    const { GET } = await import("@/app/auth/confirm/route");
+    const response = await GET(
+      new Request("https://app.example.com/auth/confirm?token_hash=signup-token&type=email&next=https://evil.com")
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://app.example.com/");
+    expect(auth.verifyOtp).toHaveBeenCalledWith({ type: "email", token_hash: "signup-token" });
   });
 
   it("sets the recovery marker and redirects recovery token confirmations to reset password", async () => {

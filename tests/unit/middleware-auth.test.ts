@@ -32,4 +32,12 @@ describe("middleware auth zoning", () => {
     expect(shouldRedirectAuthenticatedAuthPage("/register", true)).toBe(true);
     expect(shouldRedirectAuthenticatedAuthPage("/forgot-password", true)).toBe(true);
   });
+
+  it("lets the auth confirmation callback reach its route handler", () => {
+    expect(isProtectedAppPath("/auth/confirm")).toBe(false);
+    expect(isProtectedApiPath("/auth/confirm")).toBe(false);
+    expect(isOptionalAuthApiPath("/auth/confirm")).toBe(false);
+    expect(shouldRedirectAuthenticatedAuthPage("/auth/confirm", false)).toBe(false);
+    expect(shouldRedirectAuthenticatedAuthPage("/auth/confirm", true)).toBe(false);
+  });
 });

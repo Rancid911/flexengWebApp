@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
   const rawNext = searchParams.get("next") ?? "/";
-  const allowedNext = new Set(["/", "/reset-password", "/reset-password?flow=recovery", "/settings/profile"]);
+  const allowedNext = new Set(["/", "/dashboard", "/reset-password", "/reset-password?flow=recovery", "/settings/profile"]);
   const next = allowedNext.has(rawNext) ? rawNext : "/";
   const redirectTarget = `${origin}${next}`;
 
