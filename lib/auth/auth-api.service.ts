@@ -84,7 +84,7 @@ function validateNextPasswordOrThrow(password: string, fieldName = "nextPassword
 
 function buildResetRedirectUrl(request: Request) {
   const origin = new URL(request.url).origin;
-  return `${origin}/auth/confirm?next=/reset-password%3Fflow%3Drecovery`;
+  return `${origin}/auth/confirm?next=/reset-password`;
 }
 
 export async function signInWithPasswordFromRequest(request: Request) {

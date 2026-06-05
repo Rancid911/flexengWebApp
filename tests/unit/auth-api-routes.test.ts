@@ -127,7 +127,7 @@ describe("auth BFF API routes", () => {
 
     expect(response.status).toBe(200);
     expect(auth.resetPasswordForEmail).toHaveBeenCalledWith("user@example.com", {
-      redirectTo: "https://school.example/auth/confirm?next=/reset-password%3Fflow%3Drecovery"
+      redirectTo: "https://school.example/auth/confirm?next=/reset-password"
     });
   });
 

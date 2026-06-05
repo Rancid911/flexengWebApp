@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { RECOVERY_MARKER_COOKIE } from "@/lib/auth/recovery-marker";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/config";
 import { measureServerTiming } from "@/lib/server/timing";
 
@@ -38,6 +39,10 @@ function hasSupabaseAuthCookie(request: NextRequest) {
   return request.cookies.getAll().some(({ name }) => name.startsWith("sb-") && name.includes("-auth-token"));
 }
 
+function hasRecoveryMarkerCookie(request: NextRequest) {
+  return Boolean(request.cookies.get(RECOVERY_MARKER_COOKIE)?.value);
+}
+
 export function isProtectedAppPath(pathname: string) {
   return PROTECTED_APP_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
 }
@@ -49,6 +54,10 @@ export function isProtectedApiPath(pathname: string) {
 
 export function isOptionalAuthApiPath(pathname: string) {
   return OPTIONAL_AUTH_API_EXACT_PATHS.has(pathname);
+}
+
+export function shouldRedirectAuthenticatedAuthPage(pathname: string, hasRecoveryMarker: boolean) {
+  return AUTH_PAGE_PATHS.has(pathname) && !(pathname === "/reset-password" && hasRecoveryMarker);
 }
 
 export async function updateSession(request: NextRequest) {
@@ -106,7 +115,7 @@ export async function updateSession(request: NextRequest) {
     return redirectResponse;
   }
 
-  if (user && isAuthPage) {
+  if (user && shouldRedirectAuthenticatedAuthPage(pathname, hasRecoveryMarkerCookie(request))) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     const redirectResponse = NextResponse.redirect(url);

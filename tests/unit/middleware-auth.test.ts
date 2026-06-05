@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isOptionalAuthApiPath, isProtectedApiPath, isProtectedAppPath } from "@/lib/supabase/middleware";
+import { isOptionalAuthApiPath, isProtectedApiPath, isProtectedAppPath, shouldRedirectAuthenticatedAuthPage } from "@/lib/supabase/middleware";
 
 describe("middleware auth zoning", () => {
   it("treats expanded app zones as protected", () => {
@@ -20,5 +20,16 @@ describe("middleware auth zoning", () => {
     expect(isOptionalAuthApiPath("/api/search/suggestions")).toBe(false);
     expect(isProtectedApiPath("/api/payments")).toBe(true);
     expect(isProtectedApiPath("/api/payments/yookassa/webhook")).toBe(false);
+  });
+
+  it("keeps authenticated recovery users on reset password when a recovery marker exists", () => {
+    expect(shouldRedirectAuthenticatedAuthPage("/reset-password", true)).toBe(false);
+    expect(shouldRedirectAuthenticatedAuthPage("/reset-password", false)).toBe(true);
+  });
+
+  it("still redirects authenticated users away from ordinary auth pages", () => {
+    expect(shouldRedirectAuthenticatedAuthPage("/login", true)).toBe(true);
+    expect(shouldRedirectAuthenticatedAuthPage("/register", true)).toBe(true);
+    expect(shouldRedirectAuthenticatedAuthPage("/forgot-password", true)).toBe(true);
   });
 });

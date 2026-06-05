@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      if (next === "/reset-password?flow=recovery") {
+      if (next === "/reset-password" || next === "/reset-password?flow=recovery") {
         const { data } = await supabase.auth.getUser();
         if (data.user) {
           await setRecoveryMarker(data.user.id);
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.verifyOtp({ type: type as EmailOtpType, token_hash: tokenHash });
 
     if (!error) {
-      if (type === "recovery" && next === "/reset-password?flow=recovery") {
+      if (type === "recovery" && (next === "/reset-password" || next === "/reset-password?flow=recovery")) {
         const { data } = await supabase.auth.getUser();
         if (data.user) {
           await setRecoveryMarker(data.user.id);
