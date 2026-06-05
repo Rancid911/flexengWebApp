@@ -63,6 +63,23 @@ function toPasswordFieldError(error: { message?: string } | null | undefined, fa
   return new HttpError(400, "AUTH_PASSWORD_ERROR", message);
 }
 
+function toRecoveryPasswordFieldError(error: { message?: string } | null | undefined, fallback: string) {
+  const message = error?.message || fallback;
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("nonce") || normalized.includes("reauth") || normalized.includes("recent") || normalized.includes("session")) {
+    return new HttpError(401, "REAUTHENTICATION_REQUIRED", "Сессия устарела. Войдите заново и повторите попытку.");
+  }
+  if (normalized.includes("weak") || normalized.includes("password")) {
+    return new HttpError(400, "AUTH_PASSWORD_ERROR", "Password reset failed", {
+      fieldErrors: {
+        nextPassword: ["Проверьте требования к новому паролю."]
+      }
+    });
+  }
+  return new HttpError(400, "AUTH_PASSWORD_ERROR", message);
+}
+
 function passwordFieldRequiredError(fieldName: "currentPassword" | "nextPassword", message: string): never {
   throw validationError(message, {
     fieldErrors: {
@@ -202,7 +219,7 @@ export async function resetPasswordFromRequest(request: Request) {
   const { error } = await runAuthRequestWithLockRetry(() => supabase.auth.updateUser({ password: nextPassword }));
 
   if (error) {
-    throw toPasswordFieldError(error, "Password reset failed");
+    throw toRecoveryPasswordFieldError(error, "Password reset failed");
   }
 
   await clearRecoveryMarker();

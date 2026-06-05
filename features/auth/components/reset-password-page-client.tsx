@@ -8,9 +8,37 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PasswordPolicyChecklist } from "@/components/ui/password-policy-checklist";
-import { getCurrentAuthUser, resetPassword } from "@/features/auth/client/auth-api";
+import { AuthApiError, getCurrentAuthUser, resetPassword } from "@/features/auth/client/auth-api";
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 import { mapUiErrorMessage } from "@/lib/ui-error-map";
+
+const RECOVERY_CONTEXT_ERROR = "Ссылка для восстановления пароля истекла или недействительна. Запросите новое письмо для восстановления пароля.";
+
+function mapResetPasswordSubmitError(error: unknown) {
+  if (error instanceof AuthApiError) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("RESET_PASSWORD_API_ERROR", {
+        status: error.status,
+        code: error.code,
+        message: error.message,
+        details: error.details
+      });
+    }
+
+    const fieldErrors = error.details?.fieldErrors ?? {};
+    const nextPasswordError = fieldErrors.nextPassword?.[0] || fieldErrors.password?.[0];
+    if (nextPasswordError) return nextPasswordError;
+
+    const formError = error.details?.formErrors?.[0];
+    if (formError) return formError;
+
+    if (error.code === "RECOVERY_CONTEXT_REQUIRED") {
+      return RECOVERY_CONTEXT_ERROR;
+    }
+  }
+
+  return mapUiErrorMessage(error instanceof Error ? error.message : "", "Не удалось обновить пароль. Запросите новую ссылку восстановления.");
+}
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -68,8 +96,7 @@ export default function ResetPasswordPage() {
       setMessage("Пароль обновлён. Сейчас перенаправим на вход.");
       setTimeout(() => router.replace("/login"), 1200);
     } catch (submitError) {
-      console.error("RESET_PASSWORD_THROWN", submitError);
-      setError(mapUiErrorMessage(submitError instanceof Error ? submitError.message : "", "Не удалось обновить пароль. Запросите новую ссылку восстановления."));
+      setError(mapResetPasswordSubmitError(submitError));
     } finally {
       setLoading(false);
     }

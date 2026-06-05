@@ -4,7 +4,7 @@ const cookieStoreMock = vi.hoisted(() => {
   const values = new Map<string, { value: string }>();
   return {
     get: vi.fn((name: string) => values.get(name)),
-    set: vi.fn((name: string, value: string) => {
+    set: vi.fn((name: string, value: string, options?: unknown) => {
       values.set(name, { value });
     }),
     values
@@ -68,5 +68,22 @@ describe("recovery marker", () => {
 
     expect(cookieStoreMock.values.get(RECOVERY_MARKER_COOKIE)?.value).toBe("");
     await expect(verifyRecoveryMarker("user-1")).resolves.toBe(false);
+  });
+
+  it("sets markers for all routes", async () => {
+    const { RECOVERY_MARKER_COOKIE, setRecoveryMarker } = await import("@/lib/auth/recovery-marker");
+
+    await setRecoveryMarker("user-1");
+
+    expect(cookieStoreMock.set).toHaveBeenCalledWith(
+      RECOVERY_MARKER_COOKIE,
+      expect.any(String),
+      expect.objectContaining({
+        httpOnly: true,
+        maxAge: 600,
+        path: "/",
+        sameSite: "lax"
+      })
+    );
   });
 });

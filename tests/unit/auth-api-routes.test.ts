@@ -260,6 +260,29 @@ describe("auth BFF API routes", () => {
     expect(clearRecoveryMarkerMock).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the recovery marker when Supabase rejects the reset password update", async () => {
+    const auth = buildAuthMock();
+    verifyRecoveryMarkerMock.mockResolvedValue(true);
+    auth.updateUser.mockResolvedValue({ error: { message: "Password is too weak" } });
+    createClientMock.mockResolvedValue({ auth });
+
+    const { POST } = await import("@/app/api/auth/password/reset/route");
+    const response = await POST(jsonRequest("http://localhost/api/auth/password/reset", { nextPassword: "NewPassword123!" }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AUTH_PASSWORD_ERROR",
+      message: "Password reset failed",
+      details: {
+        fieldErrors: {
+          nextPassword: ["Проверьте требования к новому паролю."]
+        }
+      }
+    });
+    expect(auth.updateUser).toHaveBeenCalledWith({ password: "NewPassword123!" });
+    expect(clearRecoveryMarkerMock).not.toHaveBeenCalled();
+  });
+
   it("retires the mixed password update endpoint without changing passwords", async () => {
     const auth = buildAuthMock();
     createClientMock.mockResolvedValue({ auth });
