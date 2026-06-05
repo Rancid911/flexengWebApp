@@ -7,7 +7,9 @@ import { FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordPolicyChecklist } from "@/components/ui/password-policy-checklist";
 import { registerWithPassword } from "@/features/auth/client/auth-api";
+import { getPasswordPolicyError, PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 import { mapUiErrorMessage } from "@/lib/ui-error-map";
 
 function mapAuthError(message: string) {
@@ -29,10 +31,21 @@ export default function RegisterPage() {
     if (loading) return;
     setError("");
     setMessage("");
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError("Введите корректный email.");
+      return;
+    }
+    const passwordPolicyError = getPasswordPolicyError(password);
+    if (passwordPolicyError) {
+      setError(passwordPolicyError);
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const normalizedEmail = email.trim().toLowerCase();
       const data = await registerWithPassword({ email: normalizedEmail, password });
 
       // If email confirmation is disabled, Supabase returns a session immediately.
@@ -84,15 +97,16 @@ export default function RegisterPage() {
               <Input
                 id="register-password"
                 type="password"
-                placeholder="Минимум 6 символов"
+                placeholder="Минимум 8 символов"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 autoComplete="new-password"
                 required
-                minLength={6}
+                minLength={PASSWORD_MIN_LENGTH}
                 aria-describedby={error ? errorId : message ? messageId : undefined}
                 className="h-11 border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
               />
+              <PasswordPolicyChecklist password={password} />
             </div>
             {error ? <p id={errorId} className="text-sm text-rose-600">{error}</p> : null}
             {message ? <p id={messageId} className="text-sm text-[#654ED6]">{message}</p> : null}

@@ -1,6 +1,7 @@
 "use client";
 
 import { normalizeEmailValue, type FieldErrorKey, type SettingsSnapshot } from "@/features/settings/client/use-settings-runtime-state";
+import { getPasswordPolicyError } from "@/lib/auth/password-policy";
 import { isValidRuPhone, toRuPhoneStorage } from "@/lib/phone";
 import { mapUiErrorMessage } from "@/lib/ui-error-map";
 
@@ -88,7 +89,8 @@ export function validateSettingsForm(input: SettingsValidationInput): SettingsVa
 
   if (passwordRequested) {
     if (!input.currentPassword) fieldErrors.currentPassword = "Введите текущий пароль";
-    if (input.nextPassword.length < 8) fieldErrors.nextPassword = "Новый пароль должен быть не короче 8 символов";
+    const passwordPolicyError = getPasswordPolicyError(input.nextPassword);
+    if (passwordPolicyError) fieldErrors.nextPassword = passwordPolicyError;
     if (input.nextPassword !== input.confirmPassword) fieldErrors.confirmPassword = "Подтверждение пароля не совпадает";
   }
 

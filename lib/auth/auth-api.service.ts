@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { HttpError, validationError } from "@/lib/server/http";
 import { runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
 import { isExistingAuthEmailError, normalizeEmail } from "@/lib/auth/email";
+import { clearRecoveryMarker, verifyRecoveryMarker } from "@/lib/auth/recovery-marker";
+import { getPasswordPolicyErrors } from "@/lib/auth/password-policy";
 
 type AuthJsonPayload = Record<string, unknown>;
 
@@ -37,6 +39,49 @@ function toAuthHttpError(error: { message?: string } | null | undefined, fallbac
   return new HttpError(400, "AUTH_ERROR", error?.message || fallback);
 }
 
+function toPasswordFieldError(error: { message?: string } | null | undefined, fallback: string) {
+  const message = error?.message || fallback;
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("nonce") || normalized.includes("reauth") || normalized.includes("recent") || normalized.includes("session")) {
+    return new HttpError(401, "REAUTHENTICATION_REQUIRED", "Сессия устарела. Войдите заново и повторите попытку.");
+  }
+  if (normalized.includes("current") || normalized.includes("old password") || normalized.includes("invalid password")) {
+    return new HttpError(400, "AUTH_PASSWORD_ERROR", "Password change failed", {
+      fieldErrors: {
+        currentPassword: ["Текущий пароль указан неверно."]
+      }
+    });
+  }
+  if (normalized.includes("weak") || normalized.includes("password")) {
+    return new HttpError(400, "AUTH_PASSWORD_ERROR", "Password change failed", {
+      fieldErrors: {
+        nextPassword: ["Проверьте требования к новому паролю."]
+      }
+    });
+  }
+  return new HttpError(400, "AUTH_PASSWORD_ERROR", message);
+}
+
+function passwordFieldRequiredError(fieldName: "currentPassword" | "nextPassword", message: string): never {
+  throw validationError(message, {
+    fieldErrors: {
+      [fieldName]: [message]
+    }
+  });
+}
+
+function validateNextPasswordOrThrow(password: string, fieldName = "nextPassword") {
+  const errors = getPasswordPolicyErrors(password);
+  if (errors.length > 0) {
+    throw validationError("Password does not meet policy requirements", {
+      fieldErrors: {
+        [fieldName]: errors
+      }
+    });
+  }
+}
+
 function buildResetRedirectUrl(request: Request) {
   const origin = new URL(request.url).origin;
   return `${origin}/auth/confirm?next=/reset-password%3Fflow%3Drecovery`;
@@ -64,6 +109,7 @@ export async function signUpWithPasswordFromRequest(request: Request) {
   const payload = await readJsonObject(request);
   const email = normalizeEmail(readRequiredString(payload, "email", "Email"));
   const password = readRequiredString(payload, "password", "Password");
+  validateNextPasswordOrThrow(password, "password");
   const supabase = await createClient();
 
   const { data, error } = await runAuthRequestWithLockRetry(() =>
@@ -101,19 +147,65 @@ export async function requestPasswordResetFromRequest(request: Request) {
   }
 }
 
-export async function updatePasswordFromRequest(request: Request) {
+export async function changePasswordFromRequest(request: Request) {
   const payload = await readJsonObject(request);
-  const password = readRequiredString(payload, "password", "Password");
-  if (password.length < 6) {
-    throw validationError("Password must be at least 6 characters");
+  const currentPasswordValue = payload.currentPassword;
+  const nextPasswordValue = payload.nextPassword;
+  if (typeof currentPasswordValue !== "string" || currentPasswordValue.trim().length === 0) {
+    passwordFieldRequiredError("currentPassword", "Введите текущий пароль");
   }
+  if (typeof nextPasswordValue !== "string" || nextPasswordValue.trim().length === 0) {
+    passwordFieldRequiredError("nextPassword", "Введите новый пароль");
+  }
+  const currentPassword = currentPasswordValue;
+  const nextPassword = nextPasswordValue;
+  validateNextPasswordOrThrow(nextPassword);
 
   const supabase = await createClient();
-  const { error } = await runAuthRequestWithLockRetry(() => supabase.auth.updateUser({ password }));
+  const { data: userData, error: userError } = await runAuthRequestWithLockRetry(() => supabase.auth.getUser());
+  if (userError || !userData.user) {
+    throw new HttpError(401, "UNAUTHORIZED", "Authentication required");
+  }
+
+  const { error } = await runAuthRequestWithLockRetry(() =>
+    supabase.auth.updateUser({
+      password: nextPassword,
+      current_password: currentPassword
+    })
+  );
 
   if (error) {
-    throw toAuthHttpError(error, "Password update failed");
+    throw toPasswordFieldError(error, "Password change failed");
   }
+}
+
+export async function resetPasswordFromRequest(request: Request) {
+  const payload = await readJsonObject(request);
+  const nextPassword = readRequiredString(payload, "nextPassword", "New password");
+  validateNextPasswordOrThrow(nextPassword);
+
+  const supabase = await createClient();
+  const { data: userData, error: userError } = await runAuthRequestWithLockRetry(() => supabase.auth.getUser());
+  if (userError || !userData.user) {
+    throw new HttpError(401, "UNAUTHORIZED", "Authentication required");
+  }
+
+  const hasRecoveryMarker = await verifyRecoveryMarker(userData.user.id);
+  if (!hasRecoveryMarker) {
+    throw new HttpError(
+      403,
+      "RECOVERY_CONTEXT_REQUIRED",
+      "Ссылка для восстановления пароля истекла или недействительна. Запросите новое письмо для восстановления пароля."
+    );
+  }
+
+  const { error } = await runAuthRequestWithLockRetry(() => supabase.auth.updateUser({ password: nextPassword }));
+
+  if (error) {
+    throw toPasswordFieldError(error, "Password reset failed");
+  }
+
+  await clearRecoveryMarker();
 }
 
 export async function getCurrentAuthUser(): Promise<AuthUserSummary | null> {

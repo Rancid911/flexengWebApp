@@ -1,17 +1,23 @@
 export class AuthApiError extends Error {
   status: number;
   code: string | null;
+  details?: AuthApiErrorPayload["details"];
 
-  constructor(message: string, status: number, code: string | null = null) {
+  constructor(message: string, status: number, code: string | null = null, details?: AuthApiErrorPayload["details"]) {
     super(message);
     this.name = "AuthApiError";
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
 type AuthApiErrorPayload = {
   code?: unknown;
+  details?: {
+    fieldErrors?: Record<string, string[]>;
+    formErrors?: string[];
+  };
   message?: unknown;
 };
 
@@ -37,7 +43,7 @@ async function postAuthJson<T>(url: string, body?: Record<string, unknown>): Pro
   if (!response.ok) {
     const message = typeof payload.message === "string" && payload.message ? payload.message : "Auth request failed";
     const code = typeof payload.code === "string" ? payload.code : null;
-    throw new AuthApiError(message, response.status, code);
+    throw new AuthApiError(message, response.status, code, payload.details);
   }
 
   return payload as T;
@@ -71,8 +77,12 @@ export function requestPasswordReset(input: { email: string }) {
   return postAuthJson<{ ok: true }>("/api/auth/password/reset-request", input);
 }
 
-export function updatePassword(input: { password: string }) {
-  return postAuthJson<{ ok: true }>("/api/auth/password/update", input);
+export function changePassword(input: { currentPassword: string; nextPassword: string }) {
+  return postAuthJson<{ ok: true }>("/api/auth/password/change", input);
+}
+
+export function resetPassword(input: { nextPassword: string }) {
+  return postAuthJson<{ ok: true }>("/api/auth/password/reset", input);
 }
 
 export function getCurrentAuthUser() {

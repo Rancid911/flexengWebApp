@@ -159,4 +159,61 @@ describe("/api/settings/profile", () => {
       })
     );
   });
+
+  it("preserves pending email confirmation fields in the update response", async () => {
+    const actor = {
+      userId: "profile-1",
+      role: "student",
+      rbacRoles: ["student"],
+      rbacPermissions: ["profile.update"],
+      rbacPermissionScopes: {
+        "profile.update": ["own"]
+      }
+    };
+    const formData = new URLSearchParams();
+    formData.set("firstName", "Ann");
+    formData.set("lastName", "Lee");
+    formData.set("phone", "+79990000000");
+    formData.set("birthDate", "2010-01-01");
+    formData.set("email", "new@example.com");
+    formData.set("profileDirty", "false");
+    formData.set("emailDirty", "true");
+    formData.set("passwordDirty", "false");
+    formData.set("avatarDelete", "false");
+
+    const result = {
+      profile: {
+        userId: "profile-1",
+        email: "student@example.com",
+        pendingEmail: "new@example.com",
+        cachedAvatarUrl: null,
+        profile: {
+          firstName: "Ann",
+          lastName: "Lee",
+          phone: "+79990000000",
+          avatarUrl: null,
+          role: "student",
+          email: "student@example.com"
+        },
+        resolvedBirthDate: "2010-01-01"
+      },
+      applied: { profile: false, avatar: false, email: false, password: false },
+      avatarMessage: "",
+      hasAppliedChanges: false,
+      hasEmailPendingConfirmation: true
+    };
+    getAppActorMock.mockResolvedValue(actor);
+    updateSettingsProfileMock.mockResolvedValue(result);
+
+    const { PATCH } = await import("@/app/api/settings/profile/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/settings/profile", {
+        method: "PATCH",
+        body: formData
+      }) as NextRequest
+    );
+
+    await expect(response.json()).resolves.toEqual(result);
+    expect(response.status).toBe(200);
+  });
 });

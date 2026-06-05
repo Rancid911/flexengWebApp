@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { DateField } from "@/components/ui/date-field";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { PasswordPolicyChecklist } from "@/components/ui/password-policy-checklist";
 import { Select } from "@/components/ui/select";
+import { PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 import { cn } from "@/lib/utils";
 
 type UserFormFieldKey =
@@ -116,8 +118,9 @@ export function AdminUserFormDrawer({
               type="password"
               className={cn(fieldErrors.password && "border-red-500")}
               required={!editingUser}
-              minLength={editingUser ? 0 : 8}
+              minLength={editingUser ? undefined : PASSWORD_MIN_LENGTH}
             />
+            {form.password ? <PasswordPolicyChecklist password={form.password} /> : null}
           </FormField>
           <FormField label="Телефон" error={fieldErrors.phone}>
             <Input

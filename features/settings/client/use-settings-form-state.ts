@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { AuthApiError, changePassword } from "@/features/auth/client/auth-api";
 import {
   readSettingsRuntimeSnapshot,
   SETTINGS_RUNTIME_KEY,
@@ -42,11 +43,12 @@ export async function saveSettingsProfile(formData: FormData) {
   });
 
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { code?: string; message?: string } | null;
+    const payload = (await response.json().catch(() => null)) as { code?: string; message?: string; details?: ApiRequestError["details"] } | null;
     throw new ApiRequestError({
       message: payload?.message ?? `Не удалось выполнить запрос (код ${response.status}).`,
       status: response.status,
-      code: payload?.code
+      code: payload?.code,
+      details: payload?.details
     });
   }
 
@@ -275,20 +277,19 @@ export function useSettingsFormState() {
         formData.set("phone", normalizedPhoneValue);
         formData.set("birthDate", birthDate || "");
         formData.set("email", normalizedEmail);
-        formData.set("currentPassword", currentPassword);
-        formData.set("nextPassword", nextPassword);
         formData.set("profileDirty", String(profileDirty));
         formData.set("emailDirty", String(emailDirty));
-        formData.set("passwordDirty", String(passwordDirty));
+        formData.set("passwordDirty", "false");
         formData.set("avatarDelete", String(Boolean(pendingAvatarDelete)));
         if (pendingAvatarBlob) {
           formData.set("avatarFile", pendingAvatarBlob, "avatar.png");
         }
 
-        const result = await saveSettingsProfile(formData);
-        const nextProfile = result.profile;
+        const shouldSaveProfile = profileDirty || emailDirty || avatarDirty;
+        const result = shouldSaveProfile ? await saveSettingsProfile(formData) : null;
+        const nextProfile = result?.profile;
 
-        if (result.applied.profile) {
+        if (result?.applied.profile) {
           syncProfileCache({
             displayName: composeDisplayName(trimmedFirstName, trimmedLastName, profileEmail)
           });
@@ -303,7 +304,7 @@ export function useSettingsFormState() {
           hasAppliedChanges = true;
         }
 
-        if (result.applied.avatar) {
+        if (result?.applied.avatar && nextProfile) {
           setAvatarUrl(nextProfile.profile.avatarUrl);
           setAvatarMessage(result.avatarMessage);
           syncProfileCache({ avatarUrl: nextProfile.profile.avatarUrl });
@@ -313,15 +314,16 @@ export function useSettingsFormState() {
           hasAppliedChanges = true;
         }
 
-        if (emailDirty && result.hasEmailPendingConfirmation) {
-          setPendingEmailAwaitingConfirm(nextProfile.pendingEmail);
-          setNewEmail(nextProfile.pendingEmail);
-          syncSettingsRuntimeCache({ pendingEmailAwaitingConfirm: nextProfile.pendingEmail });
-          nextPendingEmail = nextProfile.pendingEmail;
+        if (emailDirty && result?.hasEmailPendingConfirmation && nextProfile) {
+          const pendingEmail = nextProfile.pendingEmail || normalizedEmail;
+          setPendingEmailAwaitingConfirm(pendingEmail);
+          setNewEmail(pendingEmail);
+          syncSettingsRuntimeCache({ pendingEmailAwaitingConfirm: pendingEmail });
+          nextPendingEmail = pendingEmail;
           hasEmailPendingConfirmation = true;
         }
 
-        if (result.applied.email) {
+        if (result?.applied.email && nextProfile) {
           setProfileEmail(nextProfile.email);
           setNewEmail(nextProfile.email);
           setPendingEmailAwaitingConfirm("");
@@ -332,7 +334,8 @@ export function useSettingsFormState() {
           hasAppliedChanges = true;
         }
 
-        if (result.applied.password) {
+        if (passwordDirty) {
+          await changePassword({ currentPassword, nextPassword });
           setCurrentPassword("");
           setNextPassword("");
           setConfirmPassword("");
@@ -346,6 +349,43 @@ export function useSettingsFormState() {
         return true;
       },
       onError: (error) => {
+        if (error instanceof AuthApiError) {
+          const fieldErrorsFromResponse = error.details?.fieldErrors ?? {};
+          const currentPasswordError = fieldErrorsFromResponse.currentPassword?.[0];
+          const nextPasswordError = fieldErrorsFromResponse.nextPassword?.[0] || fieldErrorsFromResponse.password?.[0];
+
+          if (currentPasswordError) {
+            setFieldErrors((prev) => ({ ...prev, currentPassword: currentPasswordError }));
+            setAccessSectionError(currentPasswordError);
+            return;
+          }
+          if (nextPasswordError) {
+            setFieldErrors((prev) => ({ ...prev, nextPassword: nextPasswordError }));
+            setAccessSectionError(nextPasswordError);
+            return;
+          }
+          if (error.code === "REAUTHENTICATION_REQUIRED" || error.status === 401) {
+            setAccessSectionError("Сессия устарела. Войдите заново и повторите попытку.");
+            return;
+          }
+          setAccessSectionError(mapUiErrorMessage(error.message, "Не удалось обновить пароль"));
+          return;
+        }
+
+        if (error instanceof ApiRequestError) {
+          const emailFieldError = error.details?.fieldErrors?.email?.[0];
+          const formError = error.details?.formErrors?.[0];
+          if (emailFieldError) {
+            setFieldErrors((prev) => ({ ...prev, email: emailFieldError }));
+            setAccessSectionError(emailFieldError);
+            return;
+          }
+          if (formError) {
+            setAccessSectionError(formError);
+            return;
+          }
+        }
+
         const message = error instanceof Error ? error.message : "";
         if (message.startsWith("avatar:")) {
           setProfileSectionError(mapUiErrorMessage(message.slice("avatar:".length), "Не удалось сохранить аватар"));
@@ -388,7 +428,7 @@ export function useSettingsFormState() {
         if (hasAppliedChanges) {
           setSaveMessage("Изменения сохранены");
         } else if (hasEmailPendingConfirmation) {
-          setSaveMessage("");
+          setSaveMessage("Письмо подтверждения отправлено на новый email. Перейдите по ссылке из письма.");
         }
       }
     });

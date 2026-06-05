@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { DateField } from "@/components/ui/date-field";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { PasswordPolicyChecklist } from "@/components/ui/password-policy-checklist";
 import { normalizeRuPhoneInput } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
@@ -262,6 +263,7 @@ export function SettingsPasswordSection(props: SettingsFormState) {
           onChange={(event) => setNextPassword(event.target.value)}
           className={cn(fieldErrors.nextPassword && "border-red-500")}
         />
+        <PasswordPolicyChecklist password={nextPassword} />
       </FormField>
       <FormField label="Подтверждение нового пароля" error={fieldErrors.confirmPassword}>
         <Input

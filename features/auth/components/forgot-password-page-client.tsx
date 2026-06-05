@@ -32,7 +32,7 @@ export default function ForgotPasswordPage() {
       const normalizedEmail = email.trim().toLowerCase();
       await requestPasswordReset({ email: normalizedEmail });
 
-      setMessage("Ссылка для восстановления отправлена на email.");
+      setMessage("Если аккаунт с таким email существует, мы отправили инструкцию для восстановления пароля.");
     } catch (submitError) {
       console.error("FORGOT_PASSWORD_THROWN", submitError);
       setError(mapAuthError(submitError instanceof Error ? submitError.message : ""));

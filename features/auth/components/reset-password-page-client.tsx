@@ -7,7 +7,9 @@ import { FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getCurrentAuthUser, updatePassword } from "@/features/auth/client/auth-api";
+import { PasswordPolicyChecklist } from "@/components/ui/password-policy-checklist";
+import { getCurrentAuthUser, resetPassword } from "@/features/auth/client/auth-api";
+import { getPasswordPolicyError, PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 import { mapUiErrorMessage } from "@/lib/ui-error-map";
 
 export default function ResetPasswordPage() {
@@ -49,8 +51,9 @@ export default function ResetPasswordPage() {
     setError("");
     setMessage("");
 
-    if (password.length < 6) {
-      setError("Пароль должен быть минимум 6 символов");
+    const passwordPolicyError = getPasswordPolicyError(password);
+    if (passwordPolicyError) {
+      setError(passwordPolicyError);
       return;
     }
     if (password !== confirmPassword) {
@@ -60,7 +63,7 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
     try {
-      await updatePassword({ password });
+      await resetPassword({ nextPassword: password });
 
       setMessage("Пароль обновлён. Сейчас перенаправим на вход.");
       setTimeout(() => router.replace("/login"), 1200);
@@ -89,16 +92,17 @@ export default function ResetPasswordPage() {
               <Input
                 id="reset-password-new"
                 type="password"
-                placeholder="Минимум 6 символов"
+                placeholder="Минимум 8 символов"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 autoComplete="new-password"
                 required
-                minLength={6}
+                minLength={PASSWORD_MIN_LENGTH}
                 disabled={!ready || loading}
                 aria-describedby={error ? errorId : message ? messageId : undefined}
                 className="h-11 border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
               />
+              <PasswordPolicyChecklist password={password} />
             </div>
             <div className="space-y-2">
               <label htmlFor="reset-password-confirm" className="text-sm font-medium text-[#322F55]">
@@ -112,7 +116,7 @@ export default function ResetPasswordPage() {
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 autoComplete="new-password"
                 required
-                minLength={6}
+                minLength={PASSWORD_MIN_LENGTH}
                 disabled={!ready || loading}
                 aria-describedby={error ? errorId : message ? messageId : undefined}
                 className="h-11 border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"

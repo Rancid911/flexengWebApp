@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { getPasswordPolicyErrors } from "@/lib/auth/password-policy";
 import {
   teacherCertificateOptions,
   teacherEducationLevelOptions,
@@ -61,6 +62,14 @@ const nullableUrlString = z.preprocess(
 );
 
 const ruPhoneString = z.string().trim().regex(/^\+7\d{10}$/, "phone must match +7XXXXXXXXXX");
+const passwordPolicyString = z.string().max(128).superRefine((value, ctx) => {
+  for (const message of getPasswordPolicyErrors(value)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message
+    });
+  }
+});
 const teacherInternalRoleEnum = z.enum(teacherInternalRoleOptions.map((option) => option.value) as ["teacher", "senior_teacher", "methodologist"]);
 const teacherTimezoneEnum = z.enum(
   teacherTimezoneOptions.map((option) => option.value) as [
@@ -353,7 +362,7 @@ export const adminUserCreateSchema = z
     first_name: z.string().trim().min(1).max(200),
     last_name: z.string().trim().min(1).max(200),
     email: z.string().trim().toLowerCase().email(),
-    password: z.string().min(8).max(128),
+    password: passwordPolicyString,
     phone: ruPhoneString,
     birth_date: nullableDateString,
     english_level: nullableString(150),
@@ -378,7 +387,7 @@ export const adminUserUpdateSchema = z
     first_name: z.string().trim().min(1).max(200).optional(),
     last_name: z.string().trim().min(1).max(200).optional(),
     email: z.string().trim().toLowerCase().email().optional(),
-    password: z.string().min(8).max(128).nullable().optional(),
+    password: passwordPolicyString.nullable().optional(),
     phone: ruPhoneString.optional(),
     birth_date: nullableDateString,
     english_level: nullableString(150),

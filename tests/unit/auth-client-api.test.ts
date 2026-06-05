@@ -42,26 +42,29 @@ describe("auth browser API client", () => {
     });
   });
 
-  it("uses same-origin endpoints for reset, update, session lookup and logout", async () => {
+  it("uses explicit same-origin endpoints for reset, change, session lookup and logout", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({ ok: true, user: { id: "user-1", email: "user@example.com" } })
     });
 
     const {
+      changePassword,
       getCurrentAuthUser,
       logoutCurrentSession,
       requestPasswordReset,
-      updatePassword
+      resetPassword
     } = await import("@/features/auth/client/auth-api");
 
     await requestPasswordReset({ email: "user@example.com" });
-    await updatePassword({ password: "new-secret" });
+    await changePassword({ currentPassword: "OldPassword123!", nextPassword: "NewPassword123!" });
+    await resetPassword({ nextPassword: "NewPassword123!" });
     await getCurrentAuthUser();
     await logoutCurrentSession();
 
     expect(fetchMock).toHaveBeenCalledWith("/api/auth/password/reset-request", expect.objectContaining({ method: "POST" }));
-    expect(fetchMock).toHaveBeenCalledWith("/api/auth/password/update", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/password/change", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/password/reset", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("/api/auth/me", expect.objectContaining({ method: "GET", cache: "no-store" }));
     expect(fetchMock).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST" }));
   });

@@ -1,6 +1,7 @@
 import type { AppActor } from "@/lib/auth/request-context";
 import { profileCacheKey, readDashboardCache } from "@/lib/dashboard-cache";
 import { buildAvatarMediaUrl, toAvatarMediaUrl } from "@/lib/media/urls";
+import { getRequestOrigin } from "@/lib/server-origin";
 import { HttpError } from "@/lib/server/http";
 import { runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
 import { createClient } from "@/lib/supabase/server";
@@ -26,6 +27,60 @@ function getPendingEmailFromAuthUser(user: unknown): string {
   if (!user || typeof user !== "object") return "";
   const maybePending = (user as { new_email?: unknown }).new_email;
   return normalizeEmailValue(maybePending);
+}
+
+function toSettingsEmailUpdateError(error: { message?: string; code?: string; status?: number } | null | undefined) {
+  const message = String(error?.message ?? "");
+  const normalized = message.toLowerCase();
+  const code = String(error?.code ?? "").toLowerCase();
+  const status = Number(error?.status ?? 0);
+
+  if (status === 401 || normalized.includes("jwt") || normalized.includes("session") || normalized.includes("unauthorized")) {
+    return new HttpError(401, "UNAUTHORIZED", "Сессия устарела. Войдите заново и повторите попытку.");
+  }
+
+  if (
+    normalized.includes("already registered") ||
+    normalized.includes("already been registered") ||
+    normalized.includes("email_exists") ||
+    code.includes("email_exists") ||
+    normalized.includes("already exists")
+  ) {
+    return new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", "Email update failed", {
+      fieldErrors: {
+        email: ["Пользователь с таким email уже существует."]
+      }
+    });
+  }
+
+  if (normalized.includes("invalid email") || normalized.includes("email address is invalid") || code.includes("email_address_invalid")) {
+    return new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", "Email update failed", {
+      fieldErrors: {
+        email: ["Введите корректный email."]
+      }
+    });
+  }
+
+  if (
+    normalized.includes("error sending email") ||
+    normalized.includes("gomail") ||
+    normalized.includes("550") ||
+    normalized.includes("spam message rejected") ||
+    normalized.includes("email address not authorized") ||
+    normalized.includes("smtp") ||
+    normalized.includes("provider") ||
+    normalized.includes("email provider") ||
+    normalized.includes("send email") ||
+    normalized.includes("email not sent")
+  ) {
+    return new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", "Email update failed", {
+      formErrors: ["Не удалось отправить письмо подтверждения. Проверьте настройки email-провайдера Supabase."]
+    });
+  }
+
+  return new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", "Email update failed", {
+    formErrors: ["Не удалось обновить email."]
+  });
 }
 
 function isMissingBirthDateColumn(error: { message?: string } | null | undefined) {
@@ -153,10 +208,13 @@ async function updateProfileFields(
   if (normalizedPhone === null) {
     throw new HttpError(400, "VALIDATION_ERROR", "phone must match +7XXXXXXXXXX");
   }
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
 
   const profilePayload = {
-    first_name: input.firstName,
-    last_name: input.lastName,
+    first_name: firstName,
+    last_name: lastName,
+    display_name: [firstName, lastName].filter(Boolean).join(" "),
     phone: normalizedPhone
   };
 
@@ -225,6 +283,7 @@ export async function updateSettingsProfile(actor: AppActor, input: SettingsProf
   };
   let avatarMessage = "";
   let hasEmailPendingConfirmation = false;
+  let pendingEmail = "";
 
   if (input.profileDirty) {
     await updateProfileFields(supabase, actor, userId, input);
@@ -238,10 +297,16 @@ export async function updateSettingsProfile(actor: AppActor, input: SettingsProf
   }
 
   if (input.emailDirty) {
-    const { data, error: authUpdateError } = await runAuthRequestWithLockRetry(() => supabase.auth.updateUser({ email: input.email }));
-    if (authUpdateError) throw new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", `email:${authUpdateError.message}`);
+    const requestedEmail = normalizeEmailValue(input.email);
+    const origin = await getRequestOrigin();
+    const emailRedirectTo = `${origin}/auth/confirm?next=/settings/profile`;
+    const { data, error: authUpdateError } = await runAuthRequestWithLockRetry(() =>
+      supabase.auth.updateUser({ email: requestedEmail }, { emailRedirectTo })
+    );
+    if (authUpdateError) throw toSettingsEmailUpdateError(authUpdateError);
     const authEmail = normalizeEmailValue(data.user?.email ?? currentEmail);
-    const pendingEmail = getPendingEmailFromAuthUser(data.user) || (authEmail !== input.email ? input.email : "");
+    const pendingEmailFromResponse = getPendingEmailFromAuthUser(data.user);
+    pendingEmail = pendingEmailFromResponse || (authEmail !== requestedEmail ? requestedEmail : "");
 
     if (pendingEmail) {
       hasEmailPendingConfirmation = true;
@@ -250,21 +315,13 @@ export async function updateSettingsProfile(actor: AppActor, input: SettingsProf
     }
   }
 
-  if (input.passwordDirty) {
-    const { error: verifyError } = await runAuthRequestWithLockRetry(() =>
-      supabase.auth.signInWithPassword({
-        email: currentEmail,
-        password: input.currentPassword
-      })
-    );
-    if (verifyError) throw new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", `password:${"Текущий пароль указан неверно"}`);
-
-    const { error: updateError } = await runAuthRequestWithLockRetry(() => supabase.auth.updateUser({ password: input.nextPassword }));
-    if (updateError) throw new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", `password:${updateError.message}`);
-    applied.password = true;
+  const profile = await loadSettingsProfile(actor);
+  if (pendingEmail) {
+    profile.pendingEmail = pendingEmail;
+    hasEmailPendingConfirmation = true;
+    applied.email = false;
   }
 
-  const profile = await loadSettingsProfile(actor);
   return {
     profile,
     applied,

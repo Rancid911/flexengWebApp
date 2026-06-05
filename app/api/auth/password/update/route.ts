@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { updatePasswordFromRequest } from "@/lib/auth/auth-api.service";
 import { withApiErrorHandling } from "@/lib/server/http";
 
-export const POST = withApiErrorHandling(async (request: Request) => {
-  await updatePasswordFromRequest(request);
-  return NextResponse.json({ ok: true });
+export const POST = withApiErrorHandling(async () => {
+  return NextResponse.json(
+    {
+      code: "PASSWORD_UPDATE_ENDPOINT_RETIRED",
+      message: "This password update endpoint has been retired. Use the explicit password change or recovery reset flow."
+    },
+    { status: 410 }
+  );
 });
