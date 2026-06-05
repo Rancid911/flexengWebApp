@@ -214,20 +214,21 @@ export function SettingsEmailSection(props: SettingsFormState) {
   return (
     <div className="space-y-3 rounded-xl border border-border p-4">
       <h3 className="text-base font-semibold">Сменить email</h3>
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">Текущий email</p>
-        <p className="text-sm text-muted-foreground">{profileEmail}</p>
+      <div className="grid max-w-3xl grid-cols-1 gap-4 md:grid-cols-2">
+        <FormField className="max-w-md" label="Текущий email">
+          <Input value={profileEmail} disabled readOnly className="disabled:cursor-default disabled:opacity-100" />
+        </FormField>
+        <FormField className="max-w-md" label="Новый email" error={fieldErrors.email}>
+          <Input
+            data-testid="settings-email-input"
+            type="email"
+            placeholder="Введите новый email"
+            value={newEmail}
+            onChange={(event) => setNewEmail(event.target.value)}
+            className={cn(fieldErrors.email && "border-red-500")}
+          />
+        </FormField>
       </div>
-      <FormField label="Новый email" error={fieldErrors.email}>
-        <Input
-          data-testid="settings-email-input"
-          type="email"
-          placeholder="Введите новый email"
-          value={newEmail}
-          onChange={(event) => setNewEmail(event.target.value)}
-          className={cn(fieldErrors.email && "border-red-500")}
-        />
-      </FormField>
       {pendingEmailAwaitingConfirm ? (
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>Ожидает подтверждения: {pendingEmailAwaitingConfirm}</p>

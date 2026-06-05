@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { saveSettingsProfile, useSettingsFormState } from "@/features/settings/client/use-settings-form-state";
 import { SettingsEmailSection } from "@/features/settings/components/settings-sections";
+import { clearRuntimeCache } from "@/lib/session-runtime-cache";
 
 const replaceMock = vi.fn();
 const refreshMock = vi.fn();
@@ -51,6 +52,7 @@ function errorJson(status: number, payload: unknown) {
 
 describe("useSettingsFormState", () => {
   beforeEach(() => {
+    clearRuntimeCache();
     window.localStorage.clear();
     replaceMock.mockReset();
     refreshMock.mockReset();
@@ -392,12 +394,14 @@ describe("useSettingsFormState", () => {
     render(<SettingsEmailSection {...result.current} />);
 
     expect(screen.getByText("Текущий email")).toBeInTheDocument();
-    expect(screen.getByText("student@example.com")).toBeInTheDocument();
+    const currentEmailInput = screen.getByDisplayValue("student@example.com") as HTMLInputElement;
+    expect(currentEmailInput).toBeDisabled();
+    expect(currentEmailInput).toHaveAttribute("readonly");
     expect(screen.getByText("Новый email")).toBeInTheDocument();
     const emailInput = screen.getByTestId("settings-email-input") as HTMLInputElement;
     expect(emailInput).toHaveAttribute("placeholder", "Введите новый email");
     expect(emailInput.value).toBe("");
-    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(emailInput).not.toBeDisabled();
     expect(screen.getByText("Ожидает подтверждения: new@example.com")).toBeInTheDocument();
     expect(screen.getByText("Email будет изменён только после подтверждения по ссылке из письма.")).toBeInTheDocument();
   });
