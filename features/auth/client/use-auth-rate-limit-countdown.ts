@@ -14,16 +14,65 @@ function getRemainingSeconds(rateLimitUntil: number | null) {
   return Math.max(0, Math.ceil((rateLimitUntil - Date.now()) / 1000));
 }
 
+function getStorageKey(flow: AuthRateLimitMessageFlow) {
+  return `authRateLimit:${flow}:blockedUntil`;
+}
+
+function readStoredBlockedUntil(key: string) {
+  try {
+    const value = window.sessionStorage.getItem(key);
+    if (!value) return null;
+
+    const blockedUntil = Number(value);
+    return Number.isFinite(blockedUntil) ? blockedUntil : null;
+  } catch {
+    return null;
+  }
+}
+
+function readActiveStoredBlockedUntil(key: string) {
+  const blockedUntil = readStoredBlockedUntil(key);
+  if (!blockedUntil) {
+    removeStoredBlockedUntil(key);
+    return null;
+  }
+
+  if (getRemainingSeconds(blockedUntil) <= 0) {
+    removeStoredBlockedUntil(key);
+    return null;
+  }
+
+  return blockedUntil;
+}
+
+function writeStoredBlockedUntil(key: string, blockedUntil: number) {
+  try {
+    window.sessionStorage.setItem(key, String(blockedUntil));
+  } catch {
+    // Storage can be unavailable in private browsing or constrained webviews.
+  }
+}
+
+function removeStoredBlockedUntil(key: string) {
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Storage can be unavailable in private browsing or constrained webviews.
+  }
+}
+
 export function useAuthRateLimitCountdown(defaultFlow: AuthRateLimitMessageFlow) {
-  const [rateLimitUntil, setRateLimitUntil] = useState<number | null>(null);
+  const storageKey = getStorageKey(defaultFlow);
+  const [rateLimitUntil, setRateLimitUntil] = useState<number | null>(() => readActiveStoredBlockedUntil(storageKey));
   const [flow, setFlow] = useState<AuthRateLimitMessageFlow>(defaultFlow);
-  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [remainingSeconds, setRemainingSeconds] = useState(() => getRemainingSeconds(readActiveStoredBlockedUntil(storageKey)));
 
   const clear = useCallback(() => {
     setRateLimitUntil(null);
     setRemainingSeconds(0);
     setFlow(defaultFlow);
-  }, [defaultFlow]);
+    removeStoredBlockedUntil(storageKey);
+  }, [defaultFlow, storageKey]);
 
   const syncRemainingFromNow = useCallback(() => {
     const nextRemaining = getRemainingSeconds(rateLimitUntil);
@@ -31,11 +80,12 @@ export function useAuthRateLimitCountdown(defaultFlow: AuthRateLimitMessageFlow)
       setRateLimitUntil(null);
       setRemainingSeconds(0);
       setFlow(defaultFlow);
+      removeStoredBlockedUntil(storageKey);
       return;
     }
 
     setRemainingSeconds(nextRemaining);
-  }, [defaultFlow, rateLimitUntil]);
+  }, [defaultFlow, rateLimitUntil, storageKey]);
 
   const startFromError = useCallback(
     (error: unknown) => {
@@ -46,9 +96,10 @@ export function useAuthRateLimitCountdown(defaultFlow: AuthRateLimitMessageFlow)
       setFlow(isAuthRateLimitMessageFlow(error.flow) ? error.flow : defaultFlow);
       setRateLimitUntil(nextUntil);
       setRemainingSeconds(getRemainingSeconds(nextUntil));
+      writeStoredBlockedUntil(storageKey, nextUntil);
       return true;
     },
-    [defaultFlow]
+    [defaultFlow, storageKey]
   );
 
   useEffect(() => {

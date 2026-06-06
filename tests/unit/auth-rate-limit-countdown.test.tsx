@@ -7,11 +7,13 @@ import { formatAuthRateLimitMessage, formatRateLimitDuration } from "@/lib/auth/
 
 describe("auth rate-limit countdown", () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-06T10:00:00.000Z"));
   });
 
   afterEach(() => {
+    window.sessionStorage.clear();
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
@@ -46,6 +48,7 @@ describe("auth rate-limit countdown", () => {
 
     expect(result.current.active).toBe(true);
     expect(result.current.message).toBe(formatAuthRateLimitMessage("login", 45));
+    expect(window.sessionStorage.getItem("authRateLimit:login:blockedUntil")).toBe(String(Date.now() + 45_000));
 
     act(() => {
       vi.advanceTimersByTime(13_000);
@@ -59,6 +62,7 @@ describe("auth rate-limit countdown", () => {
 
     expect(result.current.active).toBe(false);
     expect(result.current.message).toBe("");
+    expect(window.sessionStorage.getItem("authRateLimit:login:blockedUntil")).toBeNull();
   });
 
   it("does not leak countdown state between auth forms", () => {
@@ -81,6 +85,66 @@ describe("auth rate-limit countdown", () => {
     expect(forgotPassword.result.current.message).toBe(formatAuthRateLimitMessage("forgot-password", 300));
     expect(login.result.current.active).toBe(false);
     expect(login.result.current.message).toBe("");
+    expect(window.sessionStorage.getItem("authRateLimit:login:blockedUntil")).toBeNull();
+    expect(window.sessionStorage.getItem("authRateLimit:forgot-password:blockedUntil")).toBe(String(Date.now() + 300_000));
+  });
+
+  it("restores an active countdown from session storage after remount", () => {
+    const rendered = startRateLimitCountdown("login", 45);
+    rendered.unmount();
+
+    vi.setSystemTime(new Date("2026-06-06T10:00:13.000Z"));
+    const { result } = renderHook(() => useAuthRateLimitCountdown("login"));
+
+    expect(result.current.active).toBe(true);
+    expect(result.current.message).toBe(formatAuthRateLimitMessage("login", 32));
+  });
+
+  it("clears an expired stored blocked timestamp on mount", () => {
+    window.sessionStorage.setItem("authRateLimit:login:blockedUntil", String(Date.now() - 1_000));
+
+    const { result } = renderHook(() => useAuthRateLimitCountdown("login"));
+
+    expect(result.current.active).toBe(false);
+    expect(result.current.message).toBe("");
+    expect(window.sessionStorage.getItem("authRateLimit:login:blockedUntil")).toBeNull();
+  });
+
+  it("recalculates remaining time from Date.now after a simulated sleep", () => {
+    const { result } = startRateLimitCountdown("login", 300);
+    expect(result.current.message).toBe(formatAuthRateLimitMessage("login", 300));
+
+    vi.setSystemTime(new Date("2026-06-06T10:03:00.000Z"));
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+
+    expect(result.current.active).toBe(true);
+    expect(result.current.message).toBe(formatAuthRateLimitMessage("login", 120));
+  });
+
+  it("updates the stored blocked timestamp when the server returns a fresh 429", () => {
+    const { result } = startRateLimitCountdown("login", 45);
+    expect(window.sessionStorage.getItem("authRateLimit:login:blockedUntil")).toBe(String(Date.now() + 45_000));
+
+    vi.setSystemTime(new Date("2026-06-06T10:00:10.000Z"));
+
+    act(() => {
+      result.current.startFromError(
+        new AuthApiError(
+          "rate limited again",
+          429,
+          "RATE_LIMITED",
+          undefined,
+          300,
+          "login"
+        )
+      );
+    });
+
+    expect(result.current.message).toBe(formatAuthRateLimitMessage("login", 300));
+    expect(window.sessionStorage.getItem("authRateLimit:login:blockedUntil")).toBe(String(Date.now() + 300_000));
   });
 
   it("clears an expired countdown immediately when the tab becomes visible again", () => {
