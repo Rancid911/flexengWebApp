@@ -47,8 +47,9 @@ describe("auth browser API client", () => {
       ok: false,
       status: 429,
       json: async () => ({
-        error: "Слишком много попыток. Попробуйте снова через 5 мин.",
+        error: "Слишком много попыток входа. Попробуйте снова через 05 мин 00 сек.",
         code: "RATE_LIMITED",
+        flow: "login",
         retryAfter: 300
       })
     });
@@ -58,7 +59,8 @@ describe("auth browser API client", () => {
     await expect(loginWithPassword({ email: "user@example.com", password: "bad" })).rejects.toMatchObject({
       status: 429,
       code: "RATE_LIMITED",
-      message: "Слишком много попыток. Попробуйте снова через 5 мин.",
+      flow: "login",
+      message: "Слишком много попыток входа. Попробуйте снова через 05 мин 00 сек.",
       retryAfter: 300
     });
   });

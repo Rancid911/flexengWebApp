@@ -28,7 +28,7 @@ describe("Redis rate-limit utility", () => {
     getRedisClientMock.mockReturnValue({ kind: "redis" });
 
     const { checkRateLimit } = await import("@/lib/redis/rate-limit");
-    await expect(checkRateLimit({ flow: "login", limit: 5, window: "15 m" }, "ip:1")).resolves.toEqual({
+    await expect(checkRateLimit({ flow: "login", messageFlow: "login", limit: 5, window: "15 m" }, "ip:1")).resolves.toEqual({
       allowed: true
     });
 
@@ -65,7 +65,7 @@ describe("Redis rate-limit utility", () => {
     getRedisClientMock.mockReturnValue({ kind: "redis" });
 
     const { checkRateLimit } = await import("@/lib/redis/rate-limit");
-    await expect(checkRateLimit({ flow: "login", limit: 5, window: "15 m" }, "ip:1")).resolves.toEqual({
+    await expect(checkRateLimit({ flow: "login", messageFlow: "login", limit: 5, window: "15 m" }, "ip:1")).resolves.toEqual({
       allowed: true
     });
 
@@ -106,7 +106,7 @@ describe("Redis rate-limit utility", () => {
     getRedisClientMock.mockReturnValue({ kind: "redis" });
 
     const { checkRateLimit } = await import("@/lib/redis/rate-limit");
-    await expect(checkRateLimit({ flow: "login", limit: 5, window: "15 m" }, "ip:1:email:user@example.com")).resolves.toEqual({
+    await expect(checkRateLimit({ flow: "login", messageFlow: "login", limit: 5, window: "15 m" }, "ip:1:email:user@example.com")).resolves.toEqual({
       allowed: true
     });
 
@@ -123,7 +123,7 @@ describe("Redis rate-limit utility", () => {
     getRedisClientMock.mockReturnValue(null);
 
     const { checkRateLimit } = await import("@/lib/redis/rate-limit");
-    await expect(checkRateLimit({ flow: "signup", limit: 3, window: "1 h" }, "ip:unknown")).resolves.toEqual({
+    await expect(checkRateLimit({ flow: "signup", messageFlow: "signup", limit: 3, window: "1 h" }, "ip:unknown")).resolves.toEqual({
       allowed: true
     });
   });

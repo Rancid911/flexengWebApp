@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PasswordPolicyChecklist } from "@/components/ui/password-policy-checklist";
 import { AuthApiError, getCurrentAuthUser, resetPassword } from "@/features/auth/client/auth-api";
+import { useAuthRateLimitCountdown } from "@/features/auth/client/use-auth-rate-limit-countdown";
 import { getPasswordPolicyError, PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 import { mapUiErrorMessage } from "@/lib/ui-error-map";
 
@@ -48,8 +49,10 @@ export default function ResetPasswordPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  const rateLimit = useAuthRateLimitCountdown("reset-password");
   const errorId = "reset-password-error";
   const messageId = "reset-password-message";
+  const visibleError = rateLimit.active ? rateLimit.message : error;
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -78,6 +81,7 @@ export default function ResetPasswordPage() {
     if (loading) return;
     setError("");
     setMessage("");
+    rateLimit.clear();
 
     const passwordPolicyError = getPasswordPolicyError(password);
     if (passwordPolicyError) {
@@ -96,6 +100,7 @@ export default function ResetPasswordPage() {
       setMessage("Пароль обновлён. Сейчас перенаправим на вход.");
       setTimeout(() => router.replace("/login"), 1200);
     } catch (submitError) {
+      if (rateLimit.startFromError(submitError)) return;
       setError(mapResetPasswordSubmitError(submitError));
     } finally {
       setLoading(false);
@@ -126,7 +131,7 @@ export default function ResetPasswordPage() {
                 required
                 minLength={PASSWORD_MIN_LENGTH}
                 disabled={!ready || loading}
-                aria-describedby={error ? errorId : message ? messageId : undefined}
+                aria-describedby={visibleError ? errorId : message ? messageId : undefined}
                 className="h-11 border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
               />
               <PasswordPolicyChecklist password={password} />
@@ -145,11 +150,11 @@ export default function ResetPasswordPage() {
                 required
                 minLength={PASSWORD_MIN_LENGTH}
                 disabled={!ready || loading}
-                aria-describedby={error ? errorId : message ? messageId : undefined}
+                aria-describedby={visibleError ? errorId : message ? messageId : undefined}
                 className="h-11 border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
               />
             </div>
-            {error ? <p id={errorId} className="text-sm text-rose-600">{error}</p> : null}
+            {visibleError ? <p id={errorId} className="text-sm text-rose-600">{visibleError}</p> : null}
             {message ? <p id={messageId} className="text-sm text-[#654ED6]">{message}</p> : null}
             <Button type="submit" className="h-11 w-full rounded-xl bg-[#8D70FF] text-white hover:bg-[#654ED6]" disabled={!ready || loading}>
               {loading ? "Сохранение..." : "Обновить пароль"}

@@ -100,8 +100,9 @@ describe("auth BFF API routes", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("300");
     await expect(response.json()).resolves.toMatchObject({
-      error: "Слишком много попыток. Попробуйте снова через 5 мин.",
+      error: "Слишком много попыток входа. Попробуйте снова через 05 мин 00 сек.",
       code: "RATE_LIMITED",
+      flow: "login",
       retryAfter: 300
     });
     expect(auth.signInWithPassword).not.toHaveBeenCalled();
@@ -185,9 +186,57 @@ describe("auth BFF API routes", () => {
       redirectTo: "https://school.example/auth/confirm?next=/reset-password"
     });
     expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ flow: "forgot-password-ip", messageFlow: "forgot-password", limit: 10, window: "1 h" }),
+      "ip:unknown"
+    );
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
       expect.objectContaining({ flow: "forgot-password", limit: 3, window: "1 h" }),
       "ip:unknown:email:user@example.com"
     );
+  });
+
+  it("blocks forgot-password requests when the IP-only limiter is exceeded", async () => {
+    const auth = buildAuthMock();
+    createClientMock.mockResolvedValue({ auth });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, retryAfter: 2530 });
+
+    const { POST } = await import("@/app/api/auth/password/reset-request/route");
+    const response = await POST(jsonRequest("https://school.example/api/auth/password/reset-request", { email: "user@example.com" }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("2530");
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Слишком много запросов на сброс пароля. Попробуйте снова через 42 мин 10 сек.",
+      code: "RATE_LIMITED",
+      flow: "forgot-password",
+      retryAfter: 2530
+    });
+    expect(checkRateLimitMock).toHaveBeenCalledTimes(1);
+    expect(checkRateLimitMock).toHaveBeenCalledWith(expect.objectContaining({ flow: "forgot-password-ip" }), "ip:unknown");
+    expect(auth.resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it("blocks forgot-password requests when the IP and email limiter is exceeded", async () => {
+    const auth = buildAuthMock();
+    createClientMock.mockResolvedValue({ auth });
+    checkRateLimitMock
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValueOnce({ allowed: false, retryAfter: 45 });
+
+    const { POST } = await import("@/app/api/auth/password/reset-request/route");
+    const response = await POST(jsonRequest("https://school.example/api/auth/password/reset-request", { email: " USER@EXAMPLE.COM " }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("45");
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Слишком много запросов на сброс пароля. Попробуйте снова через 00 мин 45 сек.",
+      code: "RATE_LIMITED",
+      flow: "forgot-password",
+      retryAfter: 45
+    });
+    expect(checkRateLimitMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ flow: "forgot-password-ip" }), "ip:unknown");
+    expect(checkRateLimitMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ flow: "forgot-password" }), "ip:unknown:email:user@example.com");
+    expect(auth.resetPasswordForEmail).not.toHaveBeenCalled();
   });
 
   it("uses an unknown email part for forgot-password rate limiting when the payload is not parseable", async () => {
@@ -207,6 +256,10 @@ describe("auth BFF API routes", () => {
     );
 
     expect(response.status).toBe(400);
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ flow: "forgot-password-ip" }),
+      "ip:198.51.100.8"
+    );
     expect(checkRateLimitMock).toHaveBeenCalledWith(
       expect.objectContaining({ flow: "forgot-password" }),
       "ip:198.51.100.8:email:unknown"
@@ -278,8 +331,9 @@ describe("auth BFF API routes", () => {
     expect(response.headers.get("Retry-After")).toBe("60");
     await expect(response.json()).resolves.toMatchObject({
       code: "RATE_LIMITED",
+      flow: "change-password",
       retryAfter: 60,
-      error: "Слишком много попыток. Попробуйте снова через 1 мин."
+      error: "Слишком много попыток смены пароля. Попробуйте снова через 01 мин 00 сек."
     });
     expect(auth.updateUser).not.toHaveBeenCalled();
   });

@@ -2,15 +2,17 @@ export class AuthApiError extends Error {
   status: number;
   code: string | null;
   details?: AuthApiErrorPayload["details"];
+  flow?: string;
   retryAfter?: number;
 
-  constructor(message: string, status: number, code: string | null = null, details?: AuthApiErrorPayload["details"], retryAfter?: number) {
+  constructor(message: string, status: number, code: string | null = null, details?: AuthApiErrorPayload["details"], retryAfter?: number, flow?: string) {
     super(message);
     this.name = "AuthApiError";
     this.status = status;
     this.code = code;
     this.details = details;
     this.retryAfter = retryAfter;
+    this.flow = flow;
   }
 }
 
@@ -21,6 +23,7 @@ type AuthApiErrorPayload = {
     formErrors?: string[];
   };
   error?: unknown;
+  flow?: unknown;
   message?: unknown;
   retryAfter?: unknown;
 };
@@ -53,7 +56,8 @@ async function postAuthJson<T>(url: string, body?: Record<string, unknown>): Pro
           : "Auth request failed";
     const code = typeof payload.code === "string" ? payload.code : null;
     const retryAfter = typeof payload.retryAfter === "number" ? payload.retryAfter : undefined;
-    throw new AuthApiError(message, response.status, code, payload.details, retryAfter);
+    const flow = typeof payload.flow === "string" ? payload.flow : undefined;
+    throw new AuthApiError(message, response.status, code, payload.details, retryAfter, flow);
   }
 
   return payload as T;
@@ -75,7 +79,8 @@ async function getAuthJson<T>(url: string): Promise<T> {
           : "Auth request failed";
     const code = typeof payload.code === "string" ? payload.code : null;
     const retryAfter = typeof payload.retryAfter === "number" ? payload.retryAfter : undefined;
-    throw new AuthApiError(message, response.status, code, undefined, retryAfter);
+    const flow = typeof payload.flow === "string" ? payload.flow : undefined;
+    throw new AuthApiError(message, response.status, code, undefined, retryAfter, flow);
   }
 
   return payload as T;

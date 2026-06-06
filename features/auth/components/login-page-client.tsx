@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { loginWithPassword } from "@/features/auth/client/auth-api";
+import { useAuthRateLimitCountdown } from "@/features/auth/client/use-auth-rate-limit-countdown";
 import { mapUiErrorMessage } from "@/lib/ui-error-map";
 
 function mapAuthError(message: string) {
@@ -21,14 +22,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const rateLimit = useAuthRateLimitCountdown("login");
   const confirmError = searchParams.get("error") === "auth_confirm_failed";
   const errorId = "login-form-error";
   const confirmErrorId = "login-form-confirm-error";
+  const visibleError = rateLimit.active ? rateLimit.message : error;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (loading) return;
     setError("");
+    rateLimit.clear();
     setLoading(true);
 
     try {
@@ -39,6 +43,7 @@ export default function LoginPage() {
       router.refresh();
     } catch (submitError) {
       console.error("LOGIN_THROWN", submitError);
+      if (rateLimit.startFromError(submitError)) return;
       setError(mapAuthError(submitError instanceof Error ? submitError.message : ""));
     } finally {
       setLoading(false);
@@ -101,7 +106,7 @@ export default function LoginPage() {
                 onChange={(event) => setEmail(event.target.value)}
                 autoComplete="email"
                 required
-                aria-describedby={error ? errorId : undefined}
+                aria-describedby={visibleError ? errorId : undefined}
                 className="h-11 border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
               />
             </div>
@@ -118,11 +123,11 @@ export default function LoginPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 autoComplete="current-password"
                 required
-                aria-describedby={error ? errorId : undefined}
+                aria-describedby={visibleError ? errorId : undefined}
                 className="h-11 border-[#D6D5DD] bg-white text-[#322F55] placeholder:text-[#ADACBB]"
               />
             </div>
-            {error ? <p id={errorId} className="text-sm text-rose-600">{error}</p> : null}
+            {visibleError ? <p id={errorId} className="text-sm text-rose-600">{visibleError}</p> : null}
             {confirmError ? <p id={confirmErrorId} className="text-sm text-rose-600">Ссылка подтверждения недействительна или срок её действия истёк. Попробуйте войти или запросите письмо повторно.</p> : null}
             <Button
               data-testid="login-submit"

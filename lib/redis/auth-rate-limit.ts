@@ -22,7 +22,7 @@ export async function enforceAuthRateLimit(
   const result = await checkRateLimit(config, identifier);
 
   if (result.allowed) return null;
-  return rateLimitedResponse(result.retryAfter);
+  return rateLimitedResponse(config.messageFlow, result.retryAfter);
 }
 
 export function getAuthRateLimitIpPart(request: Request) {

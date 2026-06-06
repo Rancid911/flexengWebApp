@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ResetPasswordPageClient from "@/features/auth/components/reset-password-page-client";
 
@@ -38,11 +38,16 @@ async function renderReadyResetPage() {
 
 describe("ResetPasswordPageClient", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     replaceMock.mockReset();
     fetchMock.mockReset();
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     window.history.replaceState(null, "", "/reset-password");
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("sends the recovery reset request with a valid password", async () => {
@@ -157,5 +162,38 @@ describe("ResetPasswordPageClient", () => {
     expect(
       await screen.findByText("Ссылка для восстановления пароля истекла или недействительна. Запросите новое письмо для восстановления пароля.")
     ).toBeInTheDocument();
+  });
+
+  it("shows a live reset-password rate-limit countdown without clearing input", async () => {
+    await renderReadyResetPage();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-06T10:00:00.000Z"));
+    fetchMock.mockResolvedValueOnce(
+      errorJson(429, {
+        error: "Слишком много попыток обновления пароля. Попробуйте снова через 00 мин 45 сек.",
+        code: "RATE_LIMITED",
+        flow: "reset-password",
+        retryAfter: 45
+      })
+    );
+
+    fireEvent.change(screen.getByLabelText("Новый пароль"), { target: { value: "TestPassword123!" } });
+    fireEvent.change(screen.getByLabelText("Повторите пароль"), { target: { value: "TestPassword123!" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Обновить пароль" }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("Слишком много попыток обновления пароля. Попробуйте снова через 00 мин 45 сек.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Новый пароль")).toHaveValue("TestPassword123!");
+
+    fireEvent.change(screen.getByLabelText("Повторите пароль"), { target: { value: "Different123!" } });
+    act(() => {
+      vi.advanceTimersByTime(13_000);
+    });
+
+    expect(screen.getByText("Слишком много попыток обновления пароля. Попробуйте снова через 00 мин 32 сек.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Новый пароль")).toHaveValue("TestPassword123!");
   });
 });

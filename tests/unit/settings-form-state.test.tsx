@@ -1,5 +1,5 @@
 import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { saveSettingsProfile, useSettingsFormState } from "@/features/settings/client/use-settings-form-state";
 import { SettingsEmailSection } from "@/features/settings/components/settings-sections";
@@ -52,12 +52,17 @@ function errorJson(status: number, payload: unknown) {
 
 describe("useSettingsFormState", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     clearRuntimeCache();
     window.localStorage.clear();
     replaceMock.mockReset();
     refreshMock.mockReset();
     fetchMock.mockReset();
     fetchMock.mockResolvedValue(okJson(profileResponse));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("loads settings profile through the settings API", async () => {
@@ -166,6 +171,48 @@ describe("useSettingsFormState", () => {
     });
     expect(fetchMock).not.toHaveBeenCalledWith("/api/auth/password/reset", expect.anything());
     expect(fetchMock).not.toHaveBeenCalledWith("/api/auth/password/update", expect.anything());
+  });
+
+  it("shows a live change-password rate-limit countdown without clearing password inputs", async () => {
+    fetchMock.mockResolvedValue(okJson(profileResponse));
+    const { result } = renderHook(() => useSettingsFormState());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-06T10:00:00.000Z"));
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValueOnce(
+      errorJson(429, {
+        error: "Слишком много попыток смены пароля. Попробуйте снова через 01 мин 00 сек.",
+        code: "RATE_LIMITED",
+        flow: "change-password",
+        retryAfter: 60
+      })
+    );
+
+    act(() => {
+      result.current.setCurrentPassword("OldPassword123!");
+      result.current.setNextPassword("TestPassword123!");
+      result.current.setConfirmPassword("TestPassword123!");
+    });
+
+    await act(async () => {
+      await result.current.handleSaveAll({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+    });
+
+    expect(result.current.accessSectionError).toBe("Слишком много попыток смены пароля. Попробуйте снова через 01 мин 00 сек.");
+    expect(result.current.currentPassword).toBe("OldPassword123!");
+    expect(result.current.nextPassword).toBe("TestPassword123!");
+
+    act(() => {
+      vi.advanceTimersByTime(28_000);
+    });
+
+    expect(result.current.accessSectionError).toBe("Слишком много попыток смены пароля. Попробуйте снова через 00 мин 32 сек.");
+    expect(result.current.currentPassword).toBe("OldPassword123!");
   });
 
   it("stores pending email and clears the draft after Supabase requires confirmation", async () => {

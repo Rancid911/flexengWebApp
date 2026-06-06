@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "re
 import { useRouter } from "next/navigation";
 
 import { AuthApiError, changePassword } from "@/features/auth/client/auth-api";
+import { useAuthRateLimitCountdown } from "@/features/auth/client/use-auth-rate-limit-countdown";
 import {
   readSettingsRuntimeSnapshot,
   SETTINGS_RUNTIME_KEY,
@@ -91,6 +92,7 @@ export function useSettingsFormState() {
   const { pending: savingAll, run: runSaveAll } = useAsyncAction();
   const { pending: uploadingAvatar, run: runAvatarUpload } = useAsyncAction();
   const { run: runSettingsLoad } = useAsyncAction();
+  const passwordRateLimit = useAuthRateLimitCountdown("change-password");
 
   const displayName = useMemo(() => composeDisplayName(firstName, lastName, profileEmail), [firstName, lastName, profileEmail]);
   const avatarFallback = useMemo(() => initialsFromName(displayName, profileEmail), [displayName, profileEmail]);
@@ -219,6 +221,7 @@ export function useSettingsFormState() {
     setProfileSectionError("");
     setAccessSectionError("");
     setFieldErrors({});
+    passwordRateLimit.clear();
 
     const {
       fieldErrors: nextFieldErrors,
@@ -350,6 +353,11 @@ export function useSettingsFormState() {
       },
       onError: (error) => {
         if (error instanceof AuthApiError) {
+          if (passwordRateLimit.startFromError(error)) {
+            setAccessSectionError("");
+            return;
+          }
+
           const fieldErrorsFromResponse = error.details?.fieldErrors ?? {};
           const currentPasswordError = fieldErrorsFromResponse.currentPassword?.[0];
           const nextPasswordError = fieldErrorsFromResponse.nextPassword?.[0] || fieldErrorsFromResponse.password?.[0];
@@ -473,7 +481,7 @@ export function useSettingsFormState() {
   }
 
   return {
-    accessSectionError,
+    accessSectionError: passwordRateLimit.active ? passwordRateLimit.message : accessSectionError,
     applyingCrop,
     avatarError,
     avatarFallback,
