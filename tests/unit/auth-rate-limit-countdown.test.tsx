@@ -12,8 +12,28 @@ describe("auth rate-limit countdown", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
+
+  function startRateLimitCountdown(flow: "login" | "forgot-password" = "login", retryAfter = 45) {
+    const rendered = renderHook(() => useAuthRateLimitCountdown(flow));
+
+    act(() => {
+      rendered.result.current.startFromError(
+        new AuthApiError(
+          "rate limited",
+          429,
+          "RATE_LIMITED",
+          undefined,
+          retryAfter,
+          flow
+        )
+      );
+    });
+
+    return rendered;
+  }
 
   it("formats retry-after durations as xx мин xx сек", () => {
     expect(formatRateLimitDuration(512)).toBe("08 мин 32 сек");
@@ -22,20 +42,7 @@ describe("auth rate-limit countdown", () => {
   });
 
   it("counts down locally for the triggering auth flow", () => {
-    const { result } = renderHook(() => useAuthRateLimitCountdown("login"));
-
-    act(() => {
-      result.current.startFromError(
-        new AuthApiError(
-          "rate limited",
-          429,
-          "RATE_LIMITED",
-          undefined,
-          45,
-          "login"
-        )
-      );
-    });
+    const { result } = startRateLimitCountdown("login", 45);
 
     expect(result.current.active).toBe(true);
     expect(result.current.message).toBe(formatAuthRateLimitMessage("login", 45));
@@ -74,5 +81,36 @@ describe("auth rate-limit countdown", () => {
     expect(forgotPassword.result.current.message).toBe(formatAuthRateLimitMessage("forgot-password", 300));
     expect(login.result.current.active).toBe(false);
     expect(login.result.current.message).toBe("");
+  });
+
+  it("clears an expired countdown immediately when the tab becomes visible again", () => {
+    const { result } = startRateLimitCountdown("login", 45);
+    expect(result.current.message).toBe(formatAuthRateLimitMessage("login", 45));
+
+    vi.setSystemTime(new Date("2026-06-06T10:01:00.000Z"));
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(result.current.active).toBe(false);
+    expect(result.current.message).toBe("");
+    expect(result.current.remainingSeconds).toBe(0);
+  });
+
+  it("clears an expired countdown immediately when the window receives focus", () => {
+    const { result } = startRateLimitCountdown("forgot-password", 45);
+    expect(result.current.message).toBe(formatAuthRateLimitMessage("forgot-password", 45));
+
+    vi.setSystemTime(new Date("2026-06-06T10:01:00.000Z"));
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+
+    expect(result.current.active).toBe(false);
+    expect(result.current.message).toBe("");
+    expect(result.current.remainingSeconds).toBe(0);
   });
 });

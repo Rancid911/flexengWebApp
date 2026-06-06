@@ -25,6 +25,18 @@ export function useAuthRateLimitCountdown(defaultFlow: AuthRateLimitMessageFlow)
     setFlow(defaultFlow);
   }, [defaultFlow]);
 
+  const syncRemainingFromNow = useCallback(() => {
+    const nextRemaining = getRemainingSeconds(rateLimitUntil);
+    if (nextRemaining <= 0) {
+      setRateLimitUntil(null);
+      setRemainingSeconds(0);
+      setFlow(defaultFlow);
+      return;
+    }
+
+    setRemainingSeconds(nextRemaining);
+  }, [defaultFlow, rateLimitUntil]);
+
   const startFromError = useCallback(
     (error: unknown) => {
       if (!(error instanceof AuthApiError)) return false;
@@ -42,18 +54,27 @@ export function useAuthRateLimitCountdown(defaultFlow: AuthRateLimitMessageFlow)
   useEffect(() => {
     if (!rateLimitUntil) return;
 
-    const syncRemaining = () => {
-      const nextRemaining = getRemainingSeconds(rateLimitUntil);
-      setRemainingSeconds(nextRemaining);
-      if (nextRemaining <= 0) {
-        setRateLimitUntil(null);
+    const timer = window.setInterval(syncRemainingFromNow, 1000);
+    return () => window.clearInterval(timer);
+  }, [rateLimitUntil, syncRemainingFromNow]);
+
+  useEffect(() => {
+    if (!rateLimitUntil) return;
+
+    const syncOnVisible = () => {
+      if (document.visibilityState === "visible") {
+        syncRemainingFromNow();
       }
     };
 
-    syncRemaining();
-    const timer = window.setInterval(syncRemaining, 1000);
-    return () => window.clearInterval(timer);
-  }, [rateLimitUntil]);
+    document.addEventListener("visibilitychange", syncOnVisible);
+    window.addEventListener("focus", syncRemainingFromNow);
+
+    return () => {
+      document.removeEventListener("visibilitychange", syncOnVisible);
+      window.removeEventListener("focus", syncRemainingFromNow);
+    };
+  }, [rateLimitUntil, syncRemainingFromNow]);
 
   const message = useMemo(() => {
     if (!rateLimitUntil || remainingSeconds <= 0) return "";
