@@ -71,10 +71,10 @@ export default function RegisterPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#F8F7FC_0%,#F5F4FA_48%,#F3F1F8_100%)] px-4 text-[#322F55]">
-      <Card className="w-full max-w-md rounded-2xl border-[#DDD6EE] bg-white shadow-[0_18px_40px_rgba(60,44,118,0.12)]">
+      <Card className="w-full max-w-md rounded-2xl border-[#DDD6EE] bg-white text-[#322F55] shadow-[0_18px_40px_rgba(60,44,118,0.12)]">
         <CardContent className="space-y-5 p-6">
           <div className="space-y-1">
-            <h1 className="font-sans text-2xl font-bold">Регистрация</h1>
+            <h1 className="font-sans text-2xl font-bold text-[#322F55]">Регистрация</h1>
             <p className="text-sm text-[#706E88]">Создайте аккаунт по email и паролю</p>
           </div>
 

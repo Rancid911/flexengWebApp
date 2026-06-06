@@ -127,4 +127,124 @@ describe("Redis rate-limit utility", () => {
       allowed: true
     });
   });
+
+  it("reads remaining quota without consuming tokens", async () => {
+    const getRemainingMock = vi.fn().mockResolvedValue({
+      remaining: 2,
+      reset: Date.now() + 120_000
+    });
+    const limitMock = vi.fn();
+
+    class ReadRecordingRatelimit {
+      static slidingWindow = vi.fn(() => "sliding-window");
+
+      getRemaining = getRemainingMock;
+      limit = limitMock;
+    }
+
+    vi.doMock("@upstash/ratelimit", () => ({
+      Ratelimit: ReadRecordingRatelimit
+    }));
+    getRedisClientMock.mockReturnValue({ kind: "redis" });
+
+    const { readRateLimit } = await import("@/lib/redis/rate-limit");
+    await expect(readRateLimit({ flow: "login", messageFlow: "login", limit: 5, window: "15 m" }, "ip:1")).resolves.toEqual({
+      allowed: true,
+      remaining: 2,
+      retryAfter: 120
+    });
+    expect(getRemainingMock).toHaveBeenCalledWith("ip:1");
+    expect(limitMock).not.toHaveBeenCalled();
+
+    vi.doUnmock("@upstash/ratelimit");
+  });
+
+  it("consumes quota and exposes remaining tokens and retryAfter", async () => {
+    const limitMock = vi.fn().mockResolvedValue({
+      success: true,
+      remaining: 0,
+      reset: Date.now() + 300_000,
+      pending: Promise.resolve()
+    });
+
+    class ConsumeRecordingRatelimit {
+      static slidingWindow = vi.fn(() => "sliding-window");
+
+      limit = limitMock;
+    }
+
+    vi.doMock("@upstash/ratelimit", () => ({
+      Ratelimit: ConsumeRecordingRatelimit
+    }));
+    getRedisClientMock.mockReturnValue({ kind: "redis" });
+
+    const { consumeRateLimit } = await import("@/lib/redis/rate-limit");
+    await expect(consumeRateLimit({ flow: "login", messageFlow: "login", limit: 5, window: "15 m" }, "ip:1")).resolves.toEqual({
+      allowed: true,
+      remaining: 0,
+      retryAfter: 300
+    });
+    expect(limitMock).toHaveBeenCalledWith("ip:1");
+
+    vi.doUnmock("@upstash/ratelimit");
+  });
+
+  it("resets used tokens for an identifier", async () => {
+    const resetUsedTokensMock = vi.fn().mockResolvedValue(undefined);
+
+    class ResetRecordingRatelimit {
+      static slidingWindow = vi.fn(() => "sliding-window");
+
+      resetUsedTokens = resetUsedTokensMock;
+    }
+
+    vi.doMock("@upstash/ratelimit", () => ({
+      Ratelimit: ResetRecordingRatelimit
+    }));
+    getRedisClientMock.mockReturnValue({ kind: "redis" });
+
+    const { resetRateLimit } = await import("@/lib/redis/rate-limit");
+    await resetRateLimit({ flow: "login", messageFlow: "login", limit: 5, window: "15 m" }, "ip:1");
+
+    expect(resetUsedTokensMock).toHaveBeenCalledWith("ip:1");
+
+    vi.doUnmock("@upstash/ratelimit");
+  });
+
+  it("fails open when reading or consuming quota throws and logs reset failures", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    class ThrowingRatelimit {
+      static slidingWindow = vi.fn(() => "sliding-window");
+
+      getRemaining = vi.fn().mockRejectedValue(new Error("read failed"));
+      limit = vi.fn().mockRejectedValue(new Error("consume failed"));
+      resetUsedTokens = vi.fn().mockRejectedValue(new Error("reset failed"));
+    }
+
+    vi.doMock("@upstash/ratelimit", () => ({
+      Ratelimit: ThrowingRatelimit
+    }));
+    getRedisClientMock.mockReturnValue({ kind: "redis" });
+
+    const { consumeRateLimit, readRateLimit, resetRateLimit } = await import("@/lib/redis/rate-limit");
+    const config = { flow: "login", messageFlow: "login", limit: 5, window: "15 m" } as const;
+
+    await expect(readRateLimit(config, "ip:1")).resolves.toEqual({
+      allowed: true,
+      remaining: Number.POSITIVE_INFINITY,
+      retryAfter: 0
+    });
+    await expect(consumeRateLimit(config, "ip:1")).resolves.toEqual({
+      allowed: true,
+      remaining: Number.POSITIVE_INFINITY,
+      retryAfter: 0
+    });
+    await expect(resetRateLimit(config, "ip:1")).resolves.toBeUndefined();
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(3);
+
+    consoleErrorSpy.mockRestore();
+    vi.doUnmock("@upstash/ratelimit");
+  });
 });

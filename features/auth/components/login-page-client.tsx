@@ -86,10 +86,10 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <Card className="relative z-10 w-full max-w-md rounded-2xl border-[#DDD6EE] bg-white shadow-[0_18px_40px_rgba(60,44,118,0.12)]">
+      <Card className="relative z-10 w-full max-w-md rounded-2xl border-[#DDD6EE] bg-white text-[#322F55] shadow-[0_18px_40px_rgba(60,44,118,0.12)]">
         <CardContent className="space-y-5 p-6">
           <div className="space-y-1">
-            <h1 className="font-sans text-2xl font-bold">Вход</h1>
+            <h1 className="font-sans text-2xl font-bold text-[#322F55]">Вход</h1>
             <p className="text-sm text-[#706E88]">Войдите по email и паролю</p>
           </div>
 

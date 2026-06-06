@@ -4,6 +4,9 @@ const createClientMock = vi.hoisted(() => vi.fn());
 const clearRecoveryMarkerMock = vi.hoisted(() => vi.fn());
 const verifyRecoveryMarkerMock = vi.hoisted(() => vi.fn());
 const checkRateLimitMock = vi.hoisted(() => vi.fn());
+const consumeRateLimitMock = vi.hoisted(() => vi.fn());
+const readRateLimitMock = vi.hoisted(() => vi.fn());
+const resetRateLimitMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: () => createClientMock()
@@ -16,7 +19,10 @@ vi.mock("@/lib/auth/recovery-marker", () => ({
 }));
 
 vi.mock("@/lib/redis/rate-limit", () => ({
-  checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args)
+  checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
+  consumeRateLimit: (...args: unknown[]) => consumeRateLimitMock(...args),
+  readRateLimit: (...args: unknown[]) => readRateLimitMock(...args),
+  resetRateLimit: (...args: unknown[]) => resetRateLimitMock(...args)
 }));
 
 function jsonRequest(url: string, body: Record<string, unknown>) {
@@ -49,6 +55,12 @@ describe("auth BFF API routes", () => {
     verifyRecoveryMarkerMock.mockResolvedValue(false);
     checkRateLimitMock.mockReset();
     checkRateLimitMock.mockResolvedValue({ allowed: true });
+    consumeRateLimitMock.mockReset();
+    consumeRateLimitMock.mockResolvedValue({ allowed: true, remaining: 10, retryAfter: 0 });
+    readRateLimitMock.mockReset();
+    readRateLimitMock.mockResolvedValue({ allowed: true, remaining: 10, retryAfter: 0 });
+    resetRateLimitMock.mockReset();
+    resetRateLimitMock.mockResolvedValue(undefined);
   });
 
   it("signs in with normalized credentials through the server Supabase client", async () => {
@@ -61,16 +73,23 @@ describe("auth BFF API routes", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: "user@example.com", password: "secret" });
-    expect(checkRateLimitMock).toHaveBeenNthCalledWith(
+    expect(readRateLimitMock).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ flow: "login-ip", messageFlow: "login", limit: 25, window: "15 m" }),
       "ip:unknown"
     );
-    expect(checkRateLimitMock).toHaveBeenNthCalledWith(
+    expect(readRateLimitMock).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ flow: "login", messageFlow: "login", limit: 5, window: "15 m" }),
       "ip:unknown:email:user@example.com"
     );
+    expect(consumeRateLimitMock).not.toHaveBeenCalled();
+    expect(resetRateLimitMock).toHaveBeenCalledTimes(1);
+    expect(resetRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ flow: "login" }),
+      "ip:unknown:email:user@example.com"
+    );
+    expect(resetRateLimitMock).not.toHaveBeenCalledWith(expect.objectContaining({ flow: "login-ip" }), expect.any(String));
   });
 
   it("uses forwarded IP and normalized email in the login rate-limit key", async () => {
@@ -89,12 +108,12 @@ describe("auth BFF API routes", () => {
       })
     );
 
-    expect(checkRateLimitMock).toHaveBeenNthCalledWith(
+    expect(readRateLimitMock).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ flow: "login-ip" }),
       "ip:203.0.113.10"
     );
-    expect(checkRateLimitMock).toHaveBeenNthCalledWith(
+    expect(readRateLimitMock).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ flow: "login" }),
       "ip:203.0.113.10:email:user@example.com"
@@ -104,7 +123,9 @@ describe("auth BFF API routes", () => {
   it("blocks login attempts when the IP-only limiter is exceeded before calling Supabase auth", async () => {
     const auth = buildAuthMock();
     createClientMock.mockResolvedValue({ auth });
-    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, retryAfter: 300 });
+    readRateLimitMock
+      .mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfter: 300 })
+      .mockResolvedValueOnce({ allowed: true, remaining: 4, retryAfter: 0 });
 
     const { POST } = await import("@/app/api/auth/login/route");
     const response = await POST(jsonRequest("http://localhost/api/auth/login", { email: "user@example.com", password: "secret" }));
@@ -117,17 +138,18 @@ describe("auth BFF API routes", () => {
       flow: "login",
       retryAfter: 300
     });
-    expect(checkRateLimitMock).toHaveBeenCalledTimes(1);
-    expect(checkRateLimitMock).toHaveBeenCalledWith(expect.objectContaining({ flow: "login-ip" }), "ip:unknown");
+    expect(readRateLimitMock).toHaveBeenCalledTimes(2);
+    expect(readRateLimitMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ flow: "login-ip" }), "ip:unknown");
+    expect(consumeRateLimitMock).not.toHaveBeenCalled();
     expect(auth.signInWithPassword).not.toHaveBeenCalled();
   });
 
   it("blocks login attempts when the IP and email limiter is exceeded before calling Supabase auth", async () => {
     const auth = buildAuthMock();
     createClientMock.mockResolvedValue({ auth });
-    checkRateLimitMock
-      .mockResolvedValueOnce({ allowed: true })
-      .mockResolvedValueOnce({ allowed: false, retryAfter: 45 });
+    readRateLimitMock
+      .mockResolvedValueOnce({ allowed: true, remaining: 10, retryAfter: 0 })
+      .mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfter: 45 });
 
     const { POST } = await import("@/app/api/auth/login/route");
     const response = await POST(jsonRequest("http://localhost/api/auth/login", { email: " USER@EXAMPLE.COM ", password: "secret" }));
@@ -140,8 +162,29 @@ describe("auth BFF API routes", () => {
       flow: "login",
       retryAfter: 45
     });
-    expect(checkRateLimitMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ flow: "login-ip" }), "ip:unknown");
-    expect(checkRateLimitMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ flow: "login" }), "ip:unknown:email:user@example.com");
+    expect(readRateLimitMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ flow: "login-ip" }), "ip:unknown");
+    expect(readRateLimitMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ flow: "login" }), "ip:unknown:email:user@example.com");
+    expect(consumeRateLimitMock).not.toHaveBeenCalled();
+    expect(auth.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("uses the larger retryAfter when both login prechecks are blocked", async () => {
+    const auth = buildAuthMock();
+    createClientMock.mockResolvedValue({ auth });
+    readRateLimitMock
+      .mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfter: 120 })
+      .mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfter: 300 });
+
+    const { POST } = await import("@/app/api/auth/login/route");
+    const response = await POST(jsonRequest("http://localhost/api/auth/login", { email: "user@example.com", password: "secret" }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("300");
+    await expect(response.json()).resolves.toMatchObject({
+      flow: "login",
+      retryAfter: 300
+    });
+    expect(consumeRateLimitMock).not.toHaveBeenCalled();
     expect(auth.signInWithPassword).not.toHaveBeenCalled();
   });
 
@@ -149,6 +192,9 @@ describe("auth BFF API routes", () => {
     const auth = buildAuthMock();
     auth.signInWithPassword.mockResolvedValue({ error: { message: "Invalid login credentials" } });
     createClientMock.mockResolvedValue({ auth });
+    consumeRateLimitMock
+      .mockResolvedValueOnce({ allowed: true, remaining: 24, retryAfter: 0 })
+      .mockResolvedValueOnce({ allowed: true, remaining: 4, retryAfter: 0 });
 
     const { POST } = await import("@/app/api/auth/login/route");
     const response = await POST(jsonRequest("http://localhost/api/auth/login", { email: "user@example.com", password: "bad" }));
@@ -158,6 +204,56 @@ describe("auth BFF API routes", () => {
       code: "AUTH_ERROR",
       message: "Invalid login credentials"
     });
+    expect(consumeRateLimitMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ flow: "login-ip" }), "ip:unknown");
+    expect(consumeRateLimitMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ flow: "login" }), "ip:unknown:email:user@example.com");
+    expect(resetRateLimitMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 429 on the same invalid login attempt that exhausts the IP and email limiter", async () => {
+    const auth = buildAuthMock();
+    auth.signInWithPassword.mockResolvedValue({ error: { message: "Invalid login credentials" } });
+    createClientMock.mockResolvedValue({ auth });
+    consumeRateLimitMock
+      .mockResolvedValueOnce({ allowed: true, remaining: 24, retryAfter: 0 })
+      .mockResolvedValueOnce({ allowed: true, remaining: 0, retryAfter: 300 });
+
+    const { POST } = await import("@/app/api/auth/login/route");
+    const response = await POST(jsonRequest("http://localhost/api/auth/login", { email: " USER@EXAMPLE.COM ", password: "bad" }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("300");
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Слишком много попыток входа. Попробуйте снова через 05 мин 00 сек.",
+      code: "RATE_LIMITED",
+      flow: "login",
+      retryAfter: 300
+    });
+    expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: "user@example.com", password: "bad" });
+    expect(consumeRateLimitMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ flow: "login-ip" }), "ip:unknown");
+    expect(consumeRateLimitMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ flow: "login" }), "ip:unknown:email:user@example.com");
+    expect(resetRateLimitMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 429 on the same invalid login attempt that exhausts the IP-only limiter", async () => {
+    const auth = buildAuthMock();
+    auth.signInWithPassword.mockResolvedValue({ error: { message: "Invalid login credentials" } });
+    createClientMock.mockResolvedValue({ auth });
+    consumeRateLimitMock
+      .mockResolvedValueOnce({ allowed: true, remaining: 0, retryAfter: 120 })
+      .mockResolvedValueOnce({ allowed: true, remaining: 3, retryAfter: 0 });
+
+    const { POST } = await import("@/app/api/auth/login/route");
+    const response = await POST(jsonRequest("http://localhost/api/auth/login", { email: "user@example.com", password: "bad" }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("120");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "RATE_LIMITED",
+      flow: "login",
+      retryAfter: 120
+    });
+    expect(auth.signInWithPassword).toHaveBeenCalled();
+    expect(resetRateLimitMock).not.toHaveBeenCalled();
   });
 
   it("signs up and reports whether Supabase created a session immediately", async () => {
