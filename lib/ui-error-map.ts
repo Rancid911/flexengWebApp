@@ -96,6 +96,8 @@ export function mapUiErrorByCode(code: unknown, fallback = ""): string {
       return "Недостаточно прав для выполнения действия.";
     case "VALIDATION_ERROR":
       return "Проверьте корректность заполнения полей.";
+    case "RATE_LIMITED":
+      return "Слишком много попыток. Попробуйте снова позже.";
     case "USER_EMAIL_EXISTS":
       return "Пользователь с таким email уже существует.";
     case "INTERNAL_ERROR":

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createClientMock = vi.hoisted(() => vi.fn());
 const clearRecoveryMarkerMock = vi.hoisted(() => vi.fn());
 const verifyRecoveryMarkerMock = vi.hoisted(() => vi.fn());
+const checkRateLimitMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: () => createClientMock()
@@ -12,6 +13,10 @@ vi.mock("@/lib/auth/recovery-marker", () => ({
   clearRecoveryMarker: () => clearRecoveryMarkerMock(),
   setRecoveryMarker: vi.fn(),
   verifyRecoveryMarker: (userId: string) => verifyRecoveryMarkerMock(userId)
+}));
+
+vi.mock("@/lib/redis/rate-limit", () => ({
+  checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args)
 }));
 
 function jsonRequest(url: string, body: Record<string, unknown>) {
@@ -42,6 +47,8 @@ describe("auth BFF API routes", () => {
     clearRecoveryMarkerMock.mockReset();
     verifyRecoveryMarkerMock.mockReset();
     verifyRecoveryMarkerMock.mockResolvedValue(false);
+    checkRateLimitMock.mockReset();
+    checkRateLimitMock.mockResolvedValue({ allowed: true });
   });
 
   it("signs in with normalized credentials through the server Supabase client", async () => {
@@ -54,6 +61,50 @@ describe("auth BFF API routes", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: "user@example.com", password: "secret" });
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ flow: "login", limit: 5, window: "15 m" }),
+      "ip:unknown:email:user@example.com"
+    );
+  });
+
+  it("uses forwarded IP and normalized email in the login rate-limit key", async () => {
+    const auth = buildAuthMock();
+    createClientMock.mockResolvedValue({ auth });
+
+    const { POST } = await import("@/app/api/auth/login/route");
+    await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: " USER@EXAMPLE.COM ", password: "secret" }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "203.0.113.10, 10.0.0.1"
+        }
+      })
+    );
+
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ flow: "login" }),
+      "ip:203.0.113.10:email:user@example.com"
+    );
+  });
+
+  it("blocks login attempts with a 429 response before calling Supabase auth", async () => {
+    const auth = buildAuthMock();
+    createClientMock.mockResolvedValue({ auth });
+    checkRateLimitMock.mockResolvedValue({ allowed: false, retryAfter: 300 });
+
+    const { POST } = await import("@/app/api/auth/login/route");
+    const response = await POST(jsonRequest("http://localhost/api/auth/login", { email: "user@example.com", password: "secret" }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("300");
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Слишком много попыток. Попробуйте снова через 5 мин.",
+      code: "RATE_LIMITED",
+      retryAfter: 300
+    });
+    expect(auth.signInWithPassword).not.toHaveBeenCalled();
   });
 
   it("returns provider auth errors without exposing a browser Supabase call", async () => {
@@ -82,6 +133,10 @@ describe("auth BFF API routes", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, hasSession: true });
     expect(auth.signUp).toHaveBeenCalledWith({ email: "new@example.com", password: "Password123!" });
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ flow: "signup", limit: 3, window: "1 h" }),
+      "ip:unknown"
+    );
   });
 
   it("does not forward caller-supplied provisioning metadata during public signup", async () => {
@@ -129,6 +184,34 @@ describe("auth BFF API routes", () => {
     expect(auth.resetPasswordForEmail).toHaveBeenCalledWith("user@example.com", {
       redirectTo: "https://school.example/auth/confirm?next=/reset-password"
     });
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ flow: "forgot-password", limit: 3, window: "1 h" }),
+      "ip:unknown:email:user@example.com"
+    );
+  });
+
+  it("uses an unknown email part for forgot-password rate limiting when the payload is not parseable", async () => {
+    const auth = buildAuthMock();
+    createClientMock.mockResolvedValue({ auth });
+
+    const { POST } = await import("@/app/api/auth/password/reset-request/route");
+    const response = await POST(
+      new Request("https://school.example/api/auth/password/reset-request", {
+        method: "POST",
+        body: "not-json",
+        headers: {
+          "Content-Type": "application/json",
+          "x-real-ip": "198.51.100.8"
+        }
+      })
+    );
+
+    expect(response.status).toBe(400);
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ flow: "forgot-password" }),
+      "ip:198.51.100.8:email:unknown"
+    );
+    expect(auth.resetPasswordForEmail).not.toHaveBeenCalled();
   });
 
   it("changes account password with current_password through Supabase Auth", async () => {
@@ -147,6 +230,58 @@ describe("auth BFF API routes", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(auth.updateUser).toHaveBeenCalledWith({ password: "NewPassword123!", current_password: "OldPassword123!" });
     expect(auth.signInWithPassword).not.toHaveBeenCalled();
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ flow: "change-password", limit: 5, window: "15 m" }),
+      "user:user-1:ip:unknown"
+    );
+  });
+
+  it("uses user id and IP in the change-password rate-limit key", async () => {
+    const auth = buildAuthMock();
+    createClientMock.mockResolvedValue({ auth });
+
+    const { POST } = await import("@/app/api/auth/password/change/route");
+    await POST(
+      new Request("http://localhost/api/auth/password/change", {
+        method: "POST",
+        body: JSON.stringify({
+          currentPassword: "OldPassword123!",
+          nextPassword: "NewPassword123!"
+        }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-real-ip": "198.51.100.12"
+        }
+      })
+    );
+
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ flow: "change-password" }),
+      "user:user-1:ip:198.51.100.12"
+    );
+  });
+
+  it("blocks account password changes with a 429 before updating the password", async () => {
+    const auth = buildAuthMock();
+    createClientMock.mockResolvedValue({ auth });
+    checkRateLimitMock.mockResolvedValue({ allowed: false, retryAfter: 60 });
+
+    const { POST } = await import("@/app/api/auth/password/change/route");
+    const response = await POST(
+      jsonRequest("http://localhost/api/auth/password/change", {
+        currentPassword: "OldPassword123!",
+        nextPassword: "NewPassword123!"
+      })
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "RATE_LIMITED",
+      retryAfter: 60,
+      error: "Слишком много попыток. Попробуйте снова через 1 мин."
+    });
+    expect(auth.updateUser).not.toHaveBeenCalled();
   });
 
   it("rejects weak account password changes before calling Supabase", async () => {
@@ -244,6 +379,10 @@ describe("auth BFF API routes", () => {
 
     expect(response.status).toBe(403);
     expect(auth.updateUser).not.toHaveBeenCalled();
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ flow: "reset-password", limit: 5, window: "15 m" }),
+      "ip:unknown"
+    );
   });
 
   it("resets password only with a valid recovery marker and clears it after success", async () => {

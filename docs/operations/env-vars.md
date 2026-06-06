@@ -57,6 +57,15 @@ YOOKASSA_WEBHOOK_SECRET=<webhook-token>
 
 Do not use production payment credentials in local experiments unless explicitly approved.
 
+## Upstash Redis Variables
+
+```text
+UPSTASH_REDIS_REST_URL=<upstash-redis-rest-url>
+UPSTASH_REDIS_REST_TOKEN=<server-only-upstash-redis-rest-token>
+```
+
+These variables are required for Redis-backed auth rate limiting. Keep the REST token server-only and never expose it through `NEXT_PUBLIC_*`.
+
 ## Playwright / E2E Variables
 
 Required for `npm run test:smoke`:

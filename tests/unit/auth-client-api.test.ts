@@ -42,6 +42,27 @@ describe("auth browser API client", () => {
     });
   });
 
+  it("throws rate-limit responses with the Russian message and code", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: async () => ({
+        error: "Слишком много попыток. Попробуйте снова через 5 мин.",
+        code: "RATE_LIMITED",
+        retryAfter: 300
+      })
+    });
+
+    const { loginWithPassword, AuthApiError } = await import("@/features/auth/client/auth-api");
+    await expect(loginWithPassword({ email: "user@example.com", password: "bad" })).rejects.toBeInstanceOf(AuthApiError);
+    await expect(loginWithPassword({ email: "user@example.com", password: "bad" })).rejects.toMatchObject({
+      status: 429,
+      code: "RATE_LIMITED",
+      message: "Слишком много попыток. Попробуйте снова через 5 мин.",
+      retryAfter: 300
+    });
+  });
+
   it("uses explicit same-origin endpoints for reset, change, session lookup and logout", async () => {
     fetchMock.mockResolvedValue({
       ok: true,

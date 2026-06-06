@@ -2,13 +2,15 @@ export class AuthApiError extends Error {
   status: number;
   code: string | null;
   details?: AuthApiErrorPayload["details"];
+  retryAfter?: number;
 
-  constructor(message: string, status: number, code: string | null = null, details?: AuthApiErrorPayload["details"]) {
+  constructor(message: string, status: number, code: string | null = null, details?: AuthApiErrorPayload["details"], retryAfter?: number) {
     super(message);
     this.name = "AuthApiError";
     this.status = status;
     this.code = code;
     this.details = details;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -18,7 +20,9 @@ type AuthApiErrorPayload = {
     fieldErrors?: Record<string, string[]>;
     formErrors?: string[];
   };
+  error?: unknown;
   message?: unknown;
+  retryAfter?: unknown;
 };
 
 async function readAuthApiPayload(response: Response) {
@@ -41,9 +45,15 @@ async function postAuthJson<T>(url: string, body?: Record<string, unknown>): Pro
 
   const payload = await readAuthApiPayload(response);
   if (!response.ok) {
-    const message = typeof payload.message === "string" && payload.message ? payload.message : "Auth request failed";
+    const message =
+      typeof payload.message === "string" && payload.message
+        ? payload.message
+        : typeof payload.error === "string" && payload.error
+          ? payload.error
+          : "Auth request failed";
     const code = typeof payload.code === "string" ? payload.code : null;
-    throw new AuthApiError(message, response.status, code, payload.details);
+    const retryAfter = typeof payload.retryAfter === "number" ? payload.retryAfter : undefined;
+    throw new AuthApiError(message, response.status, code, payload.details, retryAfter);
   }
 
   return payload as T;
@@ -57,9 +67,15 @@ async function getAuthJson<T>(url: string): Promise<T> {
 
   const payload = await readAuthApiPayload(response);
   if (!response.ok) {
-    const message = typeof payload.message === "string" && payload.message ? payload.message : "Auth request failed";
+    const message =
+      typeof payload.message === "string" && payload.message
+        ? payload.message
+        : typeof payload.error === "string" && payload.error
+          ? payload.error
+          : "Auth request failed";
     const code = typeof payload.code === "string" ? payload.code : null;
-    throw new AuthApiError(message, response.status, code);
+    const retryAfter = typeof payload.retryAfter === "number" ? payload.retryAfter : undefined;
+    throw new AuthApiError(message, response.status, code, undefined, retryAfter);
   }
 
   return payload as T;
