@@ -2,7 +2,7 @@ import "@/lib/redis/server-only";
 
 import type { AuthRateLimitMessageFlow } from "@/lib/auth/rate-limit-messages";
 
-export type RateLimitFlow = AuthRateLimitMessageFlow | "forgot-password-ip";
+export type RateLimitFlow = AuthRateLimitMessageFlow | "login-ip" | "forgot-password-ip";
 
 export type RateLimitConfig = {
   flow: RateLimitFlow;
@@ -16,6 +16,12 @@ export const AUTH_RATE_LIMITS = {
     flow: "login",
     messageFlow: "login",
     limit: 5,
+    window: "15 m"
+  },
+  loginIp: {
+    flow: "login-ip",
+    messageFlow: "login",
+    limit: 25,
     window: "15 m"
   },
   signup: {

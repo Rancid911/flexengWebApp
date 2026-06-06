@@ -61,8 +61,14 @@ describe("auth BFF API routes", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: "user@example.com", password: "secret" });
-    expect(checkRateLimitMock).toHaveBeenCalledWith(
-      expect.objectContaining({ flow: "login", limit: 5, window: "15 m" }),
+    expect(checkRateLimitMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ flow: "login-ip", messageFlow: "login", limit: 25, window: "15 m" }),
+      "ip:unknown"
+    );
+    expect(checkRateLimitMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ flow: "login", messageFlow: "login", limit: 5, window: "15 m" }),
       "ip:unknown:email:user@example.com"
     );
   });
@@ -83,16 +89,22 @@ describe("auth BFF API routes", () => {
       })
     );
 
-    expect(checkRateLimitMock).toHaveBeenCalledWith(
+    expect(checkRateLimitMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ flow: "login-ip" }),
+      "ip:203.0.113.10"
+    );
+    expect(checkRateLimitMock).toHaveBeenNthCalledWith(
+      2,
       expect.objectContaining({ flow: "login" }),
       "ip:203.0.113.10:email:user@example.com"
     );
   });
 
-  it("blocks login attempts with a 429 response before calling Supabase auth", async () => {
+  it("blocks login attempts when the IP-only limiter is exceeded before calling Supabase auth", async () => {
     const auth = buildAuthMock();
     createClientMock.mockResolvedValue({ auth });
-    checkRateLimitMock.mockResolvedValue({ allowed: false, retryAfter: 300 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, retryAfter: 300 });
 
     const { POST } = await import("@/app/api/auth/login/route");
     const response = await POST(jsonRequest("http://localhost/api/auth/login", { email: "user@example.com", password: "secret" }));
@@ -105,6 +117,31 @@ describe("auth BFF API routes", () => {
       flow: "login",
       retryAfter: 300
     });
+    expect(checkRateLimitMock).toHaveBeenCalledTimes(1);
+    expect(checkRateLimitMock).toHaveBeenCalledWith(expect.objectContaining({ flow: "login-ip" }), "ip:unknown");
+    expect(auth.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("blocks login attempts when the IP and email limiter is exceeded before calling Supabase auth", async () => {
+    const auth = buildAuthMock();
+    createClientMock.mockResolvedValue({ auth });
+    checkRateLimitMock
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValueOnce({ allowed: false, retryAfter: 45 });
+
+    const { POST } = await import("@/app/api/auth/login/route");
+    const response = await POST(jsonRequest("http://localhost/api/auth/login", { email: " USER@EXAMPLE.COM ", password: "secret" }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("45");
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Слишком много попыток входа. Попробуйте снова через 00 мин 45 сек.",
+      code: "RATE_LIMITED",
+      flow: "login",
+      retryAfter: 45
+    });
+    expect(checkRateLimitMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ flow: "login-ip" }), "ip:unknown");
+    expect(checkRateLimitMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ flow: "login" }), "ip:unknown:email:user@example.com");
     expect(auth.signInWithPassword).not.toHaveBeenCalled();
   });
 
