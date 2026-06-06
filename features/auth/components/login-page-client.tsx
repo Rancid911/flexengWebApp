@@ -26,19 +26,20 @@ export default function LoginPage() {
   const confirmError = searchParams.get("error") === "auth_confirm_failed";
   const errorId = "login-form-error";
   const confirmErrorId = "login-form-confirm-error";
-  const visibleError = rateLimit.active ? rateLimit.message : error;
+  const isRateLimited = rateLimit.active;
+  const visibleError = isRateLimited ? rateLimit.message : error;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (loading) return;
+    if (loading || isRateLimited) return;
     setError("");
-    rateLimit.clear();
     setLoading(true);
 
     try {
       const normalizedEmail = email.trim().toLowerCase();
       await loginWithPassword({ email: normalizedEmail, password });
 
+      rateLimit.clear();
       router.replace("/dashboard");
       router.refresh();
     } catch (submitError) {
@@ -133,7 +134,7 @@ export default function LoginPage() {
               data-testid="login-submit"
               type="submit"
               className="h-11 w-full rounded-xl bg-[#8D70FF] text-white hover:bg-[#654ED6]"
-              disabled={loading}
+              disabled={loading || isRateLimited}
             >
               {loading ? "Вход..." : "Войти"}
             </Button>

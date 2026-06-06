@@ -147,6 +147,22 @@ describe("auth rate-limit countdown", () => {
     expect(window.sessionStorage.getItem("authRateLimit:login:blockedUntil")).toBe(String(Date.now() + 300_000));
   });
 
+  it("keeps active storage when a non-rate-limit error is ignored", () => {
+    const { result } = startRateLimitCountdown("login", 45);
+
+    act(() => {
+      expect(
+        result.current.startFromError(
+          new AuthApiError("Invalid login credentials", 400, "AUTH_ERROR")
+        )
+      ).toBe(false);
+    });
+
+    expect(result.current.active).toBe(true);
+    expect(result.current.message).toBe(formatAuthRateLimitMessage("login", 45));
+    expect(window.sessionStorage.getItem("authRateLimit:login:blockedUntil")).toBe(String(Date.now() + 45_000));
+  });
+
   it("clears an expired countdown immediately when the tab becomes visible again", () => {
     const { result } = startRateLimitCountdown("login", 45);
     expect(result.current.message).toBe(formatAuthRateLimitMessage("login", 45));
