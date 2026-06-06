@@ -22,19 +22,20 @@ export default function ForgotPasswordPage() {
   const rateLimit = useAuthRateLimitCountdown("forgot-password");
   const errorId = "forgot-password-error";
   const messageId = "forgot-password-message";
-  const visibleError = rateLimit.active ? rateLimit.message : error;
+  const isRateLimited = rateLimit.active;
+  const visibleError = isRateLimited ? rateLimit.message : error;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (loading) return;
+    if (loading || isRateLimited) return;
     setError("");
     setMessage("");
-    rateLimit.clear();
     setLoading(true);
 
     try {
       const normalizedEmail = email.trim().toLowerCase();
       await requestPasswordReset({ email: normalizedEmail });
+      rateLimit.clear();
 
       setMessage("Если аккаунт с таким email существует, мы отправили инструкцию для восстановления пароля.");
     } catch (submitError) {
@@ -74,7 +75,7 @@ export default function ForgotPasswordPage() {
             </div>
             {visibleError ? <p id={errorId} className="text-sm text-rose-600">{visibleError}</p> : null}
             {message ? <p id={messageId} className="text-sm text-[#654ED6]">{message}</p> : null}
-            <Button type="submit" className="h-11 w-full rounded-xl bg-[#8D70FF] text-white hover:bg-[#654ED6]" disabled={loading}>
+            <Button type="submit" className="h-11 w-full rounded-xl bg-[#8D70FF] text-white hover:bg-[#654ED6]" disabled={loading || isRateLimited}>
               {loading ? "Отправка..." : "Отправить ссылку"}
             </Button>
           </form>

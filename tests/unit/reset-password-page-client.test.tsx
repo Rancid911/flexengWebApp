@@ -30,6 +30,13 @@ function errorJson(status: number, payload: unknown) {
   };
 }
 
+async function flushAsyncWork() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 async function renderReadyResetPage() {
   fetchMock.mockResolvedValueOnce(okJson({ user: { id: "user-1", email: "user@example.com" } }));
   render(<ResetPasswordPageClient />);
@@ -38,6 +45,7 @@ async function renderReadyResetPage() {
 
 describe("ResetPasswordPageClient", () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
     vi.useRealTimers();
     replaceMock.mockReset();
     fetchMock.mockReset();
@@ -47,6 +55,7 @@ describe("ResetPasswordPageClient", () => {
   });
 
   afterEach(() => {
+    window.sessionStorage.clear();
     vi.useRealTimers();
   });
 
@@ -195,5 +204,46 @@ describe("ResetPasswordPageClient", () => {
 
     expect(screen.getByText("Слишком много попыток обновления пароля. Попробуйте снова через 00 мин 32 сек.")).toBeInTheDocument();
     expect(screen.getByLabelText("Новый пароль")).toHaveValue("TestPassword123!");
+  });
+
+  it("disables and guards submit while restored reset-password countdown is active", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-06T10:00:00.000Z"));
+    window.sessionStorage.setItem("authRateLimit:reset-password:blockedUntil", String(Date.now() + 300_000));
+    fetchMock.mockResolvedValueOnce(okJson({ user: { id: "user-1", email: "user@example.com" } }));
+
+    render(<ResetPasswordPageClient />);
+    await flushAsyncWork();
+
+    const submit = screen.getByRole("button", { name: "Обновить пароль" });
+    expect(screen.getByText("Слишком много попыток обновления пароля. Попробуйте снова через 05 мин 00 сек.")).toBeInTheDocument();
+    expect(submit).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Новый пароль"), { target: { value: "TestPassword123!" } });
+    fireEvent.change(screen.getByLabelText("Повторите пароль"), { target: { value: "TestPassword123!" } });
+    fetchMock.mockClear();
+    fireEvent.submit(submit.closest("form") as HTMLFormElement);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("re-enables reset-password submit after restored countdown expires", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-06T10:00:00.000Z"));
+    window.sessionStorage.setItem("authRateLimit:reset-password:blockedUntil", String(Date.now() + 2000));
+    fetchMock.mockResolvedValueOnce(okJson({ user: { id: "user-1", email: "user@example.com" } }));
+
+    render(<ResetPasswordPageClient />);
+    await flushAsyncWork();
+
+    const submit = screen.getByRole("button", { name: "Обновить пароль" });
+    expect(submit).toBeDisabled();
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(screen.queryByText(/Слишком много попыток обновления пароля/)).not.toBeInTheDocument();
+    expect(submit).toBeEnabled();
   });
 });

@@ -52,7 +52,8 @@ export default function ResetPasswordPage() {
   const rateLimit = useAuthRateLimitCountdown("reset-password");
   const errorId = "reset-password-error";
   const messageId = "reset-password-message";
-  const visibleError = rateLimit.active ? rateLimit.message : error;
+  const isRateLimited = rateLimit.active;
+  const visibleError = isRateLimited ? rateLimit.message : error;
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -78,10 +79,9 @@ export default function ResetPasswordPage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (loading) return;
+    if (loading || isRateLimited) return;
     setError("");
     setMessage("");
-    rateLimit.clear();
 
     const passwordPolicyError = getPasswordPolicyError(password);
     if (passwordPolicyError) {
@@ -96,6 +96,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
     try {
       await resetPassword({ nextPassword: password });
+      rateLimit.clear();
 
       setMessage("Пароль обновлён. Сейчас перенаправим на вход.");
       setTimeout(() => router.replace("/login"), 1200);
@@ -156,7 +157,7 @@ export default function ResetPasswordPage() {
             </div>
             {visibleError ? <p id={errorId} className="text-sm text-rose-600">{visibleError}</p> : null}
             {message ? <p id={messageId} className="text-sm text-[#654ED6]">{message}</p> : null}
-            <Button type="submit" className="h-11 w-full rounded-xl bg-[#8D70FF] text-white hover:bg-[#654ED6]" disabled={!ready || loading}>
+            <Button type="submit" className="h-11 w-full rounded-xl bg-[#8D70FF] text-white hover:bg-[#654ED6]" disabled={!ready || loading || isRateLimited}>
               {loading ? "Сохранение..." : "Обновить пароль"}
             </Button>
           </form>

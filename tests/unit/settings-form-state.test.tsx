@@ -2,7 +2,7 @@ import { act, render, renderHook, screen, waitFor } from "@testing-library/react
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { saveSettingsProfile, useSettingsFormState } from "@/features/settings/client/use-settings-form-state";
-import { SettingsEmailSection } from "@/features/settings/components/settings-sections";
+import { SettingsEmailSection, SettingsSaveSection } from "@/features/settings/components/settings-sections";
 import { clearRuntimeCache } from "@/lib/session-runtime-cache";
 
 const replaceMock = vi.fn();
@@ -50,10 +50,18 @@ function errorJson(status: number, payload: unknown) {
   };
 }
 
+async function flushAsyncWork() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 describe("useSettingsFormState", () => {
   beforeEach(() => {
     vi.useRealTimers();
     clearRuntimeCache();
+    window.sessionStorage.clear();
     window.localStorage.clear();
     replaceMock.mockReset();
     refreshMock.mockReset();
@@ -62,6 +70,7 @@ describe("useSettingsFormState", () => {
   });
 
   afterEach(() => {
+    window.sessionStorage.clear();
     vi.useRealTimers();
   });
 
@@ -213,6 +222,78 @@ describe("useSettingsFormState", () => {
 
     expect(result.current.accessSectionError).toBe("Слишком много попыток смены пароля. Попробуйте снова через 00 мин 32 сек.");
     expect(result.current.currentPassword).toBe("OldPassword123!");
+  });
+
+  it("disables settings save for password changes while restored change-password countdown is active", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-06T10:00:00.000Z"));
+    window.sessionStorage.setItem("authRateLimit:change-password:blockedUntil", String(Date.now() + 300_000));
+    fetchMock.mockResolvedValue(okJson(profileResponse));
+    const { result } = renderHook(() => useSettingsFormState());
+
+    await flushAsyncWork();
+    expect(result.current.loading).toBe(false);
+
+    act(() => {
+      result.current.setCurrentPassword("OldPassword123!");
+      result.current.setNextPassword("TestPassword123!");
+      result.current.setConfirmPassword("TestPassword123!");
+    });
+
+    expect(result.current.accessSectionError).toBe("Слишком много попыток смены пароля. Попробуйте снова через 05 мин 00 сек.");
+    expect(result.current.passwordRateLimitSaveBlocked).toBe(true);
+
+    render(<SettingsSaveSection {...result.current} />);
+    expect(screen.getByTestId("settings-save-button")).toBeDisabled();
+
+    fetchMock.mockClear();
+    await act(async () => {
+      await result.current.handleSaveAll({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("re-enables settings password save after restored change-password countdown expires", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-06T10:00:00.000Z"));
+    window.sessionStorage.setItem("authRateLimit:change-password:blockedUntil", String(Date.now() + 2000));
+    fetchMock.mockResolvedValue(okJson(profileResponse));
+    const { result } = renderHook(() => useSettingsFormState());
+
+    await flushAsyncWork();
+    expect(result.current.loading).toBe(false);
+
+    act(() => {
+      result.current.setCurrentPassword("OldPassword123!");
+      result.current.setNextPassword("TestPassword123!");
+      result.current.setConfirmPassword("TestPassword123!");
+    });
+
+    expect(result.current.passwordRateLimitSaveBlocked).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(result.current.accessSectionError).toBe("");
+    expect(result.current.passwordRateLimitSaveBlocked).toBe(false);
+  });
+
+  it("does not block settings save for profile-only changes during change-password countdown", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-06T10:00:00.000Z"));
+    window.sessionStorage.setItem("authRateLimit:change-password:blockedUntil", String(Date.now() + 300_000));
+    fetchMock.mockResolvedValue(okJson(profileResponse));
+    const { result } = renderHook(() => useSettingsFormState());
+
+    await flushAsyncWork();
+    expect(result.current.loading).toBe(false);
+
+    expect(result.current.passwordRateLimitSaveBlocked).toBe(false);
+
+    render(<SettingsSaveSection {...result.current} />);
+    expect(screen.getByTestId("settings-save-button")).toBeEnabled();
   });
 
   it("stores pending email and clears the draft after Supabase requires confirmation", async () => {

@@ -288,14 +288,14 @@ export function SettingsPasswordSection(props: SettingsFormState) {
 }
 
 export function SettingsSaveSection({ align = "left", ...props }: { align?: "left" | "right" } & SettingsFormState) {
-  const { loadError, saveMessage, savingAll } = props;
+  const { loadError, passwordRateLimitSaveBlocked, saveMessage, savingAll } = props;
 
   return (
     <div className="space-y-2">
       {loadError ? <p className={cn("text-sm text-red-500", align === "right" && "text-right")}>{loadError}</p> : null}
       {saveMessage ? <p className={cn("text-sm text-emerald-600", align === "right" && "text-right")}>{saveMessage}</p> : null}
       <div className={cn(align === "right" && "flex justify-end")}>
-        <Button data-testid="settings-save-button" type="submit" disabled={savingAll}>
+        <Button data-testid="settings-save-button" type="submit" disabled={savingAll || passwordRateLimitSaveBlocked}>
           {savingAll ? "Сохранение..." : "Сохранить изменения"}
         </Button>
       </div>

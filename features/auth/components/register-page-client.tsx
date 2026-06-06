@@ -27,14 +27,14 @@ export default function RegisterPage() {
   const rateLimit = useAuthRateLimitCountdown("signup");
   const errorId = "register-form-error";
   const messageId = "register-form-message";
-  const visibleError = rateLimit.active ? rateLimit.message : error;
+  const isRateLimited = rateLimit.active;
+  const visibleError = isRateLimited ? rateLimit.message : error;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (loading) return;
+    if (loading || isRateLimited) return;
     setError("");
     setMessage("");
-    rateLimit.clear();
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
@@ -51,6 +51,7 @@ export default function RegisterPage() {
 
     try {
       const data = await registerWithPassword({ email: normalizedEmail, password });
+      rateLimit.clear();
 
       // If email confirmation is disabled, Supabase returns a session immediately.
       if (data.hasSession) {
@@ -115,7 +116,7 @@ export default function RegisterPage() {
             </div>
             {visibleError ? <p id={errorId} className="text-sm text-rose-600">{visibleError}</p> : null}
             {message ? <p id={messageId} className="text-sm text-[#654ED6]">{message}</p> : null}
-            <Button type="submit" className="h-11 w-full rounded-xl bg-[#8D70FF] text-white hover:bg-[#654ED6]" disabled={loading}>
+            <Button type="submit" className="h-11 w-full rounded-xl bg-[#8D70FF] text-white hover:bg-[#654ED6]" disabled={loading || isRateLimited}>
               {loading ? "Регистрация..." : "Зарегистрироваться"}
             </Button>
           </form>

@@ -93,6 +93,7 @@ export function useSettingsFormState() {
   const { pending: uploadingAvatar, run: runAvatarUpload } = useAsyncAction();
   const { run: runSettingsLoad } = useAsyncAction();
   const passwordRateLimit = useAuthRateLimitCountdown("change-password");
+  const passwordRateLimitSaveBlocked = passwordRateLimit.active && Boolean(currentPassword || nextPassword || confirmPassword);
 
   const displayName = useMemo(() => composeDisplayName(firstName, lastName, profileEmail), [firstName, lastName, profileEmail]);
   const avatarFallback = useMemo(() => initialsFromName(displayName, profileEmail), [displayName, profileEmail]);
@@ -215,13 +216,13 @@ export function useSettingsFormState() {
   async function handleSaveAll(event: FormEvent) {
     event.preventDefault();
     if (!userId) return;
+    if (passwordRateLimitSaveBlocked) return;
 
     setSaveMessage("");
     setLoadError("");
     setProfileSectionError("");
     setAccessSectionError("");
     setFieldErrors({});
-    passwordRateLimit.clear();
 
     const {
       fieldErrors: nextFieldErrors,
@@ -339,6 +340,7 @@ export function useSettingsFormState() {
 
         if (passwordDirty) {
           await changePassword({ currentPassword, nextPassword });
+          passwordRateLimit.clear();
           setCurrentPassword("");
           setNextPassword("");
           setConfirmPassword("");
@@ -511,6 +513,7 @@ export function useSettingsFormState() {
     pendingAvatarDelete,
     pendingEmailAwaitingConfirm,
     phone,
+    passwordRateLimitSaveBlocked,
     profileEmail,
     profileSectionError,
     resetCrop,
