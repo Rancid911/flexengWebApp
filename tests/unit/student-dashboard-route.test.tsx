@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AppActor } from "@/lib/auth/request-context";
 
 import { renderStudentDashboardRoute } from "@/features/dashboard/server/student-dashboard-route";
 
-const getStudentDashboardRouteDataMock = vi.fn();
+const getStudentDashboardSummaryMock = vi.fn();
 
 vi.mock("@/lib/dashboard/student-dashboard", () => ({
-  getStudentDashboardRouteData: (...args: unknown[]) => getStudentDashboardRouteDataMock(...args)
+  getStudentDashboardSummary: (...args: unknown[]) => getStudentDashboardSummaryMock(...args)
 }));
 
 vi.mock("@/features/dashboard/components/student-dashboard-view", () => ({
@@ -34,41 +35,47 @@ vi.mock("@/features/dashboard/components/student-payment-reminder-slot", () => (
 
 describe("renderStudentDashboardRoute", () => {
   beforeEach(() => {
-    getStudentDashboardRouteDataMock.mockReset();
+    getStudentDashboardSummaryMock.mockReset();
   });
 
   it("uses the canonical core-plus-reminder assembly", async () => {
+    const actor = {
+      userId: "student-user-1",
+      isStudent: true,
+      studentId: "student-1"
+    };
     const secondaryDataPromise = Promise.resolve({
       recommendationCards: [{ id: "rec-1", title: "Practice", subtitle: "Continue", href: "/practice" }],
       summaryStats: [{ label: "Онлайн-уроки", value: "1", chip: "за 7 дней", icon: "book", href: "/schedule" }],
       nextScheduledLesson: { id: "lesson-1", title: "Lesson" },
       upcomingScheduleLessons: []
     });
-    getStudentDashboardRouteDataMock.mockResolvedValue({
+    getStudentDashboardSummaryMock.mockResolvedValue({
       initialData: {
-      lessonOfTheDay: { title: "Lesson", description: "Desc", duration: "20 минут", progress: 50, sectionsCount: 3 },
-      progress: { value: 60, label: "6 из 10" },
-      heroStats: [],
-      homeworkCards: [],
-      activeHomeworkCount: 0,
-      recommendationCards: [],
-      nextBestAction: {
-        label: "Старт",
-        title: "Продолжите обучение",
-        description: "Описание",
-        primaryLabel: "Открыть практику",
-        primaryHref: "/practice"
-      },
-      summaryStats: [],
-      nextScheduledLesson: null,
-      upcomingScheduleLessons: []
+        lessonOfTheDay: { title: "Lesson", description: "Desc", duration: "20 минут", progress: 50, sectionsCount: 3 },
+        progress: { value: 60, label: "6 из 10" },
+        heroStats: [],
+        homeworkCards: [],
+        activeHomeworkCount: 0,
+        recommendationCards: [],
+        nextBestAction: {
+          label: "Старт",
+          title: "Продолжите обучение",
+          description: "Описание",
+          primaryLabel: "Открыть практику",
+          primaryHref: "/practice"
+        },
+        summaryStats: [],
+        nextScheduledLesson: null,
+        upcomingScheduleLessons: []
       },
       secondaryDataPromise
     });
 
-    const result = await renderStudentDashboardRoute();
+    const result = await renderStudentDashboardRoute(actor as AppActor);
 
-    expect(getStudentDashboardRouteDataMock).toHaveBeenCalledTimes(1);
+    expect(getStudentDashboardSummaryMock).toHaveBeenCalledTimes(1);
+    expect(getStudentDashboardSummaryMock).toHaveBeenCalledWith(actor);
     expect(result).toBeTruthy();
   });
 });

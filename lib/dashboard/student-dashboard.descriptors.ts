@@ -6,7 +6,7 @@ export const STUDENT_DASHBOARD_PAYMENT_REMINDER_ACCESS_MODE: AccessMode = "user_
 
 export const STUDENT_DASHBOARD_CORE_DATA_LOADING = defineDataLoadingDescriptor({
   id: "student-dashboard-core",
-  owner: "@/lib/dashboard/student-dashboard#getStudentDashboardCoreData",
+  owner: "@/lib/dashboard/student-dashboard#getStudentDashboardSummary",
   accessMode: STUDENT_DASHBOARD_CORE_ACCESS_MODE,
   loadLevel: "page",
   shape: "summary",

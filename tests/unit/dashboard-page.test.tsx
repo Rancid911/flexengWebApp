@@ -91,18 +91,20 @@ describe("DashboardPage", () => {
   });
 
   it("uses the shared student dashboard assembly for the student workspace branch", async () => {
-    requireLayoutActorMock.mockResolvedValue({
+    const layoutActor = {
       userId: "user-student",
       profileRole: "student",
       isStudent: true,
       isTeacher: false,
       isStaffAdmin: false
-    });
+    };
+    requireLayoutActorMock.mockResolvedValue(layoutActor);
     renderStudentDashboardRouteMock.mockResolvedValue(<div data-testid="student-dashboard-route" />);
 
     const result = await DashboardPage();
 
     expect(renderStudentDashboardRouteMock).toHaveBeenCalledTimes(1);
+    expect(renderStudentDashboardRouteMock).toHaveBeenCalledWith(layoutActor);
     expect(result).toBeTruthy();
   });
 

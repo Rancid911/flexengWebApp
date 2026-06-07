@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AppActor } from "@/lib/auth/request-context";
 
 import {
   buildStudentDashboardWordCounts,
@@ -7,11 +8,13 @@ import {
   getStudentDashboardData,
   getStudentDashboardPaymentReminder,
   getStudentDashboardRouteData,
+  getStudentDashboardSummary,
   getSubmittedTestsCountLast7Days
 } from "@/lib/dashboard/student-dashboard";
 
 const createClientMock = vi.fn();
 const createAdminClientMock = vi.fn();
+const getAppActorMock = vi.fn();
 const getCurrentStudentProfileMock = vi.fn();
 const getStudentSchedulePreviewByStudentIdMock = vi.fn();
 const resolveStudentPaymentReminderForDashboardRpcMock = vi.fn();
@@ -23,6 +26,10 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => createAdminClientMock()
+}));
+
+vi.mock("@/lib/auth/request-context", () => ({
+  getAppActor: () => getAppActorMock()
 }));
 
 vi.mock("@/lib/students/current-student", () => ({
@@ -834,16 +841,136 @@ describe("getStudentDashboardData", () => {
   });
 });
 
-describe("getStudentDashboardRouteData", () => {
+describe("getStudentDashboardSummary", () => {
   beforeEach(() => {
     createClientMock.mockReset();
+    getAppActorMock.mockReset();
     getCurrentStudentProfileMock.mockReset();
     getStudentSchedulePreviewByStudentIdMock.mockReset();
+    resolveStudentPaymentReminderForDashboardRpcMock.mockReset();
   });
 
-  it("resolves the student profile once and reuses word and recent-practice loads", async () => {
+  it("calls the no-arg summary RPC for student actors and maps compact data", async () => {
+    getStudentSchedulePreviewByStudentIdMock.mockResolvedValue({ nextLesson: null, upcomingLessons: [] });
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: {
+        homework: {
+          activeCount: 3,
+          previewRows: [
+            { id: "hw-1", title: "Homework 1", status: "overdue", dueAt: "2026-03-27T10:00:00.000Z" },
+            { id: "hw-2", title: "Homework 2", status: "not_started", dueAt: null }
+          ]
+        },
+        wordCounts: {
+          learningCount: 5,
+          dueReviewCount: 2,
+          masteredCount: 7
+        },
+        stats7d: {
+          completedTeacherLessons: 4,
+          submittedTests: 2
+        },
+        progress: {
+          latest: {
+            status: "in_progress",
+            progressPercent: 40,
+            updatedAt: "2026-04-18T11:00:00.000Z",
+            lessonId: "lesson-1",
+            lesson: { title: "Speaking basics", durationMinutes: 20, moduleId: "module-1" }
+          },
+          averageProgress: 65,
+          activeProgressCount: 1,
+          activeCourses: [{ status: "active", course: { title: "English A2" } }]
+        },
+        attempts: {
+          submittedCount: 6,
+          averageScore: 88
+        },
+        schedule: {
+          upcomingLessons: [
+            {
+              id: "schedule-1",
+              studentId: "student-1",
+              studentName: "Вы",
+              teacherId: "teacher-1",
+              teacherName: "Teacher",
+              title: "Conversation club",
+              startsAt: "2026-03-29T10:00:00.000Z",
+              endsAt: "2026-03-29T11:00:00.000Z",
+              meetingUrl: "https://example.com/meet",
+              comment: null,
+              status: "scheduled",
+              createdAt: null,
+              updatedAt: null,
+              attendanceStatus: null,
+              hasOutcome: false,
+              studentVisibleOutcome: null
+            }
+          ]
+        },
+        placementTest: {
+          assigned: true,
+          completed: false,
+          testId: "placement-test-1",
+          title: "Placement Test",
+          dueAt: null,
+          status: "not_started"
+        }
+      },
+      error: null
+    });
+    const fromMock = vi.fn((table: string) => {
+      switch (table) {
+        case "student_lesson_progress":
+          return makeQueryResult([
+            {
+              updated_at: "2026-04-18T11:00:00.000Z",
+              lessons: { title: "Speaking basics", module_id: "module-1" }
+            }
+          ]);
+        case "student_test_attempts":
+          return makeQueryResult([]);
+        case "course_modules":
+          return makeQueryResult([
+            { id: "module-1", title: "Speaking Basics", course_id: "course-1", courses: { slug: "speaking", title: "Speaking" } }
+          ]);
+        default:
+          return makeQueryResult([]);
+      }
+    });
+    createClientMock.mockReturnValue({ from: fromMock, rpc: rpcMock });
+
+    const result = await getStudentDashboardSummary({
+      isStudent: true,
+      studentId: "student-1"
+    } as AppActor);
+    const secondaryData = await result.secondaryDataPromise;
+
+    expect(rpcMock).toHaveBeenCalledWith("get_my_student_dashboard_summary");
+    expect(result.initialData.lessonOfTheDay.title).toBe("Speaking Basics");
+    expect(result.initialData.lessonOfTheDay.progress).toBe(65);
+    expect(result.initialData.heroStats).toEqual([
+      { label: "Точность", value: "88%" },
+      { label: "Попыток", value: "6" },
+      { label: "В изучении", value: "5" }
+    ]);
+    expect(result.initialData.homeworkCards).toHaveLength(2);
+    expect(result.initialData.activeHomeworkCount).toBe(3);
+    expect(result.initialData.placementTest?.href).toBe("/practice/activity/test_placement-test-1");
+    expect(secondaryData.summaryStats[0]).toMatchObject({ label: "Онлайн-уроки", value: "4" });
+    expect(secondaryData.summaryStats[1]).toMatchObject({ label: "Сделано тестов", value: "2" });
+    expect(secondaryData.summaryStats[2]).toMatchObject({ label: "Слов в повторении", value: "2" });
+    expect(secondaryData.nextScheduledLesson?.title).toBe("Conversation club");
+    expect(getCurrentStudentProfileMock).not.toHaveBeenCalled();
+    expect(resolveStudentPaymentReminderForDashboardRpcMock).not.toHaveBeenCalled();
+    expect(getStudentSchedulePreviewByStudentIdMock).not.toHaveBeenCalled();
+    expect(fromMock).not.toHaveBeenCalledWith("student_words");
+    expect(fromMock).not.toHaveBeenCalledWith("homework_assignments");
+    expect(fromMock).not.toHaveBeenCalledWith("lesson_attendance");
+  });
+
+  it("falls back to the row-based loader when the summary RPC fails and reuses word and recent-practice loads", async () => {
     const selectCalls: Array<{ table: string; columns: string }> = [];
-    getCurrentStudentProfileMock.mockResolvedValue({ studentId: "student-1" });
     getStudentSchedulePreviewByStudentIdMock.mockResolvedValue({ nextLesson: null, upcomingLessons: [] });
 
     const makeTrackedQueryResult = (table: string, data: unknown, options: { count?: number | null } = {}) => {
@@ -912,14 +1039,19 @@ describe("getStudentDashboardRouteData", () => {
           return makeTrackedQueryResult(table, []);
       }
     });
-    createClientMock.mockReturnValue({ from: fromMock });
+    const rpcMock = vi.fn().mockResolvedValue({ data: null, error: { message: "Could not find the function public.get_my_student_dashboard_summary" } });
+    createClientMock.mockReturnValue({ from: fromMock, rpc: rpcMock });
 
-    const result = await getStudentDashboardRouteData();
+    const result = await getStudentDashboardSummary({
+      isStudent: true,
+      studentId: "student-1"
+    } as AppActor);
     const secondaryData = await result.secondaryDataPromise;
 
     expect(result.initialData.lessonOfTheDay.title).toBe("Speaking Basics");
     expect(secondaryData.recommendationCards[0]?.title).toBe("Speaking Basics");
-    expect(getCurrentStudentProfileMock).toHaveBeenCalledTimes(1);
+    expect(rpcMock).toHaveBeenCalledWith("get_my_student_dashboard_summary");
+    expect(getCurrentStudentProfileMock).not.toHaveBeenCalled();
     expect(createClientMock).toHaveBeenCalledTimes(1);
     expect(selectCalls.filter((call) => call.table === "student_words")).toHaveLength(1);
     expect(
@@ -932,10 +1064,37 @@ describe("getStudentDashboardRouteData", () => {
     expect(selectCalls.filter((call) => call.table === "student_test_attempts" && call.columns === "test_id, status")).toHaveLength(0);
   });
 
-  it("returns fallback route data without Supabase when the student profile is unavailable", async () => {
-    getCurrentStudentProfileMock.mockResolvedValue(null);
+  it("falls back to the row-based loader when the summary RPC returns an unexpected payload", async () => {
+    getStudentSchedulePreviewByStudentIdMock.mockResolvedValue({ nextLesson: null, upcomingLessons: [] });
+    const rpcMock = vi.fn().mockResolvedValue({ data: [], error: null });
+    createClientMock.mockReturnValue({
+      rpc: rpcMock,
+      from: vi.fn((table: string) => {
+        switch (table) {
+          case "student_words":
+            return makeQueryResult([{ status: "learning", next_review_at: null }]);
+          case "tests":
+            return makeQueryResult(null);
+          default:
+            return makeQueryResult([]);
+        }
+      })
+    });
 
-    const result = await getStudentDashboardRouteData();
+    const result = await getStudentDashboardSummary({
+      isStudent: true,
+      studentId: "student-1"
+    } as AppActor);
+
+    expect(rpcMock).toHaveBeenCalledWith("get_my_student_dashboard_summary");
+    expect(result.initialData.heroStats[2]).toEqual({ label: "В изучении", value: "1" });
+  });
+
+  it("returns fallback route data without Supabase when the actor lacks student scope", async () => {
+    const result = await getStudentDashboardSummary({
+      isStudent: false,
+      studentId: null
+    } as AppActor);
     const secondaryData = await result.secondaryDataPromise;
 
     expect(result.initialData.lessonOfTheDay.title).toBe("Практика");
@@ -945,7 +1104,23 @@ describe("getStudentDashboardRouteData", () => {
       nextScheduledLesson: null,
       upcomingScheduleLessons: []
     });
-    expect(getCurrentStudentProfileMock).toHaveBeenCalledTimes(1);
+    expect(getCurrentStudentProfileMock).not.toHaveBeenCalled();
+    expect(createClientMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps getStudentDashboardRouteData as a compatibility wrapper around the app actor", async () => {
+    getAppActorMock.mockResolvedValue({
+      isStudent: false,
+      studentId: null
+    });
+
+    const result = await getStudentDashboardRouteData();
+    const secondaryData = await result.secondaryDataPromise;
+
+    expect(result.initialData.lessonOfTheDay.title).toBe("Практика");
+    expect(secondaryData.recommendationCards).toEqual([]);
+    expect(getAppActorMock).toHaveBeenCalledTimes(1);
+    expect(getCurrentStudentProfileMock).not.toHaveBeenCalled();
     expect(createClientMock).not.toHaveBeenCalled();
   });
 });

@@ -31,7 +31,7 @@ export async function renderDashboardRoute() {
   const workspace = resolveDefaultWorkspace(actor);
 
   if (workspace === "student") {
-    return renderStudentDashboardRoute();
+    return renderStudentDashboardRoute(actor);
   }
 
   if (workspace === "admin") {
