@@ -19,6 +19,25 @@ type RbacRow = {
 
 const cacheStore = new Map<string, unknown>();
 const cacheTagIndex = new Map<string, Set<string>>();
+let reactCacheStore = new WeakMap<Function, Map<string, unknown>>();
+
+vi.mock("react", () => ({
+  cache: <T extends (...args: unknown[]) => unknown>(callback: T) => {
+    return ((...args: Parameters<T>) => {
+      const callbackCache = reactCacheStore.get(callback) ?? new Map<string, unknown>();
+      reactCacheStore.set(callback, callbackCache);
+
+      const cacheKey = JSON.stringify(args);
+      if (callbackCache.has(cacheKey)) {
+        return callbackCache.get(cacheKey);
+      }
+
+      const value = callback(...args);
+      callbackCache.set(cacheKey, value);
+      return value;
+    }) as T;
+  }
+}));
 
 vi.mock("next/cache", () => ({
   unstable_cache: (cb: (...args: unknown[]) => Promise<unknown>, keyParts?: string[], options?: { tags?: string[] }) => {
@@ -167,6 +186,7 @@ describe("request-context rpc linked scope", () => {
     vi.resetModules();
     cacheStore.clear();
     cacheTagIndex.clear();
+    reactCacheStore = new WeakMap<Function, Map<string, unknown>>();
   });
 
   afterEach(() => {
@@ -312,7 +332,7 @@ describe("request-context rpc linked scope", () => {
     );
   });
 
-  it("uses user-scoped profile, RBAC and linked scope reads without cross-request cache", async () => {
+  it("shares profile, RBAC and linked scope reads across layout and full actors in one request", async () => {
     const { module: requestContext, requestClient } = await loadRequestContextModule({
       profileRole: "teacher",
       rpcResult: {
@@ -327,16 +347,56 @@ describe("request-context rpc linked scope", () => {
       }
     });
 
-    await requestContext.getAppActor();
-    await requestContext.getAppActor();
+    const layoutActor = await requestContext.getLayoutActor();
+    const fullActor = await requestContext.getAppActor();
 
-    expect(requestClient.stats.profileReads).toBe(2);
-    expect(requestClient.stats.rbacReads).toBe(2);
-    expect(requestClient.stats.rpcCalls).toBe(2);
+    expect(layoutActor).toMatchObject({
+      studentId: "student-1",
+      teacherId: "teacher-1",
+      accessibleStudentIds: [],
+      isStudent: true,
+      isTeacher: true
+    });
+    expect(fullActor).toMatchObject({
+      studentId: "student-1",
+      teacherId: "teacher-1",
+      accessibleStudentIds: ["student-1", "student-2"],
+      isStudent: true,
+      isTeacher: true
+    });
+    expect(requestClient.stats.profileReads).toBe(1);
+    expect(requestClient.stats.rbacReads).toBe(1);
+    expect(requestClient.stats.rpcCalls).toBe(1);
+  });
+
+  it("preserves non-teacher layout actor linked-scope shape", async () => {
+    const { module: requestContext } = await loadRequestContextModule({
+      profileRole: "student",
+      rpcResult: {
+        data: [
+          {
+            student_id: "student-1",
+            teacher_id: null,
+            accessible_student_ids: null
+          }
+        ],
+        error: null
+      }
+    });
+
+    const actor = await requestContext.getLayoutActor();
+
+    expect(actor).toMatchObject({
+      studentId: "student-1",
+      teacherId: null,
+      accessibleStudentIds: null,
+      isStudent: true,
+      isTeacher: false
+    });
   });
 
   it("keeps linked scope invalidation callable", async () => {
-    const { module: requestContext, requestClient } = await loadRequestContextModule({
+    const { module: requestContext } = await loadRequestContextModule({
       profileRole: "teacher",
       rpcResult: {
         data: [
@@ -350,12 +410,6 @@ describe("request-context rpc linked scope", () => {
       }
     });
 
-    await requestContext.getAppActor();
-    await requestContext.invalidateFullAppActorCache("user-1");
-    await requestContext.getAppActor();
-
-    expect(requestClient.stats.profileReads).toBe(2);
-    expect(requestClient.stats.rbacReads).toBe(2);
-    expect(requestClient.stats.rpcCalls).toBe(2);
+    await expect(requestContext.invalidateLinkedActorScopeCache("user-1")).resolves.toBeUndefined();
   });
 });

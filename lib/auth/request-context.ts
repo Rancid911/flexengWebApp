@@ -88,6 +88,8 @@ type LinkedActorScopeRpcRow = {
   accessible_student_ids: string[] | null;
 };
 
+type LinkedActorScopeRpcPayload = LinkedActorScopeRpcRow | LinkedActorScopeRpcRow[] | null | undefined;
+
 type RbacRolePermissionRow = {
   scope?: string | null;
   permissions?: {
@@ -393,9 +395,9 @@ async function loadProfileIdentityContext(context: MinimalRequestContext): Promi
   };
 }
 
-async function getCachedProfileIdentityContext(context: MinimalRequestContext): Promise<ProfileIdentityContext> {
+const getCachedProfileIdentityContext = cache(async (context: MinimalRequestContext): Promise<ProfileIdentityContext> => {
   return measureServerTiming("request-context-profile-user-scoped", async () => loadProfileIdentityContext(context));
-}
+});
 
 const getProfileIdentityContextBase = cache(async (): Promise<ProfileIdentityContext | null> => {
   const context = await getMinimalRequestContextBase();
@@ -406,10 +408,7 @@ const getProfileIdentityContextBase = cache(async (): Promise<ProfileIdentityCon
   return getCachedProfileIdentityContext(context);
 });
 
-async function getLinkedActorDataWithUserScopedResolver(
-  identity: ProfileIdentityContext,
-  mode: LinkedActorScopeMode
-): Promise<LinkedActorData> {
+async function loadLinkedActorScopeRpcPayload(identity: ProfileIdentityContext): Promise<LinkedActorScopeRpcPayload> {
   return measureServerTiming("request-context-linked-scope-rpc", async () => {
     void REQUEST_CONTEXT_LINKED_SCOPE_ACCESS_MODE;
     const supabase = await createClient();
@@ -418,7 +417,7 @@ async function getLinkedActorDataWithUserScopedResolver(
     });
 
     if (!rpcResponse.error) {
-      return normalizeLinkedActorScopeRpcData(rpcResponse.data as LinkedActorScopeRpcRow | LinkedActorScopeRpcRow[] | null | undefined, mode);
+      return rpcResponse.data as LinkedActorScopeRpcPayload;
     }
 
     if (isLinkedActorScopeRpcUnavailableMessage(rpcResponse.error.message)) {
@@ -426,11 +425,7 @@ async function getLinkedActorDataWithUserScopedResolver(
         code: "REQUEST_CONTEXT_SCOPE_RPC_UNAVAILABLE",
         message: rpcResponse.error.message
       });
-      return {
-        studentId: null,
-        teacherId: null,
-        accessibleStudentIds: null
-      };
+      return null;
     }
 
     console.warn("REQUEST_CONTEXT_SCOPE_RPC_FAILED", {
@@ -441,10 +436,14 @@ async function getLinkedActorDataWithUserScopedResolver(
   });
 }
 
+const getCachedLinkedActorScopeRpcPayload = cache(async (identity: ProfileIdentityContext): Promise<LinkedActorScopeRpcPayload> =>
+  loadLinkedActorScopeRpcPayload(identity)
+);
+
 async function getCachedLinkedActorData(identity: ProfileIdentityContext, mode: LinkedActorScopeMode): Promise<LinkedActorData> {
   return measureServerTiming(
     mode === "full" ? "request-context-linked-scope-full" : "request-context-linked-scope-layout",
-    async () => getLinkedActorDataWithUserScopedResolver(identity, mode)
+    async () => normalizeLinkedActorScopeRpcData(await getCachedLinkedActorScopeRpcPayload(identity), mode)
   );
 }
 
@@ -477,9 +476,9 @@ async function loadRbacActorData(identity: ProfileIdentityContext): Promise<Rbac
   }
 }
 
-async function getCachedRbacActorData(identity: ProfileIdentityContext): Promise<RbacActorData> {
+const getCachedRbacActorData = cache(async (identity: ProfileIdentityContext): Promise<RbacActorData> => {
   return measureServerTiming("request-context-rbac-user-scoped", async () => loadRbacActorData(identity));
-}
+});
 
 type RequestContextBootstrap = {
   identity: ProfileIdentityContext;
