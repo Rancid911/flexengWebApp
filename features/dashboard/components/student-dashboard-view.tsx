@@ -43,7 +43,7 @@ export default function StudentDashboardView({
       <section className="relative overflow-hidden rounded-[1.75rem] border border-[#cfe0f8] bg-[#2155d8] text-white shadow-[0_22px_52px_rgba(37,86,216,0.22)]">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[url('/images/dashboard/student-dashboard-study-hero.png')] bg-cover bg-[center_right_24%] opacity-95"
+         className="pointer-events-none absolute inset-0 bg-[url('/images/dashboard/student-dashboard-study-hero.png')] bg-cover bg-[center_right_24%] opacity-95"
         />
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(33,78,207,0.98)_0%,rgba(45,92,219,0.94)_32%,rgba(58,112,225,0.62)_58%,rgba(215,231,255,0.16)_100%)]" />
         <div className="relative grid gap-6 p-5 sm:p-6 lg:grid-cols-[1.15fr_0.78fr] lg:items-center lg:p-7">
