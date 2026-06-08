@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import RootLoading from "@/app/loading";
 import WorkspaceLoading from "@/app/(workspace)/loading";
 import SearchLoading from "@/app/search/loading";
 import ArticlesLoading from "@/app/(public)/articles/loading";
@@ -42,15 +43,20 @@ import PaymentSettingsLoading from "@/app/(workspace)/(student-zone)/settings/pa
 import StudentProfileLoading from "@/app/(workspace)/(teacher-zone)/students/[studentId]/loading";
 import StudentsLoading from "@/app/(workspace)/(teacher-zone)/students/loading";
 import {
+  BootstrapSpinnerLoading,
   WorkspaceAdminDirectoryLoadingSkeleton,
   WorkspaceAdminPaymentsLoadingSkeleton,
   WorkspaceAdminProfileLoadingSkeleton,
+  WorkspaceBootstrapLoadingSkeleton,
+  WorkspaceDashboardLoadingSkeleton,
   WorkspaceHomeworkDetailLoadingSkeleton,
   WorkspaceHomeworkListLoadingSkeleton,
   WorkspacePracticeActivityLoadingSkeleton,
   WorkspacePracticeLibraryLoadingSkeleton,
   WorkspacePracticeOverviewLoadingSkeleton,
   WorkspacePracticeTopicLoadingSkeleton,
+  WorkspaceNeutralLoadingSkeleton,
+  WorkspaceStudentDashboardLoadingSkeleton,
   WorkspaceStudentPaymentsLoadingSkeleton,
   WorkspaceWordsLibraryLoadingSkeleton,
   WorkspaceWordsTrainerLoadingSkeleton
@@ -143,10 +149,60 @@ describe("workspace loading skeleton boundaries", () => {
 
   it("keeps the broad workspace fallback neutral and free of page-specific skeleton imports", () => {
     const source = readProjectFile("app/(workspace)/loading.tsx");
+    const skeletonSource = readProjectFile("features/workspace-shell/components/loading/workspace-loading-skeletons.tsx");
 
     expect(source).toContain("WorkspaceNeutralLoadingSkeleton");
     expect(source).not.toMatch(/Workspace(Dashboard|Schedule|StudentDirectory|StudentProfile|Admin|Crm|Settings)LoadingSkeleton/);
+    expect(source).not.toMatch(/@\/lib\/auth|@\/lib\/permissions|@\/lib\/supabase|cookies\(|headers\(|redirect\(|fetch\(/);
     expect(source).not.toContain("WorkspaceShell");
+    expect(skeletonSource).toContain("bg-[#f5f7f9]");
+    expect(skeletonSource).toContain("BootstrapSpinnerLoading");
+    expect(skeletonSource).toContain("Загружаем рабочую область…");
+  });
+
+  it("keeps root loading aligned with the shared bootstrap spinner fallback", () => {
+    const source = readProjectFile("app/loading.tsx");
+    const skeletonSource = readProjectFile("features/workspace-shell/components/loading/workspace-loading-skeletons.tsx");
+    const inventory = readProjectFile("docs/loading-screen-inventory.md");
+    const spinnerBody = skeletonSource.slice(
+      skeletonSource.indexOf("export function BootstrapSpinnerLoading()"),
+      skeletonSource.indexOf("export function WorkspaceBootstrapLoadingSkeleton()")
+    );
+
+    expect(source).toContain("BootstrapSpinnerLoading");
+    expect(source).not.toContain("bg-background");
+    expect(source).not.toContain("bg-card");
+    expect(source).not.toContain("ROOT LOADING DEBUG");
+    expect(source).not.toMatch(/@\/lib\/auth|@\/lib\/permissions|@\/lib\/supabase|cookies\(|headers\(|redirect\(|fetch\(/);
+    expect(skeletonSource).toContain("export function BootstrapSpinnerLoading()");
+    expect(skeletonSource).toContain("export function WorkspaceBootstrapLoadingSkeleton()");
+    expect(skeletonSource).toContain("export function WorkspaceNeutralLoadingSkeleton()");
+    expect(skeletonSource).toContain("return <BootstrapSpinnerLoading />");
+    expect(spinnerBody).toContain('role="status"');
+    expect(spinnerBody).toContain('aria-live="polite"');
+    expect(spinnerBody).toContain('aria-hidden="true"');
+    expect(spinnerBody).toContain("Загружаем рабочую область…");
+    expect(spinnerBody).toContain("BOOTSTRAP_SPINNER_SEGMENTS.map");
+    expect(spinnerBody).not.toContain("<PulseBlock");
+    expect(spinnerBody).not.toContain("max-w-[20rem]");
+    expect(spinnerBody).not.toContain("bg-white");
+    expect(skeletonSource).not.toContain("WORKSPACE NEUTRAL DEBUG");
+    expect(inventory).toContain("app/loading.tsx");
+    expect(inventory).toContain("same minimal light spinner loader");
+  });
+
+  it("keeps dashboard loading mapped to the shared presentational dashboard skeleton", () => {
+    const source = readProjectFile("app/(workspace)/(shared-zone)/dashboard/loading.tsx");
+    const skeletonSource = readProjectFile("features/workspace-shell/components/loading/workspace-loading-skeletons.tsx");
+    const inventory = readProjectFile("docs/loading-screen-inventory.md");
+
+    expect(source).toContain("WorkspaceDashboardLoadingSkeleton");
+    expect(source).not.toContain("WorkspaceStudentDashboardLoadingSkeleton");
+    expect(source).not.toMatch(/@\/lib\/auth|@\/lib\/permissions|@\/lib\/supabase|cookies\(|headers\(|redirect\(|fetch\(/);
+    expect(skeletonSource).toContain("export function WorkspaceStudentDashboardLoadingSkeleton()");
+    expect(skeletonSource).toContain("return <WorkspaceDashboardLoadingSkeleton />");
+    expect(inventory).toContain("intentionally stays role-neutral");
+    expect(inventory).toContain("must not read auth, roles, RBAC, cookies, headers or data");
   });
 
   it("keeps skeleton components presentational-only", () => {
@@ -167,6 +223,11 @@ describe("workspace loading skeleton boundaries", () => {
 
   it("renders new screen-accurate skeleton components without shell ownership", () => {
     const skeletonComponents = [
+      WorkspaceNeutralLoadingSkeleton,
+      BootstrapSpinnerLoading,
+      WorkspaceBootstrapLoadingSkeleton,
+      WorkspaceDashboardLoadingSkeleton,
+      WorkspaceStudentDashboardLoadingSkeleton,
       WorkspaceStudentPaymentsLoadingSkeleton,
       WorkspaceAdminDirectoryLoadingSkeleton,
       WorkspaceAdminProfileLoadingSkeleton,
@@ -194,6 +255,7 @@ describe("workspace loading skeleton boundaries", () => {
 
   it("keeps route loading components free of workspace shell ownership", () => {
     const loadingComponents = [
+      RootLoading,
       WorkspaceLoading,
       SearchLoading,
       ArticlesLoading,

@@ -10,6 +10,8 @@ Related tests: `tests/unit/workspace-loading-skeletons.test.tsx`, `tests/unit/wo
 
 This inventory records the current loading/skeleton state across the screen-accurate skeleton implementation passes. It intentionally does not claim every route is fixed. Use this file to decide which route skeletons to add, replace, keep neutral, or leave absent.
 
+The root fallback at `app/loading.tsx` and the parent workspace fallback at `app/(workspace)/loading.tsx` are bootstrap placeholders, not page skeletons. Both intentionally use the same minimal light spinner loader so sequential parent-child loading states after login redirects or hard refreshes do not feel like different screens. Keep both light, minimal and non-page-like; page routes such as `/dashboard` own their actual page skeletons.
+
 Status values:
 
 - `accurate`: existing skeleton structurally matches the final screen.
@@ -19,11 +21,18 @@ Status values:
 - `documented exception`: route has mixed shell/public behavior or another explicit reason to avoid normal workspace skeleton rules.
 - `requires manual verification`: route needs browser validation before marking accurate.
 
+## App Bootstrap Loading
+
+| Route/screen | Final layout type | Final component inspected | Existing loading source | Current skeleton type | Problem | Action/status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Root app bootstrap | Any route before a more specific loading boundary resolves | `app/layout.tsx` | `app/loading.tsx` | Minimal light segmented spinner shared with workspace loading | Previously used dark root tokens and a dashboard-like grid; root loading must not become dashboard-like | `updated` |
+| Workspace bootstrap | Protected workspace shell before route-level content resolves | `features/workspace-shell/server/workspace-shell.server.tsx` | `app/(workspace)/loading.tsx` | Minimal light segmented spinner shared with root loading | May appear before `/dashboard/loading.tsx`; must stay minimal to avoid competing with dashboard page skeleton | `updated` |
+
 ## Workspace Routes
 
 | Route/screen | Final layout type | Final component inspected | Existing loading source | Current skeleton type | Problem | Action/status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `/dashboard` | Role-specific dashboard aggregator | `features/dashboard/server/dashboard-route.tsx` | `app/(workspace)/(shared-zone)/dashboard/loading.tsx` | Dashboard header, cards and section rows | Structurally close, but role-specific variants still need browser validation | `requires manual verification` |
+| `/dashboard` | Shared dashboard aggregator for student, teacher, admin and manager workspaces | `features/dashboard/server/dashboard-route.tsx` | `app/(workspace)/(shared-zone)/dashboard/loading.tsx` | Role-neutral dashboard overview, status card, action card, widget grid and stat cards | Shared fallback is intentionally layout-compatible with the student dashboard because it is currently the most layout-sensitive dashboard; `loading.tsx` must not add role/auth/data logic | `updated` |
 | `/schedule` | Schedule filters plus agenda/list | `features/schedule/server/schedule-route.tsx` | `app/(workspace)/(shared-zone)/schedule/loading.tsx` | Schedule header, filter row and lesson rows | Structurally close; verify against current agenda/table layout | `requires manual verification` |
 | `/students` | Teacher student directory | `features/teacher-workspace/server/teacher-students-route.tsx` | `app/(workspace)/(teacher-zone)/students/loading.tsx` | Directory header, search row and list rows | Structurally close for teacher directory | `requires manual verification` |
 | `/students/[studentId]` | Teacher student profile/detail | `features/teacher-workspace/server/teacher-student-profile-route.tsx` | `app/(workspace)/(teacher-zone)/students/[studentId]/loading.tsx` | Profile header and detail sections | Structurally close; nested detail tabs need validation | `requires manual verification` |
@@ -86,3 +95,5 @@ PR-SKEL-2A note: `/settings/payments` no longer uses the generic `WorkspaceSetti
 PR-SKEL-2B note: practice overview, library, topic and activity routes now use separate skeleton families; activity pages do not use the generic practice library skeleton.
 PR-SKEL-2C note: admin directories, admin profiles and admin payments no longer inherit the generic `WorkspaceAdminLoadingSkeleton`; they use route-local directory/profile/payments skeletons.
 PR-SKEL-2D note: `/search` uses a search-shaped route fallback plus an inner Suspense fallback inside the existing public/auth shell decision; search authorization and result visibility remain unchanged.
+Dashboard note: `/dashboard/loading.tsx` is shared across student, teacher, admin and manager dashboard branches, so it intentionally stays role-neutral and presentational-only. It follows the student dashboard's proportions to reduce layout shift on the most layout-specific branch, but shared loading must not read auth, roles, RBAC, cookies, headers or data. If dashboard routing is split into role-specific routes later, those routes may own dedicated loading skeletons.
+Workspace bootstrap note: `app/(workspace)/loading.tsx` may render before `/dashboard/loading.tsx` while the workspace shell resolves. Its `WorkspaceNeutralLoadingSkeleton` is intentionally compact, light and non-page-like to avoid two visually competing full-page skeleton states in sequence.
