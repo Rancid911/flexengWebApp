@@ -24,7 +24,7 @@ export function StudentPaymentReminderPanel({ popup }: { popup: StudentPaymentRe
       popup.status === "debt"
         ? {
             panelClass:
-              "border-white/20 bg-[linear-gradient(135deg,#5d38e8_0%,#7c3aed_44%,#9d4edd_100%)] text-white shadow-[0_30px_64px_rgba(78,42,181,0.38)] ring-1 ring-white/12",
+              "border-white/20 bg-[linear-gradient(135deg,#2155d8_0%,#2458e6_44%,#1f7aff_100%)] text-white shadow-[0_30px_64px_rgba(37,86,216,0.34)] ring-1 ring-white/12",
             railClass: "from-white/45 via-white/20 to-white/45",
             iconClass: "bg-white/14 text-white ring-1 ring-white/18",
             chipClass: "bg-white/14 text-white ring-1 ring-white/20",
@@ -39,11 +39,11 @@ export function StudentPaymentReminderPanel({ popup }: { popup: StudentPaymentRe
             closeButtonClass:
               "text-white/72 hover:bg-white/12 hover:text-white focus-visible:ring-white/28",
             ctaClass:
-              "bg-white text-[#6f4cf6] shadow-[0_16px_32px_rgba(31,10,90,0.24)] hover:bg-[#f6f1ff]"
+              "bg-white text-[#2458e6] shadow-[0_16px_32px_rgba(18,32,59,0.22)] hover:bg-[#f0f6ff]"
           }
         : {
             panelClass:
-              "border-white/18 bg-[linear-gradient(135deg,#6f4cf6_0%,#8b5cf6_48%,#a56bff_100%)] text-white shadow-[0_28px_58px_rgba(92,62,205,0.34)] ring-1 ring-white/12",
+              "border-white/18 bg-[linear-gradient(135deg,#2155d8_0%,#2458e6_48%,#1f7aff_100%)] text-white shadow-[0_28px_58px_rgba(37,86,216,0.32)] ring-1 ring-white/12",
             railClass: "from-white/42 via-white/18 to-white/42",
             iconClass: "bg-white/14 text-white ring-1 ring-white/18",
             chipClass: "bg-white/14 text-white ring-1 ring-white/20",
@@ -56,7 +56,7 @@ export function StudentPaymentReminderPanel({ popup }: { popup: StudentPaymentRe
             closeButtonClass:
               "text-white/72 hover:bg-white/12 hover:text-white focus-visible:ring-white/28",
             ctaClass:
-              "bg-white text-[#6f4cf6] shadow-[0_16px_32px_rgba(31,10,90,0.22)] hover:bg-[#f6f1ff]"
+              "bg-white text-[#2458e6] shadow-[0_16px_32px_rgba(18,32,59,0.2)] hover:bg-[#f0f6ff]"
           },
     [popup]
   );
