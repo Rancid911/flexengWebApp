@@ -4,7 +4,7 @@ const cookieStoreMock = vi.hoisted(() => {
   const values = new Map<string, { value: string }>();
   return {
     get: vi.fn((name: string) => values.get(name)),
-    set: vi.fn((name: string, value: string, options?: unknown) => {
+    set: vi.fn((name: string, value: string) => {
       values.set(name, { value });
     }),
     values

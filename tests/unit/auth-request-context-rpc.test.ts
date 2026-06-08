@@ -19,7 +19,8 @@ type RbacRow = {
 
 const cacheStore = new Map<string, unknown>();
 const cacheTagIndex = new Map<string, Set<string>>();
-let reactCacheStore = new WeakMap<Function, Map<string, unknown>>();
+type ReactCacheCallback = (...args: unknown[]) => unknown;
+let reactCacheStore = new WeakMap<ReactCacheCallback, Map<string, unknown>>();
 
 vi.mock("react", () => ({
   cache: <T extends (...args: unknown[]) => unknown>(callback: T) => {
@@ -186,7 +187,7 @@ describe("request-context rpc linked scope", () => {
     vi.resetModules();
     cacheStore.clear();
     cacheTagIndex.clear();
-    reactCacheStore = new WeakMap<Function, Map<string, unknown>>();
+    reactCacheStore = new WeakMap<ReactCacheCallback, Map<string, unknown>>();
   });
 
   afterEach(() => {
