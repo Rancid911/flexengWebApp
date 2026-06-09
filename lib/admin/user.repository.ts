@@ -33,6 +33,7 @@ export async function createAuthUser(
     password: payload.password,
     email_confirm: true,
     app_metadata: {
+      provision_source: "admin_create",
       provision_role: payload.role
     }
   });

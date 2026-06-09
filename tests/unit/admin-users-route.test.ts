@@ -177,7 +177,7 @@ describe("/api/admin/users POST", () => {
       email: "teacher@example.com",
       password: "Password123!",
       email_confirm: true,
-      app_metadata: { provision_role: "teacher" }
+      app_metadata: { provision_source: "admin_create", provision_role: "teacher" }
     });
     expect(profilesUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
       role: "teacher",

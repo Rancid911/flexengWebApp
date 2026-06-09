@@ -162,4 +162,27 @@ describe("AdminStudentsPage", () => {
     expect(screen.getByText("По запросу ничего не найдено.")).toBeInTheDocument();
     expect(screen.getByText("Показано 0 из 0")).toBeInTheDocument();
   });
+
+  it("does not list student profiles that do not have a linked student row", async () => {
+    const query = createProfilesQueryMock([
+      {
+        id: "profile-1",
+        role: "student",
+        first_name: "Unlinked",
+        last_name: "Signup",
+        email: "unlinked@example.com",
+        phone: null,
+        created_at: "2026-01-01T00:00:00.000Z"
+      }
+    ], 1);
+    createClientMock.mockResolvedValue({ from: vi.fn(() => query) });
+    hydrateUsersWithStudentDetailsMock.mockResolvedValue([{ id: "profile-1", role: "student", student_id: null }]);
+    toUserDtoMock.mockReturnValue({ ...studentDto, id: "profile-1", student_id: null, first_name: "Unlinked", email: "unlinked@example.com" });
+
+    render(await AdminStudentsPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByRole("heading", { name: "Список учеников" })).toBeInTheDocument();
+    expect(screen.queryByText("unlinked@example.com")).not.toBeInTheDocument();
+    expect(screen.getByText("Показано 0 из 0")).toBeInTheDocument();
+  });
 });

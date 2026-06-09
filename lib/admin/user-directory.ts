@@ -96,10 +96,10 @@ export async function listAdminStudentsDirectoryPage(input: {
     throw new Error(`Failed to fetch students: ${error.message}`);
   }
 
-  const students = (await hydrateUsersWithStudentDetails(supabase, (data ?? []) as Record<string, unknown>[], "ADMIN_STUDENTS_FETCH_FAILED")).map((row) =>
-    toUserDto(row)
-  );
-  const total = count ?? 0;
+  const students = (await hydrateUsersWithStudentDetails(supabase, (data ?? []) as Record<string, unknown>[], "ADMIN_STUDENTS_FETCH_FAILED"))
+    .map((row) => toUserDto(row))
+    .filter((student) => student.student_id !== null);
+  const total = students.length < (data?.length ?? 0) ? students.length : count ?? 0;
 
   return {
     query: input.query,
