@@ -80,6 +80,7 @@ Key tables/concepts:
 - `practice-attempts.repository.ts` owns grading-data reads, the authenticated atomic attempt RPC and mistake persistence.
 - `practice-attempts.infrastructure.ts` creates one user-scoped SSR Supabase client for the repository and homework synchronization.
 - `submit_practice_test_attempt` derives the student from `auth.uid()`, revalidates answers and grading from DB rows, and atomically inserts the attempt plus its complete answer set under RLS.
+- Attempts and answers expose only canonical authenticated RLS policies: own students can mutate their rows, assigned/all-scope staff can read, staff direct mutations and anonymous table access are denied.
 - The service compares authoritative RPC grading with the local pure policy before running mistakes, homework synchronization and revalidation.
 - `attempts.ts` is a compatibility facade and must not regain grading or Supabase access.
 

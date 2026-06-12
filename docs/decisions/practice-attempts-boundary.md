@@ -96,7 +96,7 @@ Rejected. Prisma would not make the existing Supabase Data API and RLS workflow 
 - Attempt and answer rows can no longer be committed separately.
 - Mistake and homework projections remain potentially incomplete after partial failures.
 - Duplicate valid submissions remain possible because idempotency is outside this decision.
-- Legacy public table policies remain unchanged and require a separate security cleanup.
+- Attempt/answer table access is enforced only by canonical `app_private.*` policies: students retain own-row mutations, assigned/all-scope staff retain reads, and undocumented staff mutations are removed.
 
 ## Verification
 

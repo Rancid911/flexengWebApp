@@ -3,7 +3,7 @@
 Status: current  
 Audience: engineers reviewing database access, SQL functions and release verification  
 Owner area: access-control  
-Last reviewed: 2026-05-25  
+Last reviewed: 2026-06-12
 Source of truth: summary; migrations and smoke scripts are implementation/verification sources  
 Related code: `supabase/migrations/`, `supabase/sql-editor/`, `lib/search/`, `lib/admin/dashboard-metrics.ts`  
 Related tests: `tests/unit/search-rpc-grants.test.ts`, `tests/unit/search-documents-source.test.ts`, `tests/unit/admin-dashboard-metrics-server.test.ts`
@@ -17,6 +17,8 @@ Application guards decide whether a request should reach a service. RLS and RPCs
 - Raw `profiles.role` policies are historical unless explicitly documented as non-authoritative.
 - Own, assigned and all-scope access should be represented by policy/helper logic or narrow RPCs.
 - Service-only tables, payment webhook data and direct search documents table access should stay closed to normal clients.
+- Practice attempts and answers use only canonical authenticated policies: `*_select_access` delegates to `app_private.can_access_student`, while `*_insert_own`, `*_update_own` and `*_delete_own` require `app_private.is_own_student`.
+- `anon` has no table privileges on practice attempts or answers. Staff can read through assigned/all scope but cannot directly create or mutate student attempt records.
 
 ## RPC Expectations
 
@@ -40,7 +42,7 @@ Some `SECURITY DEFINER` read-model RPCs remain executable by `authenticated` bec
 
 Provider-state payment mutation is not part of this intentional direct-RPC surface. `update_current_student_payment_transaction_provider_state(...)` is called through the privileged payment service boundary, and direct `authenticated` execute is revoked.
 
-Live policies still reference legacy `public.current_student_id()`, `public.current_teacher_id()`, `public.get_my_role()`, `public.is_admin_or_manager()` and `public.is_teacher()` helpers. These helpers must remain executable by `authenticated` until those policies are migrated to `app_private.*`; keep `anon` closed.
+Some live policies outside practice attempts still reference legacy `public.current_student_id()`, `public.current_teacher_id()`, `public.get_my_role()`, `public.is_admin_or_manager()` and `public.is_teacher()` helpers. These helpers must remain executable by `authenticated` until those policies are migrated to `app_private.*`; keep `anon` closed.
 
 A future cleanup may move more calls to a documented service-role boundary and grant direct execute only to `service_role`, but that is a broader security design change and must update `docs/service-role-inventory.md` plus architecture enforcement.
 
@@ -50,6 +52,7 @@ Use `docs/rls-smoke-harness.md` for live verification instructions:
 
 - `supabase/sql-editor/rls_metadata_smoke_20260521.sql` is production-safe metadata smoke.
 - `supabase/sql-editor/rls_smoke_matrix_20260521.sql` is the full row-access matrix for branch, clone, local or staging databases.
+- `supabase/sql-editor/practice_attempt_rls_cleanup_smoke.sql` verifies the canonical practice attempt actor matrix and atomic RPC after legacy policy removal.
 - RPC hardening smoke is separate from full RLS and storage verification.
 
 Static migrations are not proof of live DB state. Do not claim RLS is production-verified unless a target database smoke run is recorded.

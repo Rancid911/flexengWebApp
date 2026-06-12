@@ -3,7 +3,7 @@
 Status: current  
 Audience: release owners, engineers, security reviewers  
 Owner area: access-control  
-Last reviewed: 2026-05-25  
+Last reviewed: 2026-06-12
 Source of truth: summary; individual commands and smoke scripts are verification sources  
 Related code: `scripts/check-architecture.mjs`, `supabase/sql-editor/`, `tests/unit/`  
 Related tests: `tests/unit/access-docs-consistency.test.ts`
@@ -27,6 +27,7 @@ This file separates static/local evidence from live Supabase verification. Stati
 | RPC hardening smoke | `supabase/sql-editor/rpc_hardening_smoke_20260521.sql` | Verifies selected RPC grants and spoofing behavior when run on a target DB. A recorded pass covers this script only. |
 | RLS metadata smoke | `supabase/sql-editor/rls_metadata_smoke_20260521.sql` | Production-safe catalog verification; does not prove row-level access. |
 | Full RLS matrix | `supabase/sql-editor/rls_smoke_matrix_20260521.sql` | Best row-level policy confidence; should run on branch, clone, local or staging DB. |
+| Practice attempt RLS cleanup | `supabase/sql-editor/practice_attempt_rls_cleanup_smoke.sql` | Verifies canonical attempt/answer policies, actor read/write boundaries, anon closure and atomic RPC continuity. |
 | Storage metadata smoke | `supabase/sql-editor/storage_access_inventory_20260521.sql` | Verifies bucket/storage metadata posture on the target DB. |
 
 ## Manual / E2E Verification
