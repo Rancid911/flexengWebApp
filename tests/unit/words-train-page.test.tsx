@@ -7,7 +7,7 @@ const flashcardTrainerMock = vi.fn(({ session }: { session: unknown }) => (
   <div data-testid="flashcard-trainer-probe">{JSON.stringify(session)}</div>
 ));
 
-vi.mock("@/lib/words/queries", () => ({
+vi.mock("@/lib/words/words.service", () => ({
   buildWordSession: (...args: unknown[]) => buildWordSessionMock(...args)
 }));
 

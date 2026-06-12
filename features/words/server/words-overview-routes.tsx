@@ -2,7 +2,11 @@ import { notFound } from "next/navigation";
 
 import { WordTopicDetail } from "@/features/words/components/word-topic-detail";
 import { WordsOverview } from "@/features/words/components/words-overview";
-import { getWordTopicDetail, getWordTopicSummaries, getWordsOverviewSummary } from "@/lib/words/queries";
+import {
+  getWordsOverviewSummary,
+  getWordTopicDetail,
+  getWordTopicSummaries
+} from "@/lib/words/words.service";
 
 export async function renderWordsOverviewRoute() {
   const [summary, topics] = await Promise.all([getWordsOverviewSummary(), getWordTopicSummaries()]);

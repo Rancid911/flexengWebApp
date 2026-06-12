@@ -29,7 +29,7 @@ export const REQUEST_ACCESS_MATRIX = {
     "progress",
     "practice",
     "homework",
-    "words",
+    "words service/repository",
     "payments service/repository",
     "notifications/server",
     "settings profile repository/gateways",

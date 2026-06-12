@@ -64,9 +64,9 @@ import {
   WORDS_LIST_DATA_LOADING,
   WORDS_NEW_LIST_DATA_LOADING,
   WORDS_OVERVIEW_SUMMARY_DATA_LOADING,
-  WORDS_REVIEW_QUEUE_DATA_LOADING,
-  type WordsOverviewSummary
-} from "@/lib/words/queries";
+  WORDS_REVIEW_QUEUE_DATA_LOADING
+} from "@/lib/words/words.service";
+import type { WordsOverviewSummary } from "@/lib/words/words.types";
 
 const SETTINGS_PROFILE_DATA_LOADING = defineDataLoadingDescriptor({
   id: "settings-profile",

@@ -4,7 +4,10 @@ import { ArrowRight, BookOpen, Brain, Layers, RotateCcw, Sparkles } from "lucide
 
 import { Card, CardContent } from "@/components/ui/card";
 import { StudentPageHeader } from "@/shared/ui/student-page-primitives";
-import type { WordTopicSummary, WordsOverviewSummary } from "@/lib/words/queries";
+import type {
+  WordsOverviewSummary,
+  WordTopicSummary
+} from "@/lib/words/words.types";
 
 import { WordsSubnav } from "@/features/words/components/words-subnav";
 

@@ -8,7 +8,7 @@ vi.mock("@/lib/auth/request-context", () => ({
   getAppActor: () => getAppActorMock()
 }));
 
-vi.mock("@/lib/words/queries", () => ({
+vi.mock("@/lib/words/words.service", () => ({
   completeWordSession: (...args: unknown[]) => completeWordSessionMock(...args)
 }));
 

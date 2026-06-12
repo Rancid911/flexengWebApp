@@ -6,7 +6,11 @@ import { useMemo, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { WordCard, WordSession, WordSessionSubmitResult } from "@/lib/words/queries";
+import type {
+  WordCard,
+  WordSession,
+  WordSessionSubmitResult
+} from "@/lib/words/words.types";
 import type { WordSessionAnswer } from "@/lib/words/validation";
 
 type RecallItem = {

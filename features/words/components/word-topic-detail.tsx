@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Layers } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { StudentPageHeader } from "@/shared/ui/student-page-primitives";
-import type { WordTopicDetail as WordTopicDetailData } from "@/lib/words/queries";
+import type { WordTopicDetail as WordTopicDetailData } from "@/lib/words/words.types";
 
 import { WordsSubnav } from "@/features/words/components/words-subnav";
 

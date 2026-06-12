@@ -3,10 +3,10 @@
 Status: current  
 Audience: engineers, product maintainers, learning content maintainers, security reviewers  
 Owner area: words-flashcards  
-Last reviewed: 2026-05-25  
+Last reviewed: 2026-06-12
 Source of truth: feature summary; current code/tests remain implementation source  
 Related code: `app/(workspace)/(shared-zone)/words/`, `app/api/words/sessions/complete/route.ts`, `app/api/admin/word-card-sets/`, `features/words/`, `lib/words/`, `lib/admin/word-card-sets.service.ts`, `lib/admin/word-card-sets.repository.ts`  
-Related tests: `tests/unit/words-flashcards.test.ts`, `tests/unit/words-list-pages.test.tsx`, `tests/unit/words-train-page.test.tsx`, `tests/unit/words-session-complete-route.test.ts`, `tests/unit/words-session-complete-service.test.ts`, `tests/unit/admin-word-card-sets.test.ts`, `tests/unit/admin-word-card-sets-service.test.ts`
+Related tests: `tests/unit/words-repository.test.ts`, `tests/unit/words-review-policy.test.ts`, `tests/unit/words-service.test.ts`, `tests/unit/words-queries.test.ts`, `tests/unit/words-flashcards.test.ts`, `tests/unit/words-list-pages.test.tsx`, `tests/unit/words-train-page.test.tsx`, `tests/unit/words-session-complete-route.test.ts`, `tests/unit/words-session-complete-service.test.ts`, `tests/unit/admin-word-card-sets.test.ts`, `tests/unit/admin-word-card-sets-service.test.ts`
 
 ## Overview
 
@@ -47,6 +47,15 @@ Key tables:
 
 The read model combines student progress with published catalog sets. Catalog items are surfaced as new cards until a student creates progress for them.
 
+## Architecture
+
+- Server routes and the completion API call `lib/words/words.service.ts`.
+- The service owns request-local caching, DTO assembly and read/write orchestration.
+- `lib/words/words.repository.ts` is the student Words boundary for Supabase reads and writes.
+- `lib/words/words-review.policy.ts` owns due queues, answer aggregation and spaced-repetition transitions as pure functions.
+- `lib/words/words.types.ts` owns the public DTO and domain types used by server and UI code.
+- `lib/words/queries.ts` remains a compatibility facade and must not regain query or business logic.
+
 ## Access Control
 
 - Words workspace routes use `requireWorkspaceRouteAccess("words")`.
@@ -82,6 +91,8 @@ The read model combines student progress with published catalog sets. Catalog it
 Current focused coverage includes:
 
 - Word overview/list/train page rendering.
+- Repository query shape and policy transition coverage.
+- Service catalog assembly, fallback behavior and completion orchestration.
 - Session completion route and service behavior.
 - Admin word-card set route/service behavior.
 - Workspace navigation/read-route coverage for `word_cards.train` and demo permissions.
@@ -93,7 +104,7 @@ Coverage gaps:
 
 ## Operations
 
-- For missing catalog cards, inspect `word_card_sets.is_published`, `word_card_items` and catalog mapping in `lib/words/queries.ts`.
+- For missing catalog cards, inspect `word_card_sets.is_published`, `word_card_items`, `lib/words/words.repository.ts` and catalog mapping in `lib/words/words.service.ts`.
 - For write denials, check real-student write context before checking permission names.
 - For admin card-set failures, inspect validation rules: published sets require enough cards.
 

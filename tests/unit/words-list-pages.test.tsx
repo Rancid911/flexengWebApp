@@ -9,7 +9,7 @@ const getNewWordsMock = vi.fn();
 const getWordsForReviewMock = vi.fn();
 const requireLayoutActorMock = vi.fn();
 
-vi.mock("@/lib/words/queries", () => ({
+vi.mock("@/lib/words/words.service", () => ({
   getDifficultWords: (...args: unknown[]) => getDifficultWordsMock(...args),
   getNewWords: (...args: unknown[]) => getNewWordsMock(...args),
   getWordsForReview: (...args: unknown[]) => getWordsForReviewMock(...args)

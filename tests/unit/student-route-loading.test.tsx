@@ -64,7 +64,7 @@ vi.mock("@/features/words/components/word-topic-detail", () => ({
   WordTopicDetail: (props: unknown) => <div data-testid="word-topic-detail-probe">{JSON.stringify(props)}</div>
 }));
 
-vi.mock("@/lib/words/queries", () => ({
+vi.mock("@/lib/words/words.service", () => ({
   getWordsOverviewSummary: (...args: unknown[]) => getWordsOverviewSummaryMock(...args),
   getStudentWords: (...args: unknown[]) => getStudentWordsMock(...args),
   getWordsForReview: (...args: unknown[]) => getWordsForReviewMock(...args),

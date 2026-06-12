@@ -1,5 +1,9 @@
 import { WordsListPage } from "@/features/words/components/words-list-page";
-import { getDifficultWords, getNewWords, getWordsForReview } from "@/lib/words/queries";
+import {
+  getDifficultWords,
+  getNewWords,
+  getWordsForReview
+} from "@/lib/words/words.service";
 
 export async function renderWordsReviewRoute() {
   const words = await getWordsForReview();

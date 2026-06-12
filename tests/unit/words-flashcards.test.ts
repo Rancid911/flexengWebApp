@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCardsFromDbCatalog, buildWordsOverviewSummary, mapPublishedWordCardSetRowsToCatalog, type DbCatalogWord } from "@/lib/words/queries";
+import {
+  buildCardsFromDbCatalog,
+  buildWordsOverviewSummary,
+  mapPublishedWordCardSetRowsToCatalog
+} from "@/lib/words/words.service";
+import type { DbCatalogWord } from "@/lib/words/words.types";
 import { wordSessionCompleteSchema, wordSessionParamsSchema } from "@/lib/words/validation";
 
 const dbCatalog: DbCatalogWord[] = [

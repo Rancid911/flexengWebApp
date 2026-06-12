@@ -4,7 +4,7 @@ import { getAppActor } from "@/lib/auth/request-context";
 import { requirePermission } from "@/lib/permissions";
 import { requireRealStudentWriteContext } from "@/lib/students/current-student";
 import { WordsHttpError, withWordsErrorHandling } from "@/lib/words/http";
-import { completeWordSession } from "@/lib/words/queries";
+import { completeWordSession } from "@/lib/words/words.service";
 import { wordSessionCompleteSchema } from "@/lib/words/validation";
 
 export const POST = withWordsErrorHandling(async (request: NextRequest) => {

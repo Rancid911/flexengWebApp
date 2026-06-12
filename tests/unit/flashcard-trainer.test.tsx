@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FlashcardTrainer } from "@/features/words/components/flashcard-trainer";
-import type { WordSession } from "@/lib/words/queries";
+import type { WordSession } from "@/lib/words/words.types";
 
 const fetchMock = vi.fn();
 

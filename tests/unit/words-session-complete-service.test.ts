@@ -1,21 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentRealStudentWriteContextMock = vi.fn();
-const createClientMock = vi.fn();
+const createUserScopedWordsRepositoryMock = vi.fn();
 
 vi.mock("@/lib/students/current-student", () => ({
   getCurrentRealStudentWriteContext: (...args: unknown[]) => getCurrentRealStudentWriteContextMock(...args),
   getCurrentStudentProfile: vi.fn()
 }));
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: () => createClientMock()
+vi.mock("@/lib/words/words.repository", () => ({
+  createUserScopedWordsRepository: () =>
+    createUserScopedWordsRepositoryMock()
 }));
 
 describe("completeWordSession", () => {
   beforeEach(() => {
     getCurrentRealStudentWriteContextMock.mockReset();
-    createClientMock.mockReset();
+    createUserScopedWordsRepositoryMock.mockReset();
   });
 
   it("denies teacher preview context before writing student word progress", async () => {
@@ -27,12 +28,14 @@ describe("completeWordSession", () => {
       })
     );
 
-    const { completeWordSession } = await import("@/lib/words/queries");
+    const { completeWordSession } = await import(
+      "@/lib/words/words.service"
+    );
     await expect(completeWordSession([{ wordId: "word-1", result: "known" }])).rejects.toMatchObject({
       status: 403,
       code: "FORBIDDEN"
     });
 
-    expect(createClientMock).not.toHaveBeenCalled();
+    expect(createUserScopedWordsRepositoryMock).not.toHaveBeenCalled();
   });
 });

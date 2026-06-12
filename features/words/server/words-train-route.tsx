@@ -1,6 +1,6 @@
 import { FlashcardTrainer } from "@/features/words/components/flashcard-trainer";
 import { WordsTrainEmptyState } from "@/features/words/components/words-train-empty-state";
-import { buildWordSession } from "@/lib/words/queries";
+import { buildWordSession } from "@/lib/words/words.service";
 import { wordSessionParamsSchema } from "@/lib/words/validation";
 
 export async function renderWordsTrainRoute({
