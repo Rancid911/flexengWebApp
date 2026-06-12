@@ -5,7 +5,7 @@ Audience: engineers working on uploads, media routes or storage policy verificat
 Owner area: access-control  
 Last reviewed: 2026-05-25  
 Source of truth: wrapper; `docs/storage-access-inventory.md` is the authoritative storage inventory  
-Related code: `lib/media/service.ts`, `app/api/media/`, `lib/settings/profile.service.ts`, `lib/crm/`  
+Related code: `lib/media/service.ts`, `app/api/media/`, `lib/settings/profile-avatar.gateway.ts`, `lib/settings/profile.repository.ts`, `lib/settings/profile.service.ts`, `lib/crm/`<br>
 Related tests: `tests/unit/media-api-routes.test.ts`, `tests/unit/media-service.test.ts`
 
 Storage/media access is documented separately because bucket public/private posture, app route guards and backend media proxy behavior interact.

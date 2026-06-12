@@ -1,5 +1,9 @@
 import { PaymentsClient } from "@/features/payments/components/payments-client";
-import { getAvailablePaymentPlans, getStudentPaymentStatusContext, getStudentPayments } from "@/lib/payments/queries";
+import {
+  getAvailablePaymentPlans,
+  getStudentPaymentStatusContext,
+  getStudentPayments
+} from "@/lib/payments/payments.service";
 import { measureServerTiming } from "@/lib/server/timing";
 
 export async function renderStudentPaymentsRoute({

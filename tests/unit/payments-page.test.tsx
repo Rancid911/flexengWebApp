@@ -6,7 +6,7 @@ const getStudentPaymentsMock = vi.fn();
 const getAvailablePaymentPlansMock = vi.fn();
 const getStudentPaymentStatusContextMock = vi.fn();
 
-vi.mock("@/lib/payments/queries", () => ({
+vi.mock("@/lib/payments/payments.service", () => ({
   getStudentPayments: (...args: unknown[]) => getStudentPaymentsMock(...args),
   getAvailablePaymentPlans: (...args: unknown[]) => getAvailablePaymentPlansMock(...args),
   getStudentPaymentStatusContext: (...args: unknown[]) => getStudentPaymentStatusContextMock(...args)

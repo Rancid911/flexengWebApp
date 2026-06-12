@@ -13,7 +13,7 @@ This document records the current Supabase Storage access model after the RBAC/R
 
 ## Runtime Boundaries
 
-- Avatar uploads and deletes go through the user-scoped settings profile service and the `avatars` bucket own-user policies.
+- Avatar uploads and deletes go through the user-scoped settings avatar gateway, orchestrated by the profile service, and the `avatars` bucket own-user policies.
 - CRM background upload uses the user-scoped server client after the CRM API permission guard and writes to `crm-assets`.
 - Media rendering is backend-mediated through `lib/media/service.ts`, which intentionally remains a final service-role exception so avatar and CRM background downloads can be served through stable app routes.
 - CRM background route access is still guarded by the app before loading the media file.

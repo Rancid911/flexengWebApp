@@ -1,22 +1,19 @@
 import type { AppActor } from "@/lib/auth/request-context";
 import { profileCacheKey, readDashboardCache } from "@/lib/dashboard-cache";
 import { buildAvatarMediaUrl, toAvatarMediaUrl } from "@/lib/media/urls";
+import { toRuPhoneStorage } from "@/lib/phone";
 import { getRequestOrigin } from "@/lib/server-origin";
 import { HttpError } from "@/lib/server/http";
-import { runAuthRequestWithLockRetry } from "@/lib/supabase/auth-request";
-import { createClient } from "@/lib/supabase/server";
-import type { SettingsProfileDto, SettingsProfileUpdateInput, SettingsProfileUpdateResult } from "@/lib/settings/profile.types";
-import { toRuPhoneStorage } from "@/lib/phone";
-
-type ProfileRow = {
-  first_name: string | null;
-  last_name: string | null;
-  phone: string | null;
-  avatar_url: string | null;
-  role: string | null;
-  email?: string | null;
-  birth_date?: string | null;
-};
+import {
+  createSettingsProfileInfrastructure,
+  type SettingsProfileInfrastructure
+} from "@/lib/settings/profile.infrastructure";
+import type { SettingsProfileRow } from "@/lib/settings/profile.repository";
+import type {
+  SettingsProfileDto,
+  SettingsProfileUpdateInput,
+  SettingsProfileUpdateResult
+} from "@/lib/settings/profile.types";
 
 function normalizeEmailValue(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -29,14 +26,25 @@ function getPendingEmailFromAuthUser(user: unknown): string {
   return normalizeEmailValue(maybePending);
 }
 
-function toSettingsEmailUpdateError(error: { message?: string; code?: string; status?: number } | null | undefined) {
+function toSettingsEmailUpdateError(
+  error: { message?: string; code?: string; status?: number } | null | undefined
+) {
   const message = String(error?.message ?? "");
   const normalized = message.toLowerCase();
   const code = String(error?.code ?? "").toLowerCase();
   const status = Number(error?.status ?? 0);
 
-  if (status === 401 || normalized.includes("jwt") || normalized.includes("session") || normalized.includes("unauthorized")) {
-    return new HttpError(401, "UNAUTHORIZED", "Сессия устарела. Войдите заново и повторите попытку.");
+  if (
+    status === 401 ||
+    normalized.includes("jwt") ||
+    normalized.includes("session") ||
+    normalized.includes("unauthorized")
+  ) {
+    return new HttpError(
+      401,
+      "UNAUTHORIZED",
+      "Сессия устарела. Войдите заново и повторите попытку."
+    );
   }
 
   if (
@@ -53,7 +61,11 @@ function toSettingsEmailUpdateError(error: { message?: string; code?: string; st
     });
   }
 
-  if (normalized.includes("invalid email") || normalized.includes("email address is invalid") || code.includes("email_address_invalid")) {
+  if (
+    normalized.includes("invalid email") ||
+    normalized.includes("email address is invalid") ||
+    code.includes("email_address_invalid")
+  ) {
     return new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", "Email update failed", {
       fieldErrors: {
         email: ["Введите корректный email."]
@@ -74,7 +86,9 @@ function toSettingsEmailUpdateError(error: { message?: string; code?: string; st
     normalized.includes("email not sent")
   ) {
     return new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", "Email update failed", {
-      formErrors: ["Не удалось отправить письмо подтверждения. Проверьте настройки email-провайдера Supabase."]
+      formErrors: [
+        "Не удалось отправить письмо подтверждения. Проверьте настройки email-провайдера Supabase."
+      ]
     });
   }
 
@@ -91,9 +105,12 @@ function canWriteStudentBirthDateFallback(actor: AppActor) {
   return actor.isStudent && Boolean(actor.studentId) && !actor.isTeacher;
 }
 
-async function getCurrentAuthContext(actor: AppActor) {
-  const supabase = await createClient();
-  const { data: authData, error: authError } = await runAuthRequestWithLockRetry(() => supabase.auth.getUser());
+async function getCurrentAuthContext(
+  actor: AppActor,
+  infrastructure: SettingsProfileInfrastructure
+) {
+  const { data: authData, error: authError } =
+    await infrastructure.identityGateway.getCurrentUser();
   if (authError) throw authError;
   if (!authData.user) {
     throw new HttpError(401, "UNAUTHORIZED", "Authentication required");
@@ -103,52 +120,41 @@ async function getCurrentAuthContext(actor: AppActor) {
   }
 
   return {
-    supabase,
-    user: authData.user,
     userId: authData.user.id,
     email: normalizeEmailValue(authData.user.email ?? ""),
     pendingEmail: getPendingEmailFromAuthUser(authData.user)
   };
 }
 
-async function loadProfileRow(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
-  let profile: ProfileRow | null = null;
-
-  const profileWithBirth = await supabase
-    .from("profiles")
-    .select("first_name, last_name, phone, avatar_url, role, email, birth_date")
-    .eq("id", userId)
-    .maybeSingle();
+async function loadProfileRow(infrastructure: SettingsProfileInfrastructure, userId: string) {
+  const profileWithBirth = await infrastructure.repository.loadProfileWithBirthDate(userId);
 
   if (!profileWithBirth.error) {
-    profile = profileWithBirth.data;
-  } else if (isMissingBirthDateColumn(profileWithBirth.error)) {
-    const profileFallback = await supabase
-      .from("profiles")
-      .select("first_name, last_name, phone, avatar_url, role, email")
-      .eq("id", userId)
-      .maybeSingle();
-    if (profileFallback.error) throw profileFallback.error;
-    profile = profileFallback.data;
-  } else {
+    return (profileWithBirth.data ?? null) as SettingsProfileRow | null;
+  }
+
+  if (!isMissingBirthDateColumn(profileWithBirth.error)) {
     throw profileWithBirth.error;
   }
 
-  return profile;
+  const profileFallback =
+    await infrastructure.repository.loadProfileWithoutBirthDate(userId);
+  if (profileFallback.error) throw profileFallback.error;
+  return (profileFallback.data ?? null) as SettingsProfileRow | null;
 }
 
-async function resolveBirthDate(supabase: Awaited<ReturnType<typeof createClient>>, userId: string, profile: ProfileRow | null) {
-  let resolvedBirthDate = profile?.birth_date ?? "";
-  if (resolvedBirthDate) return resolvedBirthDate;
+async function resolveBirthDate(
+  infrastructure: SettingsProfileInfrastructure,
+  userId: string,
+  profile: SettingsProfileRow | null
+) {
+  const profileBirthDate = profile?.birth_date ?? "";
+  if (profileBirthDate) return profileBirthDate;
 
-  const { data: studentProfile, error: studentError } = await supabase
-    .from("students")
-    .select("birth_date")
-    .eq("profile_id", userId)
-    .maybeSingle();
+  const { data: studentProfile, error: studentError } =
+    await infrastructure.repository.loadStudentBirthDate(userId);
   if (studentError) throw studentError;
-  resolvedBirthDate = studentProfile?.birth_date ?? "";
-  return resolvedBirthDate;
+  return studentProfile?.birth_date ?? "";
 }
 
 function toProfileDto(params: {
@@ -156,7 +162,7 @@ function toProfileDto(params: {
   email: string;
   pendingEmail: string;
   cachedAvatarUrl: string | null;
-  profile: ProfileRow | null;
+  profile: SettingsProfileRow | null;
   resolvedBirthDate: string;
 }): SettingsProfileDto {
   return {
@@ -176,15 +182,25 @@ function toProfileDto(params: {
   };
 }
 
-export async function loadSettingsProfile(actor: AppActor): Promise<SettingsProfileDto> {
-  const { supabase, userId, email, pendingEmail } = await getCurrentAuthContext(actor);
-  const cachedProfile = readDashboardCache<{ displayName: string; email: string; avatarUrl: string | null }>(profileCacheKey(userId));
-  const profile = await loadProfileRow(supabase, userId);
-  const resolvedBirthDate = await resolveBirthDate(supabase, userId, profile);
+async function loadSettingsProfileWithInfrastructure(
+  actor: AppActor,
+  infrastructure: SettingsProfileInfrastructure
+): Promise<SettingsProfileDto> {
+  const { userId, email, pendingEmail } = await getCurrentAuthContext(
+    actor,
+    infrastructure
+  );
+  const cachedProfile = readDashboardCache<{
+    displayName: string;
+    email: string;
+    avatarUrl: string | null;
+  }>(profileCacheKey(userId));
+  const profile = await loadProfileRow(infrastructure, userId);
+  const resolvedBirthDate = await resolveBirthDate(infrastructure, userId, profile);
 
   const profileEmailValue = normalizeEmailValue(profile?.email ?? "");
   if (email && profileEmailValue !== email) {
-    await supabase.from("profiles").update({ email }).eq("id", userId);
+    await infrastructure.repository.updateProfileEmail(userId, email);
     if (profile) profile.email = email;
   }
 
@@ -198,83 +214,126 @@ export async function loadSettingsProfile(actor: AppActor): Promise<SettingsProf
   });
 }
 
+export async function loadSettingsProfile(actor: AppActor): Promise<SettingsProfileDto> {
+  const infrastructure = await createSettingsProfileInfrastructure();
+  return loadSettingsProfileWithInfrastructure(actor, infrastructure);
+}
+
 async function updateProfileFields(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  infrastructure: SettingsProfileInfrastructure,
   actor: AppActor,
   userId: string,
   input: SettingsProfileUpdateInput
 ) {
-  const normalizedPhone = input.phone.trim() === "" ? "" : toRuPhoneStorage(input.phone);
+  const normalizedPhone =
+    input.phone.trim() === "" ? "" : toRuPhoneStorage(input.phone);
   if (normalizedPhone === null) {
     throw new HttpError(400, "VALIDATION_ERROR", "phone must match +7XXXXXXXXXX");
   }
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
 
-  const profilePayload = {
+  const profileUpdate = await infrastructure.repository.updateProfileFields(userId, {
     first_name: firstName,
     last_name: lastName,
     display_name: [firstName, lastName].filter(Boolean).join(" "),
     phone: normalizedPhone
-  };
+  });
+  if (profileUpdate.error) throw profileUpdate.error;
 
-  const { error: profileUpdateError } = await supabase.from("profiles").update(profilePayload).eq("id", userId);
-  if (profileUpdateError) throw profileUpdateError;
-
-  const { error: profileBirthDateError } = await supabase.from("profiles").update({ birth_date: input.birthDate || null }).eq("id", userId);
-  if (profileBirthDateError && !isMissingBirthDateColumn(profileBirthDateError)) {
-    throw profileBirthDateError;
+  const profileBirthDateUpdate =
+    await infrastructure.repository.updateProfileBirthDate(
+      userId,
+      input.birthDate || null
+    );
+  if (
+    profileBirthDateUpdate.error &&
+    !isMissingBirthDateColumn(profileBirthDateUpdate.error)
+  ) {
+    throw profileBirthDateUpdate.error;
   }
-  if (profileBirthDateError && isMissingBirthDateColumn(profileBirthDateError)) {
+  if (
+    profileBirthDateUpdate.error &&
+    isMissingBirthDateColumn(profileBirthDateUpdate.error)
+  ) {
     if (!canWriteStudentBirthDateFallback(actor)) {
       return;
     }
 
     if (input.birthDate) {
-      const { error: studentUpsertError } = await supabase
-        .from("students")
-        .upsert({ profile_id: userId, birth_date: input.birthDate }, { onConflict: "profile_id" });
-      if (studentUpsertError) throw studentUpsertError;
+      const studentUpsert = await infrastructure.repository.upsertStudentBirthDate(
+        userId,
+        input.birthDate
+      );
+      if (studentUpsert.error) throw studentUpsert.error;
     } else {
-      const { error: studentClearError } = await supabase.from("students").update({ birth_date: null }).eq("profile_id", userId);
-      if (studentClearError) throw studentClearError;
+      const studentClear =
+        await infrastructure.repository.clearStudentBirthDate(userId);
+      if (studentClear.error) throw studentClear.error;
     }
   }
 }
 
 async function updateAvatar(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  infrastructure: SettingsProfileInfrastructure,
   userId: string,
   input: Pick<SettingsProfileUpdateInput, "avatarDelete" | "avatarFile">
 ) {
-  const path = `${userId}/avatar`;
-
   if (input.avatarDelete) {
-    await supabase.storage.from("avatars").remove([path]);
-    const { error: avatarDeleteError } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", userId);
-    if (avatarDeleteError) throw new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", `avatar:${avatarDeleteError.message}`);
+    await infrastructure.avatarGateway.deleteAvatar(userId);
+    const avatarDelete =
+      await infrastructure.repository.updateProfileAvatarUrl(userId, null);
+    if (avatarDelete.error) {
+      throw new HttpError(
+        400,
+        "SETTINGS_PROFILE_UPDATE_FAILED",
+        `avatar:${avatarDelete.error.message}`
+      );
+    }
     return { avatarUrl: null, message: "Аватар удалён" };
   }
 
   if (input.avatarFile) {
-    const { error: uploadError } = await supabase.storage.from("avatars").upload(path, input.avatarFile, {
-      upsert: true,
-      contentType: "image/png",
-      cacheControl: "3600"
-    });
-    if (uploadError) throw new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", `avatar:${uploadError.message}`);
+    const upload = await infrastructure.avatarGateway.uploadAvatar(
+      userId,
+      input.avatarFile
+    );
+    if (upload.error) {
+      throw new HttpError(
+        400,
+        "SETTINGS_PROFILE_UPDATE_FAILED",
+        `avatar:${upload.error.message}`
+      );
+    }
 
     const updatedAvatarUrl = buildAvatarMediaUrl(userId, Date.now());
-    const { error: profileAvatarUpdateError } = await supabase.from("profiles").update({ avatar_url: updatedAvatarUrl }).eq("id", userId);
-    if (profileAvatarUpdateError) throw new HttpError(400, "SETTINGS_PROFILE_UPDATE_FAILED", `avatar:${profileAvatarUpdateError.message}`);
+    const profileAvatarUpdate =
+      await infrastructure.repository.updateProfileAvatarUrl(
+        userId,
+        updatedAvatarUrl
+      );
+    if (profileAvatarUpdate.error) {
+      throw new HttpError(
+        400,
+        "SETTINGS_PROFILE_UPDATE_FAILED",
+        `avatar:${profileAvatarUpdate.error.message}`
+      );
+    }
     return { avatarUrl: updatedAvatarUrl, message: "Аватар обновлён" };
   }
 
   return null;
 }
 
-export async function updateSettingsProfile(actor: AppActor, input: SettingsProfileUpdateInput): Promise<SettingsProfileUpdateResult> {
-  const { supabase, userId, email: currentEmail } = await getCurrentAuthContext(actor);
+export async function updateSettingsProfile(
+  actor: AppActor,
+  input: SettingsProfileUpdateInput
+): Promise<SettingsProfileUpdateResult> {
+  const infrastructure = await createSettingsProfileInfrastructure();
+  const { userId, email: currentEmail } = await getCurrentAuthContext(
+    actor,
+    infrastructure
+  );
   const applied = {
     profile: false,
     avatar: false,
@@ -286,12 +345,12 @@ export async function updateSettingsProfile(actor: AppActor, input: SettingsProf
   let pendingEmail = "";
 
   if (input.profileDirty) {
-    await updateProfileFields(supabase, actor, userId, input);
+    await updateProfileFields(infrastructure, actor, userId, input);
     applied.profile = true;
   }
 
   if (input.avatarDelete || input.avatarFile) {
-    const avatarResult = await updateAvatar(supabase, userId, input);
+    const avatarResult = await updateAvatar(infrastructure, userId, input);
     avatarMessage = avatarResult?.message ?? "";
     applied.avatar = Boolean(avatarResult);
   }
@@ -300,13 +359,16 @@ export async function updateSettingsProfile(actor: AppActor, input: SettingsProf
     const requestedEmail = normalizeEmailValue(input.email);
     const origin = await getRequestOrigin();
     const emailRedirectTo = `${origin}/auth/confirm?next=/settings/profile`;
-    const { data, error: authUpdateError } = await runAuthRequestWithLockRetry(() =>
-      supabase.auth.updateUser({ email: requestedEmail }, { emailRedirectTo })
-    );
+    const { data, error: authUpdateError } =
+      await infrastructure.identityGateway.updateEmail(
+        requestedEmail,
+        emailRedirectTo
+      );
     if (authUpdateError) throw toSettingsEmailUpdateError(authUpdateError);
     const authEmail = normalizeEmailValue(data.user?.email ?? currentEmail);
     const pendingEmailFromResponse = getPendingEmailFromAuthUser(data.user);
-    pendingEmail = pendingEmailFromResponse || (authEmail !== requestedEmail ? requestedEmail : "");
+    pendingEmail =
+      pendingEmailFromResponse || (authEmail !== requestedEmail ? requestedEmail : "");
 
     if (pendingEmail) {
       hasEmailPendingConfirmation = true;
@@ -315,7 +377,7 @@ export async function updateSettingsProfile(actor: AppActor, input: SettingsProf
     }
   }
 
-  const profile = await loadSettingsProfile(actor);
+  const profile = await loadSettingsProfileWithInfrastructure(actor, infrastructure);
   if (pendingEmail) {
     profile.pendingEmail = pendingEmail;
     hasEmailPendingConfirmation = true;
@@ -326,7 +388,8 @@ export async function updateSettingsProfile(actor: AppActor, input: SettingsProf
     profile,
     applied,
     avatarMessage,
-    hasAppliedChanges: applied.profile || applied.avatar || applied.email || applied.password,
+    hasAppliedChanges:
+      applied.profile || applied.avatar || applied.email || applied.password,
     hasEmailPendingConfirmation
   };
 }

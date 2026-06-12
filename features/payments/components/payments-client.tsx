@@ -16,11 +16,14 @@ import {
 } from "@/features/payments/client/payments-client-formatters";
 import { StatusMessage } from "@/components/ui/status-message";
 import type { StudentBillingSummary } from "@/lib/billing/types";
-import type { getStudentPayments } from "@/lib/payments/queries";
-import type { PaymentPlan, PaymentStatusContext } from "@/lib/payments/types";
+import type {
+  PaymentPlan,
+  PaymentStatusContext,
+  StudentPaymentTransaction
+} from "@/lib/payments/types";
 import { cn } from "@/lib/utils";
 
-type StudentPayment = Awaited<ReturnType<typeof getStudentPayments>>[number];
+type StudentPayment = StudentPaymentTransaction;
 
 export { formatAmount, formatTimestamp, getPlanMetaLabel, getStatusChipClass, getStatusLabel };
 

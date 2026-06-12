@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getAppActor } from "@/lib/auth/request-context";
 import { getCurrentStudentBillingSummary } from "@/lib/billing/server";
-import { getStudentPayments } from "@/lib/payments/queries";
+import { getStudentPayments } from "@/lib/payments/payments.service";
 import { requirePermission } from "@/lib/permissions";
 import { HttpError, withApiErrorHandling } from "@/lib/server/http";
 

@@ -24,11 +24,10 @@ import {
   getStudentBillingModeLabel,
   getStudentBillingReasonLabel
 } from "@/lib/billing/utils";
-import type { getStudentPayments } from "@/lib/payments/queries";
-import type { PaymentPlan } from "@/lib/payments/types";
+import type { PaymentPlan, StudentPaymentTransaction } from "@/lib/payments/types";
 import { cn } from "@/lib/utils";
 
-type StudentPayment = Awaited<ReturnType<typeof getStudentPayments>>[number];
+type StudentPayment = StudentPaymentTransaction;
 
 function getMoneyPlanLessonEstimate(plan: PaymentPlan, summary: StudentBillingSummary | null) {
   if (plan.billingCreditType !== "money" || !summary?.lessonPriceAmount || summary.lessonPriceAmount <= 0) return null;

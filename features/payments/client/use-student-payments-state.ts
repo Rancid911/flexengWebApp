@@ -5,11 +5,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAbortableRequest } from "@/hooks/use-abortable-request";
 import { useAsyncAction } from "@/hooks/use-async-action";
 import { useAsyncFeedback } from "@/hooks/use-async-feedback";
-import type { getStudentPayments } from "@/lib/payments/queries";
-import type { PaymentPlan, PaymentStatusContext } from "@/lib/payments/types";
 import type { StudentBillingSummary } from "@/lib/billing/types";
+import type {
+  PaymentPlan,
+  PaymentStatusContext,
+  StudentPaymentTransaction
+} from "@/lib/payments/types";
 
-type StudentPayment = Awaited<ReturnType<typeof getStudentPayments>>[number];
+type StudentPayment = StudentPaymentTransaction;
 
 const INITIAL_VISIBLE_PAYMENTS_COUNT = 5;
 

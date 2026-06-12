@@ -17,7 +17,7 @@ For the broader current access-control model and intentional compatibility layer
 
 The first low-risk cleanup pilot is intentionally conservative:
 
-- `/api/settings/profile` already uses a user-scoped server client in `lib/settings/profile.service.ts`.
+- `/api/settings/profile` uses one user-scoped server client composed into the settings profile repository plus identity/avatar gateways.
 - User notifications already use a user-scoped server client in `lib/notifications/server.ts` and `lib/notifications/repository.ts`.
 - `lib/students/current-student.ts` now uses a user-scoped server client for own-student `english_level` resolution.
 - `lib/teacher-workspace/student-roster.repository.ts` now uses an injected user-scoped server client and the limited `get_teacher_student_profile_summaries(...)` RPC for roster labels.

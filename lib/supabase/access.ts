@@ -30,9 +30,9 @@ export const REQUEST_ACCESS_MATRIX = {
     "practice",
     "homework",
     "words",
-    "payments/queries",
+    "payments service/repository",
     "notifications/server",
-    "self-service settings/profile",
+    "settings profile repository/gateways",
     "request-context linked actor scope"
   ],
   privileged: [

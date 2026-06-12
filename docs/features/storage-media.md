@@ -5,7 +5,7 @@ Audience: engineers, operations, security reviewers
 Owner area: storage-media  
 Last reviewed: 2026-05-25  
 Source of truth: feature summary; `docs/storage-access-inventory.md` remains the authoritative storage inventory  
-Related code: `app/api/media/avatar/[userId]/route.ts`, `app/api/media/crm-background/route.ts`, `app/api/crm/settings/background/route.ts`, `lib/media/`, `lib/settings/profile.service.ts`, `lib/crm/queries.ts`  
+Related code: `app/api/media/avatar/[userId]/route.ts`, `app/api/media/crm-background/route.ts`, `app/api/crm/settings/background/route.ts`, `lib/media/`, `lib/settings/profile-avatar.gateway.ts`, `lib/settings/profile.repository.ts`, `lib/settings/profile.service.ts`, `lib/crm/queries.ts`<br>
 Related tests: `tests/unit/media-api-routes.test.ts`, `tests/unit/media-service.test.ts`, `tests/unit/settings-profile-route.test.ts`, `tests/unit/settings-profile-service.test.ts`, `tests/unit/crm-api-routes.test.ts`
 
 ## Overview
@@ -55,7 +55,7 @@ See `docs/storage-access-inventory.md` for bucket policy posture and current ris
 - Avatar reads use `canReadProfileAvatar(...)`:
   - own user requires `settings.profile.read`;
   - cross-user read requires admin users/teachers read permission.
-- Avatar writes happen through settings profile service for the current authenticated user.
+- Avatar Storage writes happen through the user-scoped settings avatar gateway; profile URL persistence goes through the profile repository.
 - CRM background upload requires `crm.leads.manage`.
 - CRM background read requires `crm.leads.view`.
 - Backend media proxy downloads from Supabase Storage using service-role and is an allowlisted exception in `docs/service-role-inventory.md`.
@@ -71,7 +71,7 @@ See `docs/storage-access-inventory.md` for bucket policy posture and current ris
 ## Integrations
 
 - Supabase Storage stores avatar and CRM background objects.
-- Settings profile service owns avatar write path.
+- Settings profile service orchestrates avatar changes, while the avatar gateway owns Storage access and the profile repository owns `avatar_url`.
 - CRM settings service owns background upload path.
 - Media service owns backend proxy downloads.
 

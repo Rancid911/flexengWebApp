@@ -11,7 +11,7 @@ vi.mock("@/lib/auth/request-context", () => ({
   getAppActor: () => getAppActorMock()
 }));
 
-vi.mock("@/lib/payments/queries", () => ({
+vi.mock("@/lib/payments/payments.service", () => ({
   getStudentPayments: (...args: unknown[]) => getStudentPaymentsMock(...args)
 }));
 
