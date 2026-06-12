@@ -17,6 +17,11 @@ type RbacRow = {
   };
 };
 
+const redirectMock = vi.hoisted(() =>
+  vi.fn((path: string) => {
+    throw new Error(`REDIRECT:${path}`);
+  })
+);
 const cacheStore = new Map<string, unknown>();
 const cacheTagIndex = new Map<string, Set<string>>();
 type ReactCacheCallback = (...args: unknown[]) => unknown;
@@ -70,11 +75,25 @@ vi.mock("next/cache", () => ({
   }
 }));
 
+vi.mock("next/navigation", () => ({
+  redirect: redirectMock
+}));
+
 function makeRequestClient(options: {
   role: string | null;
   rpcResult: RpcResult;
   rbacRows?: RbacRow[];
   rbacError?: { message: string } | null;
+  profileError?: { message: string } | null;
+  authResult?: {
+    data: {
+      user: {
+        id: string;
+        email: string | null;
+      } | null;
+    };
+    error: { message: string } | null;
+  };
 }) {
   let profileReads = 0;
   let rbacReads = 0;
@@ -92,15 +111,16 @@ function makeRequestClient(options: {
       }
     },
     auth: {
-      getUser: async () => ({
-        data: {
-          user: {
-            id: "user-1",
-            email: "teacher@example.com"
-          }
-        },
-        error: null
-      })
+      getUser: async () =>
+        options.authResult ?? {
+          data: {
+            user: {
+              id: "user-1",
+              email: "teacher@example.com"
+            }
+          },
+          error: null
+        }
     },
     rpc: async (fn: string) => {
       if (fn !== "get_linked_actor_scope") {
@@ -126,7 +146,7 @@ function makeRequestClient(options: {
                     last_name: "Profile",
                     avatar_url: null
                   },
-                  error: null
+                  error: options.profileError ?? null
                 };
               }
             })
@@ -158,12 +178,24 @@ async function loadRequestContextModule(deps: {
   rpcResult: RpcResult;
   rbacRows?: RbacRow[];
   rbacError?: { message: string } | null;
+  profileError?: { message: string } | null;
+  authResult?: {
+    data: {
+      user: {
+        id: string;
+        email: string | null;
+      } | null;
+    };
+    error: { message: string } | null;
+  };
 }) {
   const requestClient = makeRequestClient({
     role: deps.profileRole,
     rpcResult: deps.rpcResult,
     rbacRows: deps.rbacRows,
-    rbacError: deps.rbacError
+    rbacError: deps.rbacError,
+    profileError: deps.profileError,
+    authResult: deps.authResult
   });
 
   vi.doMock("@/lib/supabase/server", () => ({
@@ -177,7 +209,7 @@ async function loadRequestContextModule(deps: {
   }));
 
   return {
-    module: await import("@/lib/auth/request-context"),
+    module: await import("@/lib/auth/next-request-context"),
     requestClient
   };
 }
@@ -331,6 +363,75 @@ describe("request-context rpc linked scope", () => {
         code: "REQUEST_CONTEXT_SCOPE_RPC_UNAVAILABLE"
       })
     );
+  });
+
+  it("keeps profile query errors as hard failures before scope reads", async () => {
+    const { module: requestContext, requestClient } = await loadRequestContextModule({
+      profileRole: "teacher",
+      rpcResult: {
+        data: null,
+        error: null
+      },
+      profileError: {
+        message: "profile load failed"
+      }
+    });
+
+    await expect(requestContext.getAppActor()).rejects.toMatchObject({
+      message: "profile load failed"
+    });
+    expect(requestClient.stats.rpcCalls).toBe(0);
+    expect(requestClient.stats.rbacReads).toBe(0);
+  });
+
+  it("keeps non-schema linked scope RPC errors as hard failures", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { module: requestContext } = await loadRequestContextModule({
+      profileRole: "teacher",
+      rpcResult: {
+        data: null,
+        error: {
+          message: "linked scope database timeout"
+        }
+      }
+    });
+
+    await expect(requestContext.getAppActor()).rejects.toMatchObject({
+      message: "linked scope database timeout"
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      "REQUEST_CONTEXT_SCOPE_RPC_FAILED",
+      expect.objectContaining({
+        code: "REQUEST_CONTEXT_SCOPE_RPC_FAILED"
+      })
+    );
+  });
+
+  it("keeps missing authentication null and redirects require guards to login", async () => {
+    const { module: requestContext, requestClient } = await loadRequestContextModule({
+      profileRole: null,
+      rpcResult: {
+        data: null,
+        error: null
+      },
+      authResult: {
+        data: {
+          user: null
+        },
+        error: {
+          message: "not authenticated"
+        }
+      }
+    });
+
+    await expect(requestContext.getAppActor()).resolves.toBeNull();
+    await expect(requestContext.requireAppActor()).rejects.toThrow(
+      "REDIRECT:/login"
+    );
+    expect(redirectMock).toHaveBeenCalledWith("/login");
+    expect(requestClient.stats.profileReads).toBe(0);
+    expect(requestClient.stats.rpcCalls).toBe(0);
+    expect(requestClient.stats.rbacReads).toBe(0);
   });
 
   it("shares profile, RBAC and linked scope reads across layout and full actors in one request", async () => {

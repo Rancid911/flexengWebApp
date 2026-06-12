@@ -1,9 +1,61 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAppActor, normalizeRbacActorData, resolveDefaultWorkspace } from "@/lib/auth/request-context";
+import {
+  buildAppActor,
+  normalizeLinkedActorScopeRpcData,
+  normalizeProfileIdentityContext,
+  normalizeRbacActorData,
+  resolveDefaultWorkspace
+} from "@/lib/auth/actor-resolver";
 import { resolveScheduleActor } from "@/lib/schedule/server";
 
 describe("app actor resolution", () => {
+  it("normalizes profile identity and avatar media URL without I/O", () => {
+    expect(
+      normalizeProfileIdentityContext(
+        {
+          userId: "user-1",
+          email: "auth@example.com"
+        },
+        {
+          role: "teacher",
+          email: "profile@example.com",
+          display_name: null,
+          first_name: "Teacher",
+          last_name: "Profile",
+          avatar_url:
+            "https://example.supabase.co/storage/v1/object/public/avatars/user-1/avatar"
+        }
+      )
+    ).toEqual({
+      userId: "user-1",
+      email: "profile@example.com",
+      role: "teacher",
+      profileRole: "teacher",
+      displayName: "Teacher Profile",
+      avatarUrl: "/api/media/avatar/user-1"
+    });
+  });
+
+  it("normalizes one linked-scope payload for layout and full actor modes", () => {
+    const payload = {
+      student_id: "student-1",
+      teacher_id: "teacher-1",
+      accessible_student_ids: ["student-1", "student-2"]
+    };
+
+    expect(normalizeLinkedActorScopeRpcData(payload, "layout")).toEqual({
+      studentId: "student-1",
+      teacherId: "teacher-1",
+      accessibleStudentIds: null
+    });
+    expect(normalizeLinkedActorScopeRpcData(payload, "full")).toEqual({
+      studentId: "student-1",
+      teacherId: "teacher-1",
+      accessibleStudentIds: ["student-1", "student-2"]
+    });
+  });
+
   it("builds student capability from linked student row", () => {
     const actor = buildAppActor(
       {

@@ -14,10 +14,10 @@ For the workspace loading and skeleton boundary after the one-shell migration, s
 
 ## Request Context Contract
 
-- `lib/auth/request-context.ts` is the only place allowed to derive the authenticated actor and linked scope.
+- `lib/auth/request-context.ts` is the stable public facade; `actor-resolver.ts` is the only place allowed to derive actor capabilities, while `next-request-context.ts` owns request bootstrap and `actor.repository.ts` owns Supabase access.
 - `request-context` uses a 3-step bootstrap: minimal auth, profile identity, then RBAC/linked-scope resolution.
 - Preferred linked-scope path is `get_linked_actor_scope(p_profile_id uuid)` via the user-scoped server client/RPC path.
-- App-level chained resolution of `students`, `teachers`, and `student_course_enrollments` is fallback-only for migration drift or schema cache failures.
+- If the linked-scope RPC is unavailable because of migration or schema-cache drift, request context fails closed to an empty linked scope; it does not fall back to chained app-level table reads.
 - `student` and `teacher` capabilities come from linked rows only.
 - `staff_admin` capability comes only from loaded RBAC roles or all-scoped staff permissions.
 - Empty RBAC metadata and RBAC load errors fail closed for protected access; `profiles.role` must not grant workspace, page, API, menu, or mutation access.

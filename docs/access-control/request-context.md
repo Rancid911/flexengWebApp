@@ -3,12 +3,18 @@
 Status: current  
 Audience: engineers working on server routes, loaders and guards  
 Owner area: access-control  
-Last reviewed: 2026-05-25  
+Last reviewed: 2026-06-12
 Source of truth: summary; code and tests are implementation sources  
-Related code: `lib/auth/request-context.ts`, `lib/auth/rbac-compat.ts`, `lib/auth/rbac-route-guard.ts`  
-Related tests: `tests/unit/auth-request-context.test.ts`, `tests/unit/auth-request-context-rpc.test.ts`, `tests/unit/current-student.test.ts`
+Related code: `lib/auth/request-context.ts`, `lib/auth/next-request-context.ts`, `lib/auth/actor-resolver.ts`, `lib/auth/actor.repository.ts`
+Related tests: `tests/unit/auth-actor-repository.test.ts`, `tests/unit/auth-request-context.test.ts`, `tests/unit/auth-request-context-rpc.test.ts`, `tests/unit/auth-request-context-facade.test.ts`, `tests/unit/current-student.test.ts`
 
 `AppActor` is the server-side access context for the current authenticated request. It separates identity from permission grants.
+
+The runtime boundary is:
+
+`server usage -> request-context facade -> next-request-context -> actor-resolver -> actor.repository -> Supabase`
+
+The facade preserves the established public imports. The Next adapter owns request-local caching, timing, redirects, logging and invalidation entrypoints. The resolver owns pure actor normalization and capability rules. The repository owns user-scoped Auth, profile, RBAC and linked-scope RPC access.
 
 ## What AppActor Represents
 
@@ -30,6 +36,7 @@ Linked student or teacher identity is data context. It does not automatically gr
 - Loaded RBAC metadata can grant protected permissions when the required key and scope are present.
 - Empty RBAC metadata denies protected permissions.
 - RBAC load errors deny protected permissions.
+- An unavailable linked-scope RPC produces an empty linked scope without direct-table fallback.
 - Explicit user-targeted workflows may use `actor.userId` where the feature contract allows it, but role-targeted or permission-protected behavior still requires RBAC.
 
 ## Dual-Role Considerations

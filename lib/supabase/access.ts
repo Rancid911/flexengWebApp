@@ -33,7 +33,7 @@ export const REQUEST_ACCESS_MATRIX = {
     "payments service/repository",
     "notifications/server",
     "settings profile repository/gateways",
-    "request-context linked actor scope"
+    "request-context actor repository"
   ],
   privileged: [
     "admin CRUD",
