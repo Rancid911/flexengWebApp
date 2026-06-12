@@ -6,7 +6,7 @@ Owner area: homework-practice-tests
 Last reviewed: 2026-06-12
 Source of truth: feature summary; current code/tests remain implementation source  
 Related code: `app/(workspace)/(shared-zone)/homework/`, `app/(workspace)/(shared-zone)/practice/`, `app/api/practice/attempts/route.ts`, `app/api/students/[id]/homework-assignments/route.ts`, `app/api/students/[id]/placement-assignment/route.ts`, `app/api/admin/tests/`, `features/homework/`, `features/practice/`, `lib/homework/`, `lib/practice/`, `lib/students/current-student.ts`, `lib/admin/tests*`  
-Related tests: `tests/unit/homework-routes.test.tsx`, `tests/unit/homework-detail-page.test.tsx`, `tests/unit/practice-library-routes.test.tsx`, `tests/unit/practice-activity-route.test.tsx`, `tests/unit/practice-attempts-repository.test.ts`, `tests/unit/practice-attempts-grading-policy.test.ts`, `tests/unit/practice-attempts-infrastructure.test.ts`, `tests/unit/practice-attempts-submit.test.ts`, `tests/unit/practice-attempts-facade.test.ts`, `tests/unit/practice-attempts-api-route.test.ts`, `tests/unit/placement.test.ts`, `tests/unit/placement-test-flow.test.tsx`, `tests/unit/admin-tests-route.test.ts`, `tests/unit/student-homework-assignments-api-route.test.ts`, `tests/unit/student-placement-assignment-api-route.test.ts`, `tests/unit/current-student.test.ts`
+Related tests: `tests/unit/homework-routes.test.tsx`, `tests/unit/homework-detail-page.test.tsx`, `tests/unit/practice-library-routes.test.tsx`, `tests/unit/practice-activity-route.test.tsx`, `tests/unit/practice-attempts-atomic-migration.test.ts`, `tests/unit/practice-attempts-repository.test.ts`, `tests/unit/practice-attempts-grading-policy.test.ts`, `tests/unit/practice-attempts-infrastructure.test.ts`, `tests/unit/practice-attempts-submit.test.ts`, `tests/unit/practice-attempts-facade.test.ts`, `tests/unit/practice-attempts-api-route.test.ts`, `tests/unit/placement.test.ts`, `tests/unit/placement-test-flow.test.tsx`, `tests/unit/admin-tests-route.test.ts`, `tests/unit/student-homework-assignments-api-route.test.ts`, `tests/unit/student-placement-assignment-api-route.test.ts`, `tests/unit/current-student.test.ts`
 
 ## Overview
 
@@ -68,7 +68,7 @@ Key tables/concepts:
 
 - Homework assignments move through not-started/in-progress/completed/overdue-style states.
 - Homework items can reference test activities and are marked complete through progress sync.
-- Practice attempts are graded, saved with answers and wrong answers can update mistakes.
+- Practice attempts are graded and their core attempt/answer rows are committed atomically; wrong answers can then update mistakes as a post-commit projection.
 - Placement attempts can produce recommended level/band summaries.
 - Admin tests with existing attempts have restricted destructive edits in service logic/tests.
 
@@ -77,8 +77,10 @@ Key tables/concepts:
 - `/api/practice/attempts` delegates to `practice-attempts.service.ts`.
 - The service owns real-student guarding, activity validation, persistence orchestration, homework synchronization and route revalidation.
 - `practice-attempts-grading.policy.ts` owns pure answer validation, review DTO assembly, scoring, placement calculation and timestamps.
-- `practice-attempts.repository.ts` owns grading-data reads and attempt, answer and mistake persistence.
+- `practice-attempts.repository.ts` owns grading-data reads, the authenticated atomic attempt RPC and mistake persistence.
 - `practice-attempts.infrastructure.ts` creates one user-scoped SSR Supabase client for the repository and homework synchronization.
+- `submit_practice_test_attempt` derives the student from `auth.uid()`, revalidates answers and grading from DB rows, and atomically inserts the attempt plus its complete answer set under RLS.
+- The service compares authoritative RPC grading with the local pure policy before running mistakes, homework synchronization and revalidation.
 - `attempts.ts` is a compatibility facade and must not regain grading or Supabase access.
 
 ## Integrations
@@ -111,7 +113,7 @@ Current focused coverage includes:
 Coverage gaps:
 
 - Full e2e practice session and teacher assignment flows can be added later.
-- Live DB RLS/RPC verification remains separate.
+- The transactional SQL smoke covers authenticated ownership, teacher/anon denial, invalid submissions, forced answer rollback and regular/placement grading parity.
 
 ## Operations
 
@@ -123,7 +125,7 @@ Coverage gaps:
 ## Known Limitations
 
 - Homework, practice, tests and progress share data but are not yet split into separate detailed docs.
-- Attempt and answer writes remain sequential and non-atomic until the separately approved transactional RPC phase.
 - Mistake and homework updates remain soft projections and can be incomplete after partial failures.
+- Valid duplicate submissions remain possible because the RPC intentionally does not add idempotency.
 - Teacher follow-up homework assignment is partly owned by schedule/teacher-workspace flows.
 - Demo/preview persistence is intentionally not a real student write path.

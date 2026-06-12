@@ -48,49 +48,53 @@ describe("practice attempts repository", () => {
     expect(moduleQuery.eq).toHaveBeenCalledWith("id", "module-1");
   });
 
-  it("creates attempt and answer rows with the existing payload boundaries", async () => {
-    const attemptQuery = makeQueryResult({ id: "attempt-1" });
-    const answersQuery = makeQueryResult();
-    const fromMock = vi
-      .fn()
-      .mockReturnValueOnce(attemptQuery)
-      .mockReturnValueOnce(answersQuery);
+  it("creates the core attempt atomically through the authenticated RPC", async () => {
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: {
+        attemptId: "attempt-1",
+        score: 100
+      },
+      error: null
+    });
     const repository = createPracticeAttemptsRepository({
-      from: fromMock
+      rpc: rpcMock
     } as never);
-    const attemptPayload = {
-      student_id: "student-1",
-      test_id: "test-1",
-      score: 100,
-      correct_answers: 1,
-      total_questions: 1,
-      status: "passed" as const,
-      recommended_level: null,
-      recommended_band_label: null,
-      placement_summary: null,
-      started_at: "2026-06-12T09:59:00.000Z",
-      submitted_at: "2026-06-12T10:00:00.000Z",
-      time_spent_seconds: 60
-    };
-    const answersPayload = [
-      {
-        attempt_id: "attempt-1",
-        question_id: "question-1",
-        selected_option_id: "option-1",
-        answer_text: null,
-        is_correct: true
-      }
-    ];
 
-    await repository.createAttempt(attemptPayload);
-    await repository.createAnswers(answersPayload);
+    await expect(
+      repository.createAtomicAttempt({
+        testId: "test-1",
+        answers: [
+          {
+            questionId: "question-1",
+            optionId: "option-1"
+          }
+        ],
+        allowPartial: false,
+        startedAt: "2026-06-12T09:59:00.000Z",
+        submittedAt: "2026-06-12T10:00:00.000Z",
+        timeSpentSeconds: 60
+      })
+    ).resolves.toEqual({
+      data: {
+        attemptId: "attempt-1",
+        score: 100
+      },
+      error: null
+    });
 
-    expect(fromMock).toHaveBeenNthCalledWith(1, "student_test_attempts");
-    expect(attemptQuery.insert).toHaveBeenCalledWith(attemptPayload);
-    expect(attemptQuery.select).toHaveBeenCalledWith("id");
-    expect(attemptQuery.single).toHaveBeenCalledTimes(1);
-    expect(fromMock).toHaveBeenNthCalledWith(2, "student_test_answers");
-    expect(answersQuery.insert).toHaveBeenCalledWith(answersPayload);
+    expect(rpcMock).toHaveBeenCalledWith("submit_practice_test_attempt", {
+      p_test_id: "test-1",
+      p_answers: [
+        {
+          questionId: "question-1",
+          optionId: "option-1"
+        }
+      ],
+      p_allow_partial: false,
+      p_started_at: "2026-06-12T09:59:00.000Z",
+      p_submitted_at: "2026-06-12T10:00:00.000Z",
+      p_time_spent_seconds: 60
+    });
   });
 
   it("loads, updates, creates, and resolves student mistakes with current filters", async () => {
@@ -153,4 +157,3 @@ describe("practice attempts repository", () => {
     ]);
   });
 });
-

@@ -27,7 +27,7 @@ export const REQUEST_CONTEXT_ACCESS_POLICIES = {
 export const REQUEST_ACCESS_MATRIX = {
   user_scoped: [
     "progress",
-    "practice attempts service/repository",
+    "practice attempts service/repository + authenticated atomic RPC",
     "homework",
     "words service/repository",
     "payments service/repository",

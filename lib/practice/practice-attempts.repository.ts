@@ -34,6 +34,32 @@ export type ExistingMistakeRow = {
   mistake_count: number | null;
 };
 
+export type AtomicPracticeAttemptAnswer = {
+  questionId: string;
+  selectedOptionId: string | null;
+  isCorrect: boolean;
+};
+
+export type AtomicPracticeAttemptSectionScore = {
+  key: string;
+  label: string;
+  correctAnswers: number;
+  totalQuestions: number;
+};
+
+export type AtomicPracticeAttemptResult = {
+  attemptId: string;
+  score: number;
+  correctAnswers: number;
+  totalQuestions: number;
+  passed: boolean;
+  assessmentKind: "regular" | "placement";
+  recommendedLevel: string | null;
+  recommendedBandLabel: string | null;
+  sectionScores: AtomicPracticeAttemptSectionScore[];
+  answers: AtomicPracticeAttemptAnswer[];
+};
+
 export function createPracticeAttemptsRepository(
   client: PracticeAttemptsRepositoryClient
 ) {
@@ -56,37 +82,30 @@ export function createPracticeAttemptsRepository(
         .maybeSingle();
     },
 
-    createAttempt(payload: {
-      student_id: string;
-      test_id: string;
-      score: number;
-      correct_answers: number;
-      total_questions: number;
-      status: "passed" | "failed";
-      recommended_level: string | null;
-      recommended_band_label: string | null;
-      placement_summary: unknown;
-      started_at: string;
-      submitted_at: string;
-      time_spent_seconds: number;
+    async createAtomicAttempt(input: {
+      testId: string;
+      answers: Array<{
+        questionId: string;
+        optionId: string;
+      }>;
+      allowPartial: boolean;
+      startedAt: string;
+      submittedAt: string;
+      timeSpentSeconds: number;
     }) {
-      return client
-        .from("student_test_attempts")
-        .insert(payload)
-        .select("id")
-        .single();
-    },
+      const response = await client.rpc("submit_practice_test_attempt", {
+        p_test_id: input.testId,
+        p_answers: input.answers,
+        p_allow_partial: input.allowPartial,
+        p_started_at: input.startedAt,
+        p_submitted_at: input.submittedAt,
+        p_time_spent_seconds: input.timeSpentSeconds
+      });
 
-    createAnswers(
-      payload: Array<{
-        attempt_id: string;
-        question_id: string;
-        selected_option_id: string | null;
-        answer_text: null;
-        is_correct: boolean;
-      }>
-    ) {
-      return client.from("student_test_answers").insert(payload);
+      return {
+        data: response.data as AtomicPracticeAttemptResult | null,
+        error: response.error
+      };
     },
 
     loadExistingMistakes(studentId: string, questionIds: string[]) {
@@ -147,4 +166,3 @@ export function createPracticeAttemptsRepository(
 export async function createUserScopedPracticeAttemptsRepository() {
   return createPracticeAttemptsRepository(await createClient());
 }
-

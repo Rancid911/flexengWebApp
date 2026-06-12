@@ -9,8 +9,7 @@ const calls: string[] = [];
 const repository = {
   loadTestForGrading: vi.fn(),
   loadCourseIdForModule: vi.fn(),
-  createAttempt: vi.fn(),
-  createAnswers: vi.fn(),
+  createAtomicAttempt: vi.fn(),
   loadExistingMistakes: vi.fn(),
   updateMistake: vi.fn(),
   createMistake: vi.fn(),
@@ -179,13 +178,34 @@ describe("submitPracticeTestAttempt", () => {
       data: { course_id: "course-1" },
       error: null
     });
-    repository.createAttempt.mockImplementation(async () => {
-      calls.push("attempt");
-      return { data: { id: "attempt-1" }, error: null };
-    });
-    repository.createAnswers.mockImplementation(async () => {
-      calls.push("answers");
-      return { error: null };
+    repository.createAtomicAttempt.mockImplementation(async () => {
+      calls.push("atomic");
+      return {
+        data: {
+          attemptId: "attempt-1",
+          score: 50,
+          correctAnswers: 1,
+          totalQuestions: 2,
+          passed: false,
+          assessmentKind: "regular",
+          recommendedLevel: null,
+          recommendedBandLabel: null,
+          sectionScores: [],
+          answers: [
+            {
+              questionId: QUESTION_1,
+              selectedOptionId: OPTION_1,
+              isCorrect: true
+            },
+            {
+              questionId: QUESTION_2,
+              selectedOptionId: OPTION_2,
+              isCorrect: false
+            }
+          ]
+        },
+        error: null
+      };
     });
     repository.loadExistingMistakes.mockResolvedValue({
       data: [
@@ -284,7 +304,7 @@ describe("submitPracticeTestAttempt", () => {
     expect(createInfrastructureMock).not.toHaveBeenCalled();
   });
 
-  it("maps test load, empty test, attempt, and answer failures", async () => {
+  it("maps test load, empty test, attempt, and answer RPC failures", async () => {
     const { submitPracticeTestAttempt } = await import(
       "@/lib/practice/practice-attempts.service"
     );
@@ -305,20 +325,24 @@ describe("submitPracticeTestAttempt", () => {
       submitPracticeTestAttempt(validPayload())
     ).rejects.toMatchObject({ code: "EMPTY_TEST" });
 
-    repository.createAttempt.mockResolvedValueOnce({
+    repository.createAtomicAttempt.mockResolvedValueOnce({
       data: null,
-      error: { message: "attempt failed" }
+      error: { message: "ATTEMPT_CREATE_FAILED:attempt failed" }
     });
     await expect(
       submitPracticeTestAttempt(validPayload())
     ).rejects.toMatchObject({ code: "ATTEMPT_CREATE_FAILED" });
 
-    repository.createAnswers.mockResolvedValueOnce({
-      error: { message: "answers failed" }
+    repository.createAtomicAttempt.mockResolvedValueOnce({
+      data: null,
+      error: { message: "ATTEMPT_ANSWERS_SAVE_FAILED:answers failed" }
     });
     await expect(
       submitPracticeTestAttempt(validPayload())
     ).rejects.toMatchObject({ code: "ATTEMPT_ANSWERS_SAVE_FAILED" });
+    expect(repository.loadExistingMistakes).not.toHaveBeenCalled();
+    expect(syncHomeworkProgressMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 
   it("preserves placement partial grading and the public response shape", async () => {
@@ -327,6 +351,69 @@ describe("submitPracticeTestAttempt", () => {
     );
     repository.loadTestForGrading.mockResolvedValue({
       data: makeTest({ assessment_kind: "placement", module_id: null }),
+      error: null
+    });
+    repository.createAtomicAttempt.mockResolvedValue({
+      data: {
+        attemptId: "attempt-1",
+        score: 50,
+        correctAnswers: 1,
+        totalQuestions: 2,
+        passed: true,
+        assessmentKind: "placement",
+        recommendedLevel: "Beginner",
+        recommendedBandLabel: "Lower part of Beginner",
+        sectionScores: [
+          {
+            key: "beginner",
+            label: "Beginner",
+            correctAnswers: 1,
+            totalQuestions: 1
+          },
+          {
+            key: "elementary",
+            label: "Elementary",
+            correctAnswers: 0,
+            totalQuestions: 1
+          },
+          {
+            key: "pre_intermediate",
+            label: "Pre-Intermediate",
+            correctAnswers: 0,
+            totalQuestions: 0
+          },
+          {
+            key: "intermediate",
+            label: "Intermediate",
+            correctAnswers: 0,
+            totalQuestions: 0
+          },
+          {
+            key: "upper_intermediate",
+            label: "Upper-Intermediate",
+            correctAnswers: 0,
+            totalQuestions: 0
+          },
+          {
+            key: "advanced",
+            label: "Advanced",
+            correctAnswers: 0,
+            totalQuestions: 0
+          }
+        ],
+        answers: [
+          {
+            questionId: QUESTION_1,
+            selectedOptionId: OPTION_1,
+            isCorrect: true
+          },
+          {
+            questionId: QUESTION_2,
+            selectedOptionId: null,
+            isCorrect: false
+          }
+        ]
+      },
       error: null
     });
     const { submitPracticeTestAttempt } = await import(
@@ -393,8 +480,7 @@ describe("submitPracticeTestAttempt", () => {
       expect.any(String)
     );
     expect(calls).toEqual([
-      "attempt",
-      "answers",
+      "atomic",
       "update-mistake",
       "resolve-mistakes",
       "homework",
@@ -403,6 +489,45 @@ describe("submitPracticeTestAttempt", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith(
       "/practice/activity/test_aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
     );
+  });
+
+  it("stops post-commit projections when authoritative grading mismatches local grading", async () => {
+    repository.createAtomicAttempt.mockResolvedValueOnce({
+      data: {
+        attemptId: "attempt-1",
+        score: 100,
+        correctAnswers: 2,
+        totalQuestions: 2,
+        passed: true,
+        assessmentKind: "regular",
+        recommendedLevel: null,
+        recommendedBandLabel: null,
+        sectionScores: [],
+        answers: [
+          {
+            questionId: QUESTION_1,
+            selectedOptionId: OPTION_1,
+            isCorrect: true
+          },
+          {
+            questionId: QUESTION_2,
+            selectedOptionId: OPTION_2,
+            isCorrect: true
+          }
+        ]
+      },
+      error: null
+    });
+    const { submitPracticeTestAttempt } = await import(
+      "@/lib/practice/practice-attempts.service"
+    );
+
+    await expect(
+      submitPracticeTestAttempt(validPayload())
+    ).rejects.toMatchObject({ code: "TEST_LOAD_FAILED" });
+    expect(repository.loadExistingMistakes).not.toHaveBeenCalled();
+    expect(syncHomeworkProgressMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 
   it("keeps returned mistake errors soft but propagates thrown projection errors", async () => {

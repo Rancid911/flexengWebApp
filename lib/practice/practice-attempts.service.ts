@@ -11,6 +11,7 @@ import {
   type PracticeAttemptsInfrastructure
 } from "@/lib/practice/practice-attempts.infrastructure";
 import type {
+  AtomicPracticeAttemptResult,
   ExistingMistakeRow,
   GradeableTestRow
 } from "@/lib/practice/practice-attempts.repository";
@@ -29,8 +30,120 @@ const POLICY_ERROR_MESSAGES: Record<PracticeAttemptPolicyErrorCode, string> = {
   EMPTY_TEST: "This activity does not contain any questions"
 };
 
+const ATOMIC_ATTEMPT_ERROR_MAP = {
+  FORBIDDEN: {
+    status: 403,
+    message: "Real student write context required"
+  },
+  UNSUPPORTED_QUESTION_TYPE: {
+    status: 400,
+    message: "This activity contains unsupported question types"
+  },
+  INCOMPLETE_ATTEMPT: {
+    status: 400,
+    message: POLICY_ERROR_MESSAGES.INCOMPLETE_ATTEMPT
+  },
+  INVALID_OPTION: {
+    status: 400,
+    message: POLICY_ERROR_MESSAGES.INVALID_OPTION
+  },
+  EMPTY_TEST: {
+    status: 400,
+    message: POLICY_ERROR_MESSAGES.EMPTY_TEST
+  },
+  TEST_LOAD_FAILED: {
+    status: 500,
+    message: "Failed to load test for grading"
+  },
+  ATTEMPT_CREATE_FAILED: {
+    status: 500,
+    message: "Failed to save test attempt"
+  },
+  ATTEMPT_ANSWERS_SAVE_FAILED: {
+    status: 500,
+    message: "Failed to save test answers"
+  }
+} as const;
+
 function throwPolicyError(code: PracticeAttemptPolicyErrorCode): never {
   throw new PracticeHttpError(400, code, POLICY_ERROR_MESSAGES[code]);
+}
+
+function throwAtomicAttemptError(error: { message?: string | null }): never {
+  const details = error.message ?? "Atomic practice attempt RPC failed";
+  const code = Object.keys(ATOMIC_ATTEMPT_ERROR_MAP).find(
+    (candidate) =>
+      details === candidate || details.startsWith(`${candidate}:`)
+  ) as keyof typeof ATOMIC_ATTEMPT_ERROR_MAP | undefined;
+
+  if (!code) {
+    throw new PracticeHttpError(
+      500,
+      "ATTEMPT_CREATE_FAILED",
+      "Failed to save test attempt",
+      details
+    );
+  }
+
+  const mapped = ATOMIC_ATTEMPT_ERROR_MAP[code];
+  throw new PracticeHttpError(mapped.status, code, mapped.message, details);
+}
+
+function normalizeSectionScores(
+  sectionScores: AtomicPracticeAttemptResult["sectionScores"]
+) {
+  return sectionScores.map((section) => ({
+    key: section.key,
+    label: section.label,
+    correctAnswers: Number(section.correctAnswers),
+    totalQuestions: Number(section.totalQuestions)
+  }));
+}
+
+function hasMatchingAuthoritativeGrading(
+  atomicResult: AtomicPracticeAttemptResult,
+  grading: Extract<
+    ReturnType<typeof gradePracticeAttempt>,
+    { ok: true }
+  >
+) {
+  if (
+    typeof atomicResult.attemptId !== "string" ||
+    atomicResult.attemptId.length === 0 ||
+    !Array.isArray(atomicResult.answers) ||
+    !Array.isArray(atomicResult.sectionScores)
+  ) {
+    return false;
+  }
+
+  const localAnswers = grading.reviewQuestions.map((question) => ({
+    questionId: question.questionId,
+    selectedOptionId: question.selectedOptionId,
+    isCorrect: question.isCorrect
+  }));
+  const atomicAnswers = atomicResult.answers.map((answer) => ({
+    questionId: String(answer.questionId),
+    selectedOptionId: answer.selectedOptionId
+      ? String(answer.selectedOptionId)
+      : null,
+    isCorrect: Boolean(answer.isCorrect)
+  }));
+  const localSections = grading.placementSummary?.sectionScores ?? [];
+  const atomicSections = normalizeSectionScores(atomicResult.sectionScores);
+
+  return (
+    Number(atomicResult.score) === grading.score &&
+    Number(atomicResult.correctAnswers) === grading.correctAnswers &&
+    Number(atomicResult.totalQuestions) === grading.totalQuestions &&
+    Boolean(atomicResult.passed) === grading.passed &&
+    atomicResult.assessmentKind === grading.assessmentKind &&
+    (atomicResult.recommendedLevel ?? null) ===
+      (grading.placementSummary?.recommendedLevel ?? null) &&
+    (atomicResult.recommendedBandLabel ?? null) ===
+      (grading.placementSummary?.recommendedBandLabel ?? null) &&
+    JSON.stringify(atomicAnswers) === JSON.stringify(localAnswers) &&
+    JSON.stringify(atomicSections) === JSON.stringify(localSections)
+  );
 }
 
 async function loadCourseId(
@@ -198,48 +311,30 @@ export async function submitPracticeTestAttempt(
     throwPolicyError(grading.code);
   }
 
-  const attemptResponse = await infrastructure.repository.createAttempt({
-    student_id: studentContext.studentId,
-    test_id: testId,
-    score: grading.score,
-    correct_answers: grading.correctAnswers,
-    total_questions: grading.totalQuestions,
-    status: grading.passed ? "passed" : "failed",
-    recommended_level: grading.placementSummary?.recommendedLevel ?? null,
-    recommended_band_label:
-      grading.placementSummary?.recommendedBandLabel ?? null,
-    placement_summary: grading.placementSummary,
-    started_at: grading.startedAt,
-    submitted_at: grading.submittedAtIso,
-    time_spent_seconds: grading.timeSpentSeconds
-  });
-  if (attemptResponse.error || !attemptResponse.data) {
+  const attemptResponse =
+    await infrastructure.repository.createAtomicAttempt({
+      testId,
+      answers: input.answers,
+      allowPartial: Boolean(input.allowPartial),
+      startedAt: grading.startedAt,
+      submittedAt: grading.submittedAtIso,
+      timeSpentSeconds: grading.timeSpentSeconds
+    });
+  if (attemptResponse.error) {
+    throwAtomicAttemptError(attemptResponse.error);
+  }
+  if (
+    !attemptResponse.data ||
+    !hasMatchingAuthoritativeGrading(attemptResponse.data, grading)
+  ) {
     throw new PracticeHttpError(
       500,
-      "ATTEMPT_CREATE_FAILED",
-      "Failed to save test attempt",
-      attemptResponse.error?.message
+      "TEST_LOAD_FAILED",
+      "Failed to load test for grading",
+      "Atomic practice attempt grading did not match local grading"
     );
   }
-  const attemptId = String(attemptResponse.data.id);
-
-  const answersResponse = await infrastructure.repository.createAnswers(
-    grading.reviewQuestions.map((question) => ({
-      attempt_id: attemptId,
-      question_id: question.questionId,
-      selected_option_id: question.selectedOptionId,
-      answer_text: null,
-      is_correct: question.isCorrect
-    }))
-  );
-  if (answersResponse.error) {
-    throw new PracticeHttpError(
-      500,
-      "ATTEMPT_ANSWERS_SAVE_FAILED",
-      "Failed to save test answers",
-      answersResponse.error.message
-    );
-  }
+  const attemptId = attemptResponse.data.attemptId;
 
   await updateMistakeProjection({
     infrastructure,
@@ -276,4 +371,3 @@ export async function submitPracticeTestAttempt(
     sectionScores: grading.placementSummary?.sectionScores ?? []
   };
 }
-
