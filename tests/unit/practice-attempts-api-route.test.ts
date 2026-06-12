@@ -10,7 +10,7 @@ vi.mock("@/lib/auth/request-context", () => ({
   getAppActor: () => getAppActorMock()
 }));
 
-vi.mock("@/lib/practice/attempts", () => ({
+vi.mock("@/lib/practice/practice-attempts.service", () => ({
   submitPracticeTestAttempt: (...args: unknown[]) => submitPracticeTestAttemptMock(...args)
 }));
 

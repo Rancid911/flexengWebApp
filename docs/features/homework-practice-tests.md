@@ -3,10 +3,10 @@
 Status: current  
 Audience: engineers, teachers, academic operations, security reviewers  
 Owner area: homework-practice-tests  
-Last reviewed: 2026-05-25  
+Last reviewed: 2026-06-12
 Source of truth: feature summary; current code/tests remain implementation source  
 Related code: `app/(workspace)/(shared-zone)/homework/`, `app/(workspace)/(shared-zone)/practice/`, `app/api/practice/attempts/route.ts`, `app/api/students/[id]/homework-assignments/route.ts`, `app/api/students/[id]/placement-assignment/route.ts`, `app/api/admin/tests/`, `features/homework/`, `features/practice/`, `lib/homework/`, `lib/practice/`, `lib/students/current-student.ts`, `lib/admin/tests*`  
-Related tests: `tests/unit/homework-routes.test.tsx`, `tests/unit/homework-detail-page.test.tsx`, `tests/unit/practice-library-routes.test.tsx`, `tests/unit/practice-activity-route.test.tsx`, `tests/unit/practice-attempts-api-route.test.ts`, `tests/unit/practice-attempts-submit.test.ts`, `tests/unit/placement.test.ts`, `tests/unit/placement-test-flow.test.tsx`, `tests/unit/admin-tests-route.test.ts`, `tests/unit/student-homework-assignments-api-route.test.ts`, `tests/unit/student-placement-assignment-api-route.test.ts`, `tests/unit/current-student.test.ts`
+Related tests: `tests/unit/homework-routes.test.tsx`, `tests/unit/homework-detail-page.test.tsx`, `tests/unit/practice-library-routes.test.tsx`, `tests/unit/practice-activity-route.test.tsx`, `tests/unit/practice-attempts-repository.test.ts`, `tests/unit/practice-attempts-grading-policy.test.ts`, `tests/unit/practice-attempts-infrastructure.test.ts`, `tests/unit/practice-attempts-submit.test.ts`, `tests/unit/practice-attempts-facade.test.ts`, `tests/unit/practice-attempts-api-route.test.ts`, `tests/unit/placement.test.ts`, `tests/unit/placement-test-flow.test.tsx`, `tests/unit/admin-tests-route.test.ts`, `tests/unit/student-homework-assignments-api-route.test.ts`, `tests/unit/student-placement-assignment-api-route.test.ts`, `tests/unit/current-student.test.ts`
 
 ## Overview
 
@@ -72,6 +72,15 @@ Key tables/concepts:
 - Placement attempts can produce recommended level/band summaries.
 - Admin tests with existing attempts have restricted destructive edits in service logic/tests.
 
+## Practice Attempt Architecture
+
+- `/api/practice/attempts` delegates to `practice-attempts.service.ts`.
+- The service owns real-student guarding, activity validation, persistence orchestration, homework synchronization and route revalidation.
+- `practice-attempts-grading.policy.ts` owns pure answer validation, review DTO assembly, scoring, placement calculation and timestamps.
+- `practice-attempts.repository.ts` owns grading-data reads and attempt, answer and mistake persistence.
+- `practice-attempts.infrastructure.ts` creates one user-scoped SSR Supabase client for the repository and homework synchronization.
+- `attempts.ts` is a compatibility facade and must not regain grading or Supabase access.
+
 ## Integrations
 
 - Schedule follow-up can create lesson-linked homework.
@@ -94,6 +103,7 @@ Current focused coverage includes:
 - Homework route and detail tests.
 - Practice library/activity/test runner tests.
 - Practice attempt API and submit-service tests.
+- Practice attempt repository, grading policy, one-client infrastructure and facade tests.
 - Placement flow and assignment API tests.
 - Admin test route tests, including placement and attempt-protected edit behavior.
 - Current-student write boundary tests.
@@ -113,5 +123,7 @@ Coverage gaps:
 ## Known Limitations
 
 - Homework, practice, tests and progress share data but are not yet split into separate detailed docs.
+- Attempt and answer writes remain sequential and non-atomic until the separately approved transactional RPC phase.
+- Mistake and homework updates remain soft projections and can be incomplete after partial failures.
 - Teacher follow-up homework assignment is partly owned by schedule/teacher-workspace flows.
 - Demo/preview persistence is intentionally not a real student write path.

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getAppActor } from "@/lib/auth/request-context";
 import { requirePermission } from "@/lib/permissions";
-import { submitPracticeTestAttempt } from "@/lib/practice/attempts";
+import { submitPracticeTestAttempt } from "@/lib/practice/practice-attempts.service";
 import { withPracticeErrorHandling, PracticeHttpError } from "@/lib/practice/http";
 import { practiceTestAttemptSchema } from "@/lib/practice/validation";
 import { requireRealStudentWriteContext } from "@/lib/students/current-student";
