@@ -37,7 +37,7 @@ For current authorization, RBAC/RLS, request-context, service-role, storage and 
 - API routes are transport adapters. They should parse, authorize, validate, call a domain service/query, and return a response.
 - Protected API routes must call `requirePermission()`. Public, provider-authenticated, or internal utility routes must be explicitly allowlisted in `scripts/check-architecture.mjs`.
 - API routes should not directly own complex Supabase persistence flows across multiple tables.
-- UI components should not directly call Supabase except for explicit auth/client SDK flows where Supabase requires browser interaction; storage and persistence writes go through API/service boundaries.
+- UI/client code must not import or call Supabase directly. The allowed flow is `UI -> API/server usage -> service -> repository/gateway -> Supabase`; the only route-level exception is `app/auth/confirm/route.ts`, which exchanges OAuth/OTP confirmation data for a server session.
 - New feature/client/server implementation files should not be added under `app`; use `features/*`, `shared/*`, or `lib/*` according to ownership.
 - Domain modules should expose use-case oriented functions, not table-shaped helpers for UI to orchestrate.
 - Shared UI must stay domain-neutral. If a component contains CRM, student, teacher, payment, or learning rules, it belongs to that feature/domain.

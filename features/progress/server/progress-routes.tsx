@@ -2,7 +2,7 @@ import { ProgressHistory } from "@/features/progress/components/progress-history
 import { ProgressOverview } from "@/features/progress/components/progress-overview";
 import { ProgressTopics } from "@/features/progress/components/progress-topics";
 import { ProgressWeakPoints } from "@/features/progress/components/progress-weak-points";
-import { getProgressByTopics, getProgressHistory, getProgressOverview, getWeakPoints } from "@/lib/progress/queries";
+import { getProgressByTopics, getProgressHistory, getProgressOverview, getWeakPoints } from "@/lib/progress/progress.service";
 import { measureServerTiming } from "@/lib/server/timing";
 
 export async function renderProgressOverviewRoute() {

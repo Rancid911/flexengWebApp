@@ -1,13 +1,11 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { formatRuShortDateTime } from "@/lib/dates/format-ru-date";
-import type { getProgressHistory } from "@/lib/progress/queries";
+import type { ProgressHistoryItem } from "@/lib/progress/progress.types";
 import { StudentEmptyState, StudentPageHeader } from "@/shared/ui/student-page-primitives";
 
 import { ProgressSubnav } from "@/features/progress/components/progress-subnav";
 
-type ProgressHistoryData = Awaited<ReturnType<typeof getProgressHistory>>;
-
-export function ProgressHistory({ history }: { history: ProgressHistoryData }) {
+export function ProgressHistory({ history }: { history: ProgressHistoryItem[] }) {
   return (
     <div className="space-y-6 pb-8">
       <StudentPageHeader title="История результатов" description="Все завершённые попытки по тестам и тренажёрам." />

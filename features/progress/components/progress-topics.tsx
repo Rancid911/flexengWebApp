@@ -1,12 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card";
-import type { getProgressByTopics } from "@/lib/progress/queries";
+import type { ProgressTopic } from "@/lib/progress/progress.types";
 import { StudentEmptyState, StudentPageHeader } from "@/shared/ui/student-page-primitives";
 
 import { ProgressSubnav } from "@/features/progress/components/progress-subnav";
 
-type ProgressTopicsData = Awaited<ReturnType<typeof getProgressByTopics>>;
-
-export function ProgressTopics({ topics }: { topics: ProgressTopicsData }) {
+export function ProgressTopics({ topics }: { topics: ProgressTopic[] }) {
   return (
     <div className="space-y-6 pb-8">
       <StudentPageHeader title="Прогресс по темам" description="Разбивка самостоятельной практики по основным направлениям обучения." />

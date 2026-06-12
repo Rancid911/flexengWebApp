@@ -37,6 +37,10 @@ const apiPermissionExceptionReasons = new Map([
   ["app/api/request-context/invalidate/route.ts", "internal self cache utility with minimal auth check"]
 ]);
 
+const uiSupabaseExceptionReasons = new Map([
+  ["app/auth/confirm/route.ts", "OAuth/OTP callback must exchange the confirmation token for a server session"]
+]);
+
 const serviceRoleAllowlist = new Map([
   ["lib/admin/audit.ts", { count: 1, classification: "final: audit log writes" }],
   ["lib/admin/user.repository.ts", { count: 1, classification: "final: Supabase Auth admin operations" }],
@@ -47,6 +51,37 @@ const serviceRoleAllowlist = new Map([
 
 function fail(file, message) {
   failures.push(`${file}: ${message}`);
+}
+
+function isFrontendFile(file, source) {
+  if (!/\.(ts|tsx|js|jsx)$/.test(file)) return false;
+  if (source.includes("use client")) return true;
+  if (file.startsWith("app/")) return !file.startsWith("app/api/");
+  if (/^(components|hooks)\//.test(file)) return true;
+  if (/^features\/[^/]+\/(client|components)\//.test(file)) return true;
+  if (/^shared\/(client|ui)\//.test(file)) return true;
+
+  const fileName = file.split("/").pop() ?? "";
+  return /(?:^|[.-])client(?:[.-]|$)/.test(fileName);
+}
+
+function findForbiddenUiSupabasePatterns(source) {
+  const patterns = [
+    ["import from @supabase/supabase-js", /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["']@supabase\/supabase-js["']/],
+    ["import from @supabase/ssr", /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["']@supabase\/ssr["']/],
+    ["import from @/lib/supabase/**", /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["']@\/lib\/supabase\/[^"']+["']/],
+    ["createClient(...)", /\bcreateClient\s*\(/],
+    ["createBrowserClient(...)", /\bcreateBrowserClient\s*\(/],
+    ["createServerClient(...)", /\bcreateServerClient\s*\(/],
+    ["createAdminClient(...)", /\bcreateAdminClient\s*\(/],
+    ["supabase.from(...)", /(?<!Array)\.from\s*\(/],
+    ["supabase.rpc(...)", /\.rpc\s*\(/],
+    ["supabase.auth.*", /\.auth\s*(?:\.|\[)/],
+    ["supabase.storage.*", /\.storage\s*(?:\.|\[)/],
+    ["supabase.channel(...)", /\.channel\s*\(/]
+  ];
+
+  return patterns.filter(([, pattern]) => pattern.test(source)).map(([label]) => label);
 }
 
 const trackedFiles = gitFiles();
@@ -172,13 +207,21 @@ for (const file of projectFiles.filter((item) => item.startsWith("lib/") && item
   }
 }
 
-for (const file of projectFiles.filter((item) => /^(app|components|features|hooks)\//.test(item) && /\.(ts|tsx)$/.test(item))) {
+for (const file of projectFiles.filter((item) => /^(app|components|features|hooks|lib|shared)\//.test(item) && /\.(ts|tsx|js|jsx)$/.test(item))) {
   const source = read(file);
-  if (!source.includes("use client")) continue;
-  const usesSupabaseClient = /@\/lib\/supabase\/(client|browser)/.test(source) || /\bcreateClient\s*\(/.test(source) || /(?<!Array)\.from\s*\(/.test(source) || /storage\.from\s*\(/.test(source);
-  if (usesSupabaseClient) {
-    fail(file, "client UI uses Supabase/raw DB access; use same-origin API/service boundaries instead");
-  }
+  if (!isFrontendFile(file, source) || uiSupabaseExceptionReasons.has(file)) continue;
+
+  const forbiddenPatterns = findForbiddenUiSupabasePatterns(source);
+  if (forbiddenPatterns.length === 0) continue;
+
+  fail(
+    file,
+    [
+      "Architecture violation: Supabase usage is not allowed in UI/client code.",
+      `Patterns: ${forbiddenPatterns.join(", ")}`,
+      "Move data access to: UI -> API/server usage -> service -> repository/gateway -> Supabase."
+    ].join(" ")
+  );
 }
 
 if (failures.length > 0) {

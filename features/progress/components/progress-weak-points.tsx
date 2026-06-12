@@ -1,12 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card";
-import type { getWeakPoints } from "@/lib/progress/queries";
+import type { ProgressWeakPoint } from "@/lib/progress/progress.types";
 import { StudentEmptyState, StudentPageHeader } from "@/shared/ui/student-page-primitives";
 
 import { ProgressSubnav } from "@/features/progress/components/progress-subnav";
 
-type ProgressWeakPointsData = Awaited<ReturnType<typeof getWeakPoints>>;
-
-export function ProgressWeakPoints({ weakPoints }: { weakPoints: ProgressWeakPointsData }) {
+export function ProgressWeakPoints({ weakPoints }: { weakPoints: ProgressWeakPoint[] }) {
   return (
     <div className="space-y-6 pb-8">
       <StudentPageHeader title="Слабые места" description="Темы и задания, в которых чаще всего возникают ошибки." />

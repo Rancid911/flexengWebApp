@@ -42,7 +42,7 @@ import {
   PROGRESS_OVERVIEW_DATA_LOADING,
   PROGRESS_TOPICS_DATA_LOADING,
   PROGRESS_WEAK_POINTS_DATA_LOADING
-} from "@/lib/progress/queries";
+} from "@/lib/progress/progress.service";
 import {
   PRACTICE_ACTIVITY_DETAIL_DATA_LOADING,
   PRACTICE_FAVORITES_DATA_LOADING,

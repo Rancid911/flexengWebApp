@@ -2,12 +2,10 @@ import Link from "next/link";
 import { ArrowRight, Brain, Target } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
-import type { getProgressOverview } from "@/lib/progress/queries";
+import type { ProgressOverview as ProgressOverviewData } from "@/lib/progress/progress.types";
 import { StudentPageHeader, StudentStatCard } from "@/shared/ui/student-page-primitives";
 
 import { ProgressSubnav } from "@/features/progress/components/progress-subnav";
-
-type ProgressOverviewData = Awaited<ReturnType<typeof getProgressOverview>>;
 
 export function ProgressOverview({ overview }: { overview: ProgressOverviewData }) {
   return (

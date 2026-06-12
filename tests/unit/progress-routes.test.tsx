@@ -27,7 +27,7 @@ vi.mock("@/features/progress/components/progress-weak-points", () => ({
   ProgressWeakPoints: (props: unknown) => <div data-testid="progress-weak-points-probe">{JSON.stringify(props)}</div>
 }));
 
-vi.mock("@/lib/progress/queries", () => ({
+vi.mock("@/lib/progress/progress.service", () => ({
   getProgressByTopics: (...args: unknown[]) => getProgressByTopicsMock(...args),
   getProgressHistory: (...args: unknown[]) => getProgressHistoryMock(...args),
   getProgressOverview: (...args: unknown[]) => getProgressOverviewMock(...args),
