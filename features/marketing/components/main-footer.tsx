@@ -8,10 +8,23 @@ import {
   schoolFooterLinks,
   supportFooterLinks
 } from "@/features/marketing/model/site-navigation";
+import { cn } from "@/lib/utils";
 
-export function MainFooter({ leadHref = "#lead-form" }: { leadHref?: string }) {
+type MainFooterProps = {
+  leadHref?: string;
+  variant?: "default" | "transparent";
+};
+
+export function MainFooter({ leadHref = "#lead-form", variant = "default" }: MainFooterProps) {
   return (
-    <footer className="border-t border-[#5E558F] bg-[linear-gradient(160deg,#433A6A_0%,#4F467D_45%,#3D355F_100%)]">
+    <footer
+      className={cn(
+        "border-t",
+        variant === "transparent"
+          ? "border-transparent bg-transparent"
+          : "border-[#5E558F] bg-[linear-gradient(160deg,#433A6A_0%,#4F467D_45%,#3D355F_100%)]"
+      )}
+    >
       <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-2 text-sm">

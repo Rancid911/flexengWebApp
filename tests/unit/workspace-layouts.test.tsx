@@ -83,6 +83,10 @@ vi.mock("@/features/marketing/components/main-footer", () => ({
   MainFooter: () => <div data-testid="public-footer">footer</div>
 }));
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/"
+}));
+
 vi.mock("@/features/workspace-shell/server/workspace-shell.server", () => ({
   WorkspaceShell: ({
     children,
