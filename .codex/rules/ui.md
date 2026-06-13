@@ -15,6 +15,8 @@
 
 ## Responsive design
 
+- Соблюдай единый [responsive system](../../docs/responsive-system.md): base для mobile, `md:` для tablet, `desktop:` для full desktop с 1100px и `xl:` для дополнительного пространства или явно закреплённого 1280px component contract.
+- Для новых компонентов не считай `lg:` основным desktop breakpoint, не добавляй device-specific breakpoint names и избегай случайных `min-[...]`/`max-[...]`.
 - Все новые и изменяемые UI-экраны должны корректно работать на desktop, tablet и mobile.
 - Не используй фиксированные ширины, которые вызывают горизонтальный overflow или делают экран непригодным на малых viewport; предпочитай fluid sizing, `max-width`, responsive grid/flex и существующие breakpoints.
 - Проверяй mobile, tablet и desktop breakpoints для изменяемого экрана, включая content overflow, touch targets, typography, spacing и порядок элементов.

@@ -3,7 +3,7 @@
 Status: current  
 Audience: engineers, product maintainers, security reviewers, AI coding agents  
 Owner area: documentation system  
-Last reviewed: 2026-05-25  
+Last reviewed: 2026-06-13
 Source of truth: yes  
 Related code: `app/`, `features/`, `lib/`, `supabase/`, `scripts/check-architecture.mjs`  
 Related tests: `tests/unit/access-docs-consistency.test.ts`
@@ -33,6 +33,7 @@ Historical documents must include a visible warning:
 | Topic | Current doc | Notes |
 | --- | --- | --- |
 | Architecture and layering | `docs/architecture.md` | Root `ARCHITECTURE.md` is a short overview/pointer, not a second full source of truth. |
+| Responsive system | `docs/responsive-system.md` | Mobile-first breakpoint and migration rules for all project UI. |
 | Authentication and auth rate limiting | `docs/auth-flows.md` | Current Supabase Auth flows, Redis limiter configuration, `429` contract and client countdown persistence. |
 | Current access-control model | `docs/access-control-current-state.md` | Start here for RBAC, AppActor, guards, compatibility layers, and source links. |
 | Access/security navigation | `docs/access-control/README.md` | Start here for focused RBAC, AppActor, guards, service-role, storage, RLS/RPC and verification guides. |
@@ -50,6 +51,7 @@ Historical documents must include a visible warning:
 ## Architecture
 
 - `docs/architecture.md` is the detailed current architecture source.
+- `docs/responsive-system.md` defines the shared mobile, tablet, desktop, and wide-layout contract.
 - `ARCHITECTURE.md` should stay a short root overview and pointer.
 - `docs/domain-map.md` maps current domains to code locations and status.
 - `docs/client-island-performance-baseline.md` records current client-heavy surfaces.
