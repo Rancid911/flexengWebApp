@@ -15,7 +15,7 @@ Use this runbook when preparing a preview, staging or production deploy. The app
 ## Deployment Target Assumptions
 
 - Framework: Next.js App Router.
-- Node engine: 22.x.
+- Node engine: 24.x.
 - Build command: `npm run build`.
 - Runtime start command for local production server: `npm run start`.
 - Vercel is the expected deployment target from project context, but no `vercel.json` was found.

@@ -47,4 +47,10 @@ export const REQUEST_ACCESS_MATRIX = {
   ]
 } as const;
 
-export const SERVICE_ROLE_EXCEPTION_LIST = [] as const;
+export const SERVICE_ROLE_EXCEPTION_LIST = [
+  "lib/admin/audit.ts",
+  "lib/admin/user.repository.ts",
+  "lib/media/service.ts",
+  "lib/payments/server.ts",
+  "lib/supabase/admin.ts"
+] as const;

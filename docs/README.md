@@ -44,6 +44,7 @@ Historical documents must include a visible warning:
 | ScheduleActor boundary | `docs/schedule-actor-permission-boundary.md` | Current `accessMode` and role compatibility boundary. |
 | Teacher preview write safety | `docs/teacher-preview-write-surface-audit.md` | Current identity-based real-student write boundary despite audit title. |
 | Domain map | `docs/domain-map.md` | Current high-level domain/module map. |
+| Self-hosted Supabase readiness | `docs/operations/self-hosted-supabase-readiness.md` | Non-active baseline cutoff strategy and clean rehearsal safety boundary. |
 
 ## Architecture
 
@@ -138,6 +139,7 @@ Current:
 - `docs/operations/local-setup.md`
 - `docs/operations/env-vars.md`
 - `docs/operations/deployment.md`
+- `docs/operations/self-hosted-supabase-readiness.md`
 - `docs/operations/release-verification.md`
 - `docs/operations/smoke-tests.md`
 - `docs/testing/test-strategy.md`

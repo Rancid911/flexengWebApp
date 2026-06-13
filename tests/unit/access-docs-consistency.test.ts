@@ -1,8 +1,9 @@
-import { readFileSync } from "node:fs";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+import { SERVICE_ROLE_EXCEPTION_LIST } from "@/lib/supabase/access";
 
 function readDoc(path: string) {
   return readFileSync(join(process.cwd(), path), "utf8");
@@ -31,6 +32,7 @@ const operationsDocs = [
   "docs/operations/local-setup.md",
   "docs/operations/env-vars.md",
   "docs/operations/deployment.md",
+  "docs/operations/self-hosted-supabase-readiness.md",
   "docs/operations/release-verification.md",
   "docs/operations/smoke-tests.md",
   "docs/testing/test-strategy.md"
@@ -241,6 +243,99 @@ describe("access-control documentation consistency", () => {
     expect(testStrategy).toContain("tests/unit/access-docs-consistency.test.ts");
     expect(combined).not.toMatch(/live DB verification passed/i);
     expect(combined).not.toMatch(/production-verified/i);
+  });
+
+  it("keeps the non-active Supabase bootstrap bundle explicit and undiscoverable as migrations", () => {
+    const cutoff = "20260612203357";
+    const bootstrapRoot = join(process.cwd(), "supabase/bootstrap");
+    const candidateRoot = join(bootstrapRoot, cutoff);
+    const warning = [
+      "-- DRAFT BASELINE CANDIDATE.",
+      "-- DO NOT APPLY TO EXISTING SUPABASE CLOUD PROJECT.",
+      "-- Intended only for clean local/self-hosted bootstrap rehearsal.",
+      "-- This file is non-active and must not be placed into supabase/migrations."
+    ].join("\n");
+    const sqlFiles = [
+      "schema.candidate.sql",
+      "reference-data.candidate.sql",
+      "verification.sql"
+    ];
+    const applicationWarning = [
+      "-- DRAFT APPLICATION BASELINE CANDIDATE.",
+      "-- DO NOT APPLY TO EXISTING SUPABASE CLOUD PROJECT.",
+      "-- Intended only for clean local/self-hosted bootstrap rehearsal AFTER the Supabase platform is initialized.",
+      "-- This file is non-active and must not be placed into supabase/migrations.",
+      "-- Raw snapshot reference: schema.candidate.sql"
+    ].join("\n");
+    const applicationBaseline = readDoc(
+      `supabase/bootstrap/${cutoff}/application-baseline.candidate.sql`
+    );
+    const manifest = readDoc(`supabase/bootstrap/${cutoff}/manifest.md`);
+    const readiness = readDoc("docs/operations/self-hosted-supabase-readiness.md");
+
+    expect(readDoc("supabase/bootstrap/README.md")).toContain("This bootstrap bundle is not an active migration.");
+    expect(manifest).toContain(`Cutoff: \`${cutoff}\``);
+    expect(readiness).toContain(
+      "After baseline cutoff, every database change must be represented by a normal"
+    );
+    expect(applicationBaseline.startsWith(applicationWarning)).toBe(true);
+    expect(applicationBaseline).toContain("PLACEHOLDER ONLY");
+    expect(applicationBaseline).toContain("Supabase self-hosted tag: TBD");
+    expect(applicationBaseline).not.toMatch(/^CREATE (SCHEMA|TABLE|FUNCTION|POLICY|TRIGGER)/m);
+    expect(manifest).toContain("schema.candidate.sql`: immutable raw full-schema reference");
+    expect(manifest).toContain("application-baseline.candidate.sql");
+    expect(manifest).toContain("Supabase self-hosted tag | `TBD`");
+    expect(readiness).toContain("schema.candidate.sql` must never be applied directly");
+
+    for (const sqlFile of sqlFiles) {
+      expect(readDoc(`supabase/bootstrap/${cutoff}/${sqlFile}`).startsWith(warning)).toBe(true);
+    }
+
+    const activeMigrationFiles = readdirSync(join(process.cwd(), "supabase/migrations"));
+    expect(activeMigrationFiles.some((file) => file.includes("baseline") || file.includes("bootstrap"))).toBe(false);
+    expect(existsSync(candidateRoot)).toBe(true);
+  });
+
+  it("keeps the service-role inventory aligned across code, docs, and architecture enforcement", () => {
+    const expected = [
+      "lib/admin/audit.ts",
+      "lib/admin/user.repository.ts",
+      "lib/media/service.ts",
+      "lib/payments/server.ts",
+      "lib/supabase/admin.ts"
+    ];
+    const checker = readDoc("scripts/check-architecture.mjs");
+    const inventory = readDoc("docs/service-role-inventory.md");
+    const checkerAllowlist = checker.match(
+      /const serviceRoleAllowlist = new Map\(\[([\s\S]*?)\n\]\);/
+    )?.[1];
+    const checkerFiles = [...(checkerAllowlist?.matchAll(/\["([^"]+)"/g) ?? [])].map(
+      (match) => match[1]
+    );
+    const inventoryFiles = [...inventory.matchAll(/^\| `([^`]+)` \| \d+ \|/gm)].map(
+      (match) => match[1]
+    );
+
+    expect([...SERVICE_ROLE_EXCEPTION_LIST]).toEqual(expected);
+    expect(checkerFiles).toEqual(expected);
+    expect(inventoryFiles).toEqual(expected);
+    for (const file of expected) {
+      expect(inventory).toContain(`\`${file}\``);
+    }
+    expect(inventory).not.toContain("homework progress sync after practice attempts remains explicitly privileged");
+  });
+
+  it("keeps the current Node version aligned with package engines and CI docs", () => {
+    const packageJson = JSON.parse(readDoc("package.json")) as { engines: { node: string } };
+    const ci = readDoc(".github/workflows/ci.yml");
+    const localSetup = readDoc("docs/operations/local-setup.md");
+    const deployment = readDoc("docs/operations/deployment.md");
+
+    expect(packageJson.engines.node).toBe("24.x");
+    expect(ci.match(/node-version: 24/g)).toHaveLength(3);
+    expect(ci).not.toContain("node-version: 22");
+    expect(localSetup).toContain("Node.js 24.x");
+    expect(deployment).toContain("Node engine: 24.x");
   });
 
   it("documents feature-specific high-risk boundaries without overclaiming live DB status", () => {

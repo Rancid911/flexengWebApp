@@ -1,0 +1,72 @@
+-- DRAFT APPLICATION BASELINE CANDIDATE.
+-- DO NOT APPLY TO EXISTING SUPABASE CLOUD PROJECT.
+-- Intended only for clean local/self-hosted bootstrap rehearsal AFTER the Supabase platform is initialized.
+-- This file is non-active and must not be placed into supabase/migrations.
+-- Raw snapshot reference: schema.candidate.sql
+
+-- PLACEHOLDER ONLY: executable application DDL has not been extracted.
+--
+-- A clean initialized Supabase platform schema is required before this file
+-- can be produced safely. Static filtering of the raw dump is insufficient:
+-- application functions, triggers, policies, and grants reference managed
+-- auth/storage objects whose definitions and ownership depend on the target
+-- self-hosted Supabase version.
+--
+-- Target platform:
+--   Supabase self-hosted tag: TBD
+--   PostgreSQL major: TBD
+--   Apply-time psql version: TBD
+--
+-- Raw snapshot toolchain:
+--   Source PostgreSQL: 17.6
+--   pg_dump: 18.4
+--   Contains psql 18 \restrict/\unrestrict: yes
+--
+-- Extraction workflow:
+--   1. Initialize a disposable self-hosted Supabase using the pinned tag.
+--   2. Take a schema-only platform dump from that untouched instance.
+--   3. Compare it with schema.candidate.sql.
+--   4. Copy only reviewed application-owned DDL into this file.
+--   5. Preserve dependency order and the warning above.
+--   6. Verify the result on a fresh disposable instance.
+--
+-- Include after platform comparison:
+--   * CREATE SCHEMA app_private;
+--   * app-required extensions only, expected pgcrypto and pg_trgm, expressed
+--     as safe CREATE EXTENSION IF NOT EXISTS statements in the platform's
+--     expected extension schema;
+--   * all application-owned public tables, sequences, defaults, constraints,
+--     foreign keys, and indexes;
+--   * public.student_dashboard_view with security_invoker;
+--   * application functions/RPCs in public and app_private, including exact
+--     security mode and search_path;
+--   * application triggers on public tables;
+--   * RLS enablement and application policies on public tables;
+--   * reviewed grants/revokes on application schemas, tables, sequences, and
+--     routines for anon, authenticated, and service_role.
+--
+-- Include only after explicit cross-managed-object review:
+--   * application Auth provisioning triggers attached to auth.users:
+--       on_auth_user_created
+--       on_auth_user_confirmed
+--       on_auth_user_email_updated
+--       on_auth_user_provision_metadata_updated
+--   * their application-owned public trigger functions;
+--   * avatars_* and crm_assets_* policies on storage.objects;
+--   * any application grants on managed auth/storage objects.
+--
+-- Keep in reference-data.candidate.sql:
+--   * storage.buckets rows for avatars and crm-assets;
+--   * fixed RBAC roles, permissions, and role_permissions;
+--   * reviewed deterministic singleton/system rows.
+--
+-- Exclude because the initialized Supabase platform must provide them:
+--   * full auth, storage, realtime, vault, extensions, pgbouncer, graphql,
+--     graphql_public, and supabase_migrations schemas;
+--   * platform tables, functions, triggers, policies, and default privileges;
+--   * Supabase platform roles and role grants;
+--   * supabase_realtime publication and platform subscriptions;
+--   * platform event triggers;
+--   * platform extension internals;
+--   * raw pg_dump SET statements and psql \restrict/\unrestrict commands.
+

@@ -17,9 +17,12 @@ Use placeholders only:
 ```text
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-or-anon-key>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<legacy-anon-key-if-needed>
 ```
 
-`NEXT_PUBLIC_SUPABASE_ANON_KEY` is accepted as a compatibility fallback in code, but `.env.example` uses `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` is accepted as a compatibility fallback in
+code. `.env.example` lists both names so each environment can populate the
+publishable key and leave the legacy fallback empty unless it is required.
 
 These variables are intentionally public and can be sent to browser bundles. They are not service-role secrets.
 
@@ -27,6 +30,7 @@ These variables are intentionally public and can be sent to browser bundles. The
 
 ```text
 SUPABASE_SERVICE_ROLE_KEY=<server-only-service-role-key>
+DATABASE_URL=<postgresql-connection-string-for-approved-operations>
 ```
 
 Safety rules:
@@ -35,6 +39,28 @@ Safety rules:
 - Never commit this key.
 - Keep usage limited to allowlisted service-role boundaries in `docs/service-role-inventory.md`.
 - New usage must update `docs/access-control/service-role.md`, `docs/service-role-inventory.md` and architecture checker rules.
+- `DATABASE_URL` is an operational PostgreSQL connection string, not an app
+  client key. Do not expose or commit it, and do not use it for unapproved
+  production operations.
+
+## Auth Recovery / Self-Hosted Auth Variables
+
+```text
+AUTH_RECOVERY_MARKER_SECRET=<dedicated-recovery-marker-secret>
+SUPABASE_JWT_SECRET=<self-hosted-jwt-secret-or-compatibility-fallback>
+SMTP_HOST=<smtp-host>
+SMTP_PORT=<smtp-port>
+SMTP_USER=<smtp-user>
+SMTP_PASSWORD=<smtp-password>
+SMTP_FROM=<smtp-sender>
+```
+
+`AUTH_RECOVERY_MARKER_SECRET` is the preferred secret for application recovery
+markers. `SUPABASE_JWT_SECRET` is a compatibility fallback in code and is also
+required when configuring a self-hosted Supabase Auth deployment.
+
+SMTP values are operational self-hosted Auth placeholders; the Next.js runtime
+does not read them directly.
 
 ## App / URL Variables
 

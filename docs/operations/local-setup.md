@@ -14,7 +14,7 @@ Use this runbook to start the app locally, run static checks, or prepare a local
 
 ## Prerequisites
 
-- Node.js 22.x, matching `package.json` engines.
+- Node.js 24.x, matching `package.json` engines.
 - npm.
 - Access to a Supabase project or a local Supabase-compatible environment with the required schema.
 - Local environment variables in `.env.local`.
@@ -59,6 +59,7 @@ See `docs/operations/env-vars.md`.
 
 - The repo contains migrations and SQL Editor smoke scripts, but no `supabase/config.toml` was found in the current tree.
 - Local Supabase CLI workflow is therefore needs confirmation for this project.
+- The non-active bootstrap preparation and current migration limitations are documented in `docs/operations/self-hosted-supabase-readiness.md`.
 - Cloud/staging Supabase is currently the safer assumed target for app integration unless a maintainer confirms local DB setup.
 
 ## Safe Local Commands

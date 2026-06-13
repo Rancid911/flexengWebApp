@@ -28,7 +28,7 @@ The first low-risk cleanup pilot is intentionally conservative:
 - `lib/teacher-workspace/lesson-followup.repository.ts` now requires an injected client; follow-up read paths use a user-scoped server client while write side effects remain explicitly privileged in `lesson-followup.service.ts`.
 - `lib/schedule/schedule.repository.ts` now requires an injected client; schedule page reads, filter catalogs, labels and previews use a user-scoped server client while create/update/cancel remain explicitly privileged in `schedule/queries.ts`.
 - `lib/dashboard/student-dashboard.ts` now resolves the payment reminder popup through `get_student_dashboard_payment_reminder_inputs(...)` with a user-scoped server client.
-- `lib/homework/assignments.repository.ts` now requires an injected client; only homework progress sync after practice attempts remains explicitly privileged in `assignments.service.ts`.
+- `lib/homework/assignments.repository.ts` now requires an injected client; homework progress sync after practice attempts uses the same user-scoped client as the attempt workflow.
 - `lib/admin/dashboard-metrics.ts` now uses the user-scoped server client to call the `admin_dashboard_metrics(...)` security-definer RPC after the API permission guard.
 - `lib/admin/teacher-profile.ts` now uses the user-scoped server client for staff teacher profile/dossier page reads; dossier mutation repository remains privileged.
 - `lib/admin/notifications.repository.ts` now requires an injected user-scoped server client for admin notification management; audit writes remain privileged.
