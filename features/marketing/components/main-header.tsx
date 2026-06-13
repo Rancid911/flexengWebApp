@@ -114,12 +114,15 @@ export function MainHeader({ navItems }: { navItems: SiteNavItem[] }) {
           <span>Флексенг</span>
         </Link>
 
-        <nav ref={desktopNavRef} className="hidden items-center gap-5 md:flex" aria-label="Основная навигация сайта">
+        <nav ref={desktopNavRef} className="hidden items-center gap-2 md:flex desktop:gap-5" aria-label="Основная навигация сайта">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-lg px-1.5 py-1 text-base font-medium text-[#706E88] transition-[color,background-color,box-shadow] hover:text-[#322F55] focus:outline-none focus-visible:bg-[#f7f3ff] focus-visible:ring-2 focus-visible:ring-[#8D70FF] focus-visible:ring-offset-2"
+              className={cn(
+                "rounded-lg px-1.5 py-1 text-base font-medium text-[#706E88] transition-[color,background-color,box-shadow] hover:text-[#322F55] focus:outline-none focus-visible:bg-[#f7f3ff] focus-visible:ring-2 focus-visible:ring-[#8D70FF] focus-visible:ring-offset-2",
+                item.href === "/#teachers" && "hidden desktop:inline-flex"
+              )}
             >
               {item.label}
             </Link>
@@ -153,7 +156,10 @@ export function MainHeader({ navItems }: { navItems: SiteNavItem[] }) {
                         key={link.label}
                         href={link.href}
                         onClick={() => setOpenDropdownId(null)}
-                        className="rounded-xl px-3 py-2 transition-[color,background-color,box-shadow] hover:bg-[#F4F5F7] focus:outline-none focus-visible:bg-[#f7f3ff] focus-visible:ring-2 focus-visible:ring-[#8D70FF] focus-visible:ring-inset"
+                        className={cn(
+                          "rounded-xl px-3 py-2 transition-[color,background-color,box-shadow] hover:bg-[#F4F5F7] focus:outline-none focus-visible:bg-[#f7f3ff] focus-visible:ring-2 focus-visible:ring-[#8D70FF] focus-visible:ring-inset",
+                          menu.id === "about" && link.href === "/#teachers" && "desktop:hidden"
+                        )}
                       >
                         <p className="text-sm font-semibold text-[#322F55]">{link.label}</p>
                         <p className="text-xs text-[#6F6A86]">{link.description}</p>
