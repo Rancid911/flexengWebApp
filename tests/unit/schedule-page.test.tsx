@@ -1,26 +1,44 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SchedulePage from "@/app/(workspace)/(shared-zone)/schedule/page";
 
 const getSchedulePageDataInternalMock = vi.fn();
+const requireLayoutActorMock = vi.fn();
 const requireSchedulePageMock = vi.fn();
 const scheduleClientMock = vi.fn(({ initialData }: { initialData: unknown }) => <div data-testid="schedule-page-probe">{JSON.stringify(initialData)}</div>);
+
+vi.mock("@/lib/auth/request-context", () => ({
+  requireLayoutActor: () => requireLayoutActorMock()
+}));
+
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
 
 vi.mock("@/lib/schedule/queries", () => ({
   getSchedulePageDataInternal: (...args: unknown[]) => getSchedulePageDataInternalMock(...args)
 }));
 
 vi.mock("@/lib/schedule/server", () => ({
+  isStudentScheduleActor: (actor: { accessMode?: string }) => actor.accessMode === "student_own",
   requireSchedulePage: () => requireSchedulePageMock()
 }));
 
-vi.mock("@/app/(workspace)/(shared-zone)/schedule/schedule-client", () => ({
+vi.mock("@/features/schedule/components/schedule-client", () => ({
   ScheduleClient: (props: { initialData: unknown }) => scheduleClientMock(props)
 }));
 
 describe("SchedulePage", () => {
+  beforeEach(() => {
+    requireLayoutActorMock.mockReset();
+    requireLayoutActorMock.mockResolvedValue({ rbacRoles: [], rbacPermissions: [], rbacPermissionScopes: {} });
+    requireSchedulePageMock.mockReset();
+    getSchedulePageDataInternalMock.mockReset();
+    scheduleClientMock.mockClear();
+  });
+
   it("forwards validated search params into schedule page data query", async () => {
-    const actor = { role: "teacher", userId: "user-1" };
+    const actor = { role: "teacher", accessMode: "teacher_assigned", userId: "user-1" };
     requireSchedulePageMock.mockResolvedValue(actor);
     getSchedulePageDataInternalMock.mockResolvedValue({ role: "teacher", lessons: [] });
 
@@ -46,7 +64,7 @@ describe("SchedulePage", () => {
   });
 
   it("falls back to empty filters when search params are invalid", async () => {
-    const actor = { role: "teacher", userId: "user-1" };
+    const actor = { role: "teacher", accessMode: "teacher_assigned", userId: "user-1" };
     requireSchedulePageMock.mockResolvedValue(actor);
     getSchedulePageDataInternalMock.mockResolvedValue({ role: "teacher", lessons: [] });
 

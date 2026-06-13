@@ -1,12 +1,13 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { CrmRepositoryClient } from "@/lib/crm/leads.repository";
 
-export async function loadCrmSettingsRow() {
-  const supabase = createAdminClient();
+export async function loadCrmSettingsRow(supabase: CrmRepositoryClient) {
   return await supabase.from("crm_settings").select("background_image_url, updated_at").eq("id", true).maybeSingle();
 }
 
-export async function upsertCrmSettingsRow(input: { backgroundImageUrl: string | null; updatedByProfileId: string }) {
-  const supabase = createAdminClient();
+export async function upsertCrmSettingsRow(
+  supabase: CrmRepositoryClient,
+  input: { backgroundImageUrl: string | null; updatedByProfileId: string }
+) {
   return await supabase
     .from("crm_settings")
     .upsert(

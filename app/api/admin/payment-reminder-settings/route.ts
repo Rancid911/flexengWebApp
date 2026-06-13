@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse, after } from "next/server";
 
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
-import { requireStaffAdminApi } from "@/lib/admin/auth";
+import { requireAdminApiPermission } from "@/lib/admin/auth";
 import { getAdminPaymentReminderSettings, syncAutomaticPaymentReminders, updateAdminPaymentReminderSettings } from "@/lib/admin/payments-control";
 
 export const GET = withAdminErrorHandling(async () => {
-  await requireStaffAdminApi();
+  await requireAdminApiPermission("payments.manage");
   const settings = await getAdminPaymentReminderSettings();
   return NextResponse.json(settings);
 });
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest) => {
-  const actor = await requireStaffAdminApi();
+  const actor = await requireAdminApiPermission("payments.manage");
   const body = (await request.json().catch(() => null)) as { enabled?: unknown; threshold_lessons?: unknown } | null;
   const enabled = typeof body?.enabled === "boolean" ? body.enabled : null;
   const thresholdLessons =

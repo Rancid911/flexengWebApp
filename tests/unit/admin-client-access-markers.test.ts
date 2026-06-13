@@ -6,7 +6,7 @@ const PROJECT_ROOT = "/Users/anton/Desktop/Флексенг/6. Инфра-ра/P
 const MODULES_REQUIRING_MARKERS = [
   "lib/admin/audit.ts",
   "lib/admin/payments-control.ts",
-  "lib/auth/request-context.ts",
+  "lib/auth/actor.repository.ts",
   "lib/billing/server.ts",
   "lib/dashboard/student-dashboard.ts",
   "lib/payments/server.ts",

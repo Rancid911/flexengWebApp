@@ -2,12 +2,12 @@ import { render, screen } from "@testing-library/react";
 import { CreditCard } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
-import { AdminSectionHero } from "@/app/(workspace)/(staff-zone)/admin/ui/admin-section-hero";
+import { WorkspaceSectionHero } from "@/shared/ui/workspace-section-hero";
 
-describe("AdminSectionHero", () => {
+describe("WorkspaceSectionHero", () => {
   it("renders badge, title, description and companion slots", () => {
     render(
-      <AdminSectionHero
+      <WorkspaceSectionHero
         badgeIcon={CreditCard}
         badgeLabel="Оплата"
         title="Контроль оплаты"

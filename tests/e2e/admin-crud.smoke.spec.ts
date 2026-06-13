@@ -59,6 +59,58 @@ test.describe("admin crud @smoke @requiresAuth", () => {
     await expect(page.getByText(`${updatedFirstName} ${lastName}`)).toHaveCount(0);
   });
 
+  test("admin creates a provisioned student who can sign in", async ({ page, browser }) => {
+    const nonce = Date.now();
+    const email = `e2e.student.${nonce}@example.com`;
+    const password = "TestPass123!";
+    let userId: string | null = null;
+
+    try {
+      const created = await page.evaluate(async ({ studentEmail, studentPassword }) => {
+        const response = await fetch("/api/admin/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: "student",
+            first_name: "E2E",
+            last_name: "Student",
+            email: studentEmail,
+            password: studentPassword,
+            phone: "+79991234567",
+            birth_date: null,
+            english_level: null,
+            target_level: null,
+            learning_goal: null,
+            notes: null,
+            assigned_teacher_id: null,
+            billing_mode: null,
+            lesson_price_amount: null
+          })
+        });
+        return { status: response.status, body: await response.json() };
+      }, { studentEmail: email, studentPassword: password });
+
+      expect(created.status).toBe(201);
+      userId = String(created.body.id);
+      expect(created.body).toMatchObject({ role: "student" });
+      expect(created.body.student_id).toBeTruthy();
+
+      const studentContext = await browser.newContext();
+      const studentPage = await studentContext.newPage();
+      await login(studentPage, email, password);
+      await expect(studentPage).toHaveURL(/\/dashboard/);
+      await studentContext.close();
+    } finally {
+      if (userId) {
+        const deleteStatus = await page.evaluate(async (id) => {
+          const response = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+          return response.status;
+        }, userId);
+        expect(deleteStatus).toBe(200);
+      }
+    }
+  });
+
   test("create, edit and delete blog article", async ({ page }) => {
     const nonce = Date.now();
     const title = `E2E Article ${nonce}`;

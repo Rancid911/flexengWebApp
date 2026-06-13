@@ -1,6 +1,6 @@
 import { measureServerTiming } from "@/lib/server/timing";
-import { revalidateTag, unstable_cache } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { revalidateTag } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
 import { AdminHttpError, paginated, parsePagination } from "@/lib/admin/http";
 import { defineDataLoadingDescriptor } from "@/lib/data-loading/contracts";
 import type {
@@ -23,11 +23,15 @@ import { getBillingSummaryByStudentId } from "@/lib/billing/server";
 import type { AccessMode } from "@/lib/supabase/access";
 
 export const ADMIN_PAYMENTS_CONTROL_ACCESS_MODE: AccessMode = "privileged";
+export const ADMIN_PAYMENT_CONTROL_SUMMARY_ACCESS_MODE: AccessMode = "user_scoped";
+export const ADMIN_PAYMENT_CONTROL_SETTINGS_ACCESS_MODE: AccessMode = "user_scoped";
+export const ADMIN_PAYMENT_CONTROL_MANUAL_REMINDER_ACCESS_MODE: AccessMode = "user_scoped";
+export const ADMIN_PAYMENT_CONTROL_AUTOMATIC_SYNC_ACCESS_MODE: AccessMode = "user_scoped";
 
 export const ADMIN_PAYMENT_CONTROL_SUMMARY_LIST_DATA_LOADING = defineDataLoadingDescriptor({
   id: "admin-payment-control-summary-list",
   owner: "@/lib/admin/payments-control#listAdminPaymentControl",
-  accessMode: ADMIN_PAYMENTS_CONTROL_ACCESS_MODE,
+  accessMode: ADMIN_PAYMENT_CONTROL_SUMMARY_ACCESS_MODE,
   loadLevel: "page",
   shape: "list",
   issues: [],
@@ -37,7 +41,7 @@ export const ADMIN_PAYMENT_CONTROL_SUMMARY_LIST_DATA_LOADING = defineDataLoading
 export const ADMIN_PAYMENT_CONTROL_SETTINGS_DATA_LOADING = defineDataLoadingDescriptor({
   id: "admin-payment-control-settings",
   owner: "@/lib/admin/payments-control#getAdminPaymentReminderSettings",
-  accessMode: ADMIN_PAYMENTS_CONTROL_ACCESS_MODE,
+  accessMode: ADMIN_PAYMENT_CONTROL_SETTINGS_ACCESS_MODE,
   loadLevel: "page",
   shape: "summary",
   issues: []
@@ -194,7 +198,9 @@ function buildManualReminderBody(studentName: string, item: AdminPaymentControlD
   return `${studentName}, у вас осталось ${item.balance_label ?? "мало оплаченных уроков"}. Рекомендуем заранее пополнить оплату, чтобы сохранить удобное расписание.`;
 }
 
-async function insertTargetedReminderNotification(supabase: ReturnType<typeof createAdminClient>, payload: {
+type PaymentReminderClient = Awaited<ReturnType<typeof createClient>>;
+
+async function insertTargetedReminderNotification(supabase: PaymentReminderClient, payload: {
   profileId: string;
   actorUserId: string;
   title: string;
@@ -236,45 +242,25 @@ export async function listAdminPaymentControl(requestUrl: URL): Promise<AdminPay
     const { page, pageSize, q } = parsePagination(requestUrl);
     const filter = normalizeFilter(requestUrl.searchParams.get("filter"));
     const settings = await measureServerTiming("admin-payments-settings", async () => getAdminPaymentReminderSettings());
-    const cacheKey = JSON.stringify({
-      threshold: settings.threshold_lessons,
-      q,
-      filter,
-      page,
-      pageSize
-    });
-    const loadPageData = unstable_cache(
-      async () => {
-        const cacheClient = createAdminClient();
-        const [pageResponse, statsResponse] = await Promise.all([
-          measureServerTiming("admin-payments-page-ids", async () =>
-            cacheClient.rpc("admin_list_payment_control", {
-              p_threshold_lessons: settings.threshold_lessons,
-              p_query: q,
-              p_filter: filter,
-              p_page: page,
-              p_page_size: pageSize
-            })
-          ),
-          measureServerTiming("admin-payments-stats", async () =>
-            cacheClient.rpc("admin_payment_control_stats", {
-              p_threshold_lessons: settings.threshold_lessons,
-              p_query: q,
-              p_filter: filter
-            })
-          )
-        ]);
-
-        return { pageResponse, statsResponse };
-      },
-      ["admin-payment-control-page", cacheKey],
-      {
-        revalidate: 30,
-        tags: ["admin-payment-control-page", "admin-payment-reminder-settings"]
-      }
-    );
-
-    const { pageResponse, statsResponse } = await loadPageData();
+    const supabase = await createClient();
+    const [pageResponse, statsResponse] = await Promise.all([
+      measureServerTiming("admin-payments-page-ids", async () =>
+        supabase.rpc("admin_list_payment_control", {
+          p_threshold_lessons: settings.threshold_lessons,
+          p_query: q,
+          p_filter: filter,
+          p_page: page,
+          p_page_size: pageSize
+        })
+      ),
+      measureServerTiming("admin-payments-stats", async () =>
+        supabase.rpc("admin_payment_control_stats", {
+          p_threshold_lessons: settings.threshold_lessons,
+          p_query: q,
+          p_filter: filter
+        })
+      )
+    ]);
 
     if (pageResponse.error) {
       throw new AdminHttpError(500, "PAYMENT_CONTROL_FETCH_FAILED", "Failed to fetch payment control page", pageResponse.error.message);
@@ -297,37 +283,29 @@ export async function listAdminPaymentControl(requestUrl: URL): Promise<AdminPay
 }
 
 export async function getAdminPaymentReminderSettings(): Promise<AdminPaymentReminderSettingsDto> {
-  const loadSettings = unstable_cache(
-    async (): Promise<AdminPaymentReminderSettingsDto> => {
-      const supabase = createAdminClient();
-      const { data, error } = await supabase
-        .from("admin_payment_reminder_settings")
-        .select("enabled, threshold_lessons, updated_at")
-        .eq("id", true)
-        .maybeSingle();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("admin_payment_reminder_settings")
+    .select("enabled, threshold_lessons, updated_at")
+    .eq("id", true)
+    .maybeSingle();
 
-      if (error) {
-        throw new AdminHttpError(500, "PAYMENT_REMINDER_SETTINGS_FETCH_FAILED", "Failed to fetch payment reminder settings", error.message);
-      }
+  if (error) {
+    throw new AdminHttpError(500, "PAYMENT_REMINDER_SETTINGS_FETCH_FAILED", "Failed to fetch payment reminder settings", error.message);
+  }
 
-      return {
-        enabled: data?.enabled ?? true,
-        threshold_lessons: Number(data?.threshold_lessons ?? 1),
-        updated_at: data?.updated_at ?? null
-      };
-    },
-    ["admin-payment-reminder-settings"],
-    { revalidate: 60, tags: ["admin-payment-reminder-settings"] }
-  );
-
-  return loadSettings();
+  return {
+    enabled: data?.enabled ?? true,
+    threshold_lessons: Number(data?.threshold_lessons ?? 1),
+    updated_at: data?.updated_at ?? null
+  };
 }
 
 export async function updateAdminPaymentReminderSettings(actor: AdminActor, payload: {
   enabled: boolean;
   threshold_lessons: number;
 }): Promise<AdminPaymentReminderSettingsDto> {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("admin_payment_reminder_settings")
     .upsert(
@@ -359,7 +337,7 @@ export async function syncAutomaticPaymentReminders(actor: AdminActor, payload: 
   enabled: boolean;
   threshold_lessons: number;
 }) {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const { data: students, error: studentsError } = await supabase
     .from("students")
     .select("id, profile_id, profiles!inner(id, first_name, last_name, email, phone)");
@@ -434,7 +412,7 @@ export async function syncAutomaticPaymentReminders(actor: AdminActor, payload: 
 }
 
 export async function sendStudentPaymentReminder(actor: AdminActor, studentId: string) {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const [profileResponse, settings, state, summary] = await Promise.all([
     supabase
       .from("students")

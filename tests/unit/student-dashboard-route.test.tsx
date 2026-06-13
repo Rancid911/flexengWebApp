@@ -1,62 +1,81 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AppActor } from "@/lib/auth/request-context";
 
-import { renderStudentDashboardRoute } from "@/app/(workspace)/_components/student-dashboard-route";
+import { renderStudentDashboardRoute } from "@/features/dashboard/server/student-dashboard-route";
 
-const getStudentDashboardInitialDataMock = vi.fn();
-const getStudentDashboardSecondaryDataMock = vi.fn();
+const getStudentDashboardSummaryMock = vi.fn();
 
 vi.mock("@/lib/dashboard/student-dashboard", () => ({
-  getStudentDashboardInitialData: (...args: unknown[]) => getStudentDashboardInitialDataMock(...args),
-  getStudentDashboardSecondaryData: (...args: unknown[]) => getStudentDashboardSecondaryDataMock(...args)
+  getStudentDashboardSummary: (...args: unknown[]) => getStudentDashboardSummaryMock(...args)
 }));
 
-vi.mock("@/app/(workspace)/(shared-zone)/dashboard/student-dashboard-view", () => ({
-  default: ({ data }: { data: unknown }) => <div data-testid="student-dashboard-view">{JSON.stringify(data)}</div>,
-  StudentDashboardRecommendationsSection: () => <div data-testid="student-dashboard-recommendations-section" />,
-  StudentDashboardScheduleSection: () => <div data-testid="student-dashboard-schedule-section" />,
-  StudentDashboardSummaryStatsSection: () => <div data-testid="student-dashboard-summary-stats-section" />
+vi.mock("@/features/dashboard/components/student-dashboard-view", () => ({
+  default: ({ data, recommendationsSlot, scheduleSlot, summaryStatsSlot }: { data: unknown; recommendationsSlot?: React.ReactNode; scheduleSlot?: React.ReactNode; summaryStatsSlot?: React.ReactNode }) => (
+    <div data-testid="student-dashboard-view">
+      {JSON.stringify(data)}
+      {recommendationsSlot}
+      {scheduleSlot}
+      {summaryStatsSlot}
+    </div>
+  ),
+  StudentDashboardRecommendationsSection: ({ recommendationCards }: { recommendationCards?: unknown[] }) => (
+    <div data-testid="student-dashboard-recommendations-section">{JSON.stringify(recommendationCards ?? [])}</div>
+  ),
+  StudentDashboardScheduleSection: ({ nextScheduledLesson }: { nextScheduledLesson?: unknown }) => (
+    <div data-testid="student-dashboard-schedule-section">{JSON.stringify(nextScheduledLesson ?? null)}</div>
+  ),
+  StudentDashboardSummaryStatsSection: ({ summaryStats }: { summaryStats?: unknown[] }) => (
+    <div data-testid="student-dashboard-summary-stats-section">{JSON.stringify(summaryStats ?? [])}</div>
+  )
 }));
 
-vi.mock("@/app/(workspace)/(shared-zone)/dashboard/student-payment-reminder-slot", () => ({
+vi.mock("@/features/dashboard/components/student-payment-reminder-slot", () => ({
   default: () => <div data-testid="student-payment-reminder-slot" />
 }));
 
 describe("renderStudentDashboardRoute", () => {
   beforeEach(() => {
-    getStudentDashboardInitialDataMock.mockReset();
-    getStudentDashboardSecondaryDataMock.mockReset();
+    getStudentDashboardSummaryMock.mockReset();
   });
 
   it("uses the canonical core-plus-reminder assembly", async () => {
-    getStudentDashboardInitialDataMock.mockResolvedValue({
-      lessonOfTheDay: { title: "Lesson", description: "Desc", duration: "20 минут", progress: 50, sectionsCount: 3 },
-      progress: { value: 60, label: "6 из 10" },
-      heroStats: [],
-      homeworkCards: [],
-      activeHomeworkCount: 0,
-      recommendationCards: [],
-      nextBestAction: {
-        label: "Старт",
-        title: "Продолжите обучение",
-        description: "Описание",
-        primaryLabel: "Открыть практику",
-        primaryHref: "/practice"
+    const actor = {
+      userId: "student-user-1",
+      isStudent: true,
+      studentId: "student-1"
+    };
+    const secondaryDataPromise = Promise.resolve({
+      recommendationCards: [{ id: "rec-1", title: "Practice", subtitle: "Continue", href: "/practice" }],
+      summaryStats: [{ label: "Онлайн-уроки", value: "1", chip: "за 7 дней", icon: "book", href: "/schedule" }],
+      nextScheduledLesson: { id: "lesson-1", title: "Lesson" },
+      upcomingScheduleLessons: []
+    });
+    getStudentDashboardSummaryMock.mockResolvedValue({
+      initialData: {
+        lessonOfTheDay: { title: "Lesson", description: "Desc", duration: "20 минут", progress: 50, sectionsCount: 3 },
+        progress: { value: 60, label: "6 из 10" },
+        heroStats: [],
+        homeworkCards: [],
+        activeHomeworkCount: 0,
+        recommendationCards: [],
+        nextBestAction: {
+          label: "Старт",
+          title: "Продолжите обучение",
+          description: "Описание",
+          primaryLabel: "Открыть практику",
+          primaryHref: "/practice"
+        },
+        summaryStats: [],
+        nextScheduledLesson: null,
+        upcomingScheduleLessons: []
       },
-      summaryStats: [],
-      nextScheduledLesson: null,
-      upcomingScheduleLessons: []
-    });
-    getStudentDashboardSecondaryDataMock.mockResolvedValue({
-      recommendationCards: [],
-      summaryStats: [],
-      nextScheduledLesson: null,
-      upcomingScheduleLessons: []
+      secondaryDataPromise
     });
 
-    const result = await renderStudentDashboardRoute();
+    const result = await renderStudentDashboardRoute(actor as AppActor);
 
-    expect(getStudentDashboardInitialDataMock).toHaveBeenCalledTimes(1);
-    expect(getStudentDashboardSecondaryDataMock).toHaveBeenCalledTimes(1);
+    expect(getStudentDashboardSummaryMock).toHaveBeenCalledTimes(1);
+    expect(getStudentDashboardSummaryMock).toHaveBeenCalledWith(actor);
     expect(result).toBeTruthy();
   });
 });

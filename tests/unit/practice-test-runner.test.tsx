@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PracticeTestRunner } from "@/app/(workspace)/(shared-zone)/practice/activity/[activityId]/practice-test-runner";
+import { PracticeTestRunner } from "@/features/practice/components/practice-test-runner";
 import type { PracticeTestActivityDetail } from "@/lib/practice/queries";
 
 const fetchMock = vi.fn();

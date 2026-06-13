@@ -2,10 +2,14 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import ProgressHistoryPage from "@/app/(workspace)/(shared-zone)/progress/history/page";
-import { getProgressHistory } from "@/lib/progress/queries";
+import { getProgressHistory } from "@/lib/progress/progress.service";
 
-vi.mock("@/lib/progress/queries", () => ({
+vi.mock("@/lib/progress/progress.service", () => ({
   getProgressHistory: vi.fn()
+}));
+
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
 }));
 
 describe("ProgressHistoryPage", () => {

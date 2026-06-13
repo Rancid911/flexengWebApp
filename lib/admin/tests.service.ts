@@ -8,6 +8,7 @@ import { adminTestCreateSchema, adminTestUpdateSchema } from "@/lib/admin/valida
 import { toWordCardsListMaterialDto } from "@/lib/admin/word-card-sets";
 import { createAdminWordCardSetRepository } from "@/lib/admin/word-card-sets.repository";
 import { createAdminTestRepository } from "@/lib/admin/tests.repository";
+import { createClient } from "@/lib/supabase/server";
 
 type AdminActor = { userId: string };
 type AdminTestCreateInput = z.infer<typeof adminTestCreateSchema>;
@@ -23,6 +24,10 @@ type ListInput = {
 function isSchemaMissing(message: string) {
   const normalized = message.toLowerCase();
   return normalized.includes("does not exist") || normalized.includes("could not find") || normalized.includes("schema cache");
+}
+
+async function createUserScopedAdminTestRepository() {
+  return createAdminTestRepository(await createClient());
 }
 
 async function loadHasAttempts(repository: ReturnType<typeof createAdminTestRepository>, testId: string) {
@@ -167,8 +172,9 @@ async function syncQuestionsAndOptions(
 }
 
 export async function listAdminTestMaterials({ page, pageSize, q }: ListInput): Promise<PaginatedResponse<AdminTestDto>> {
-  const testRepository = createAdminTestRepository();
-  const wordCardRepository = createAdminWordCardSetRepository();
+  const client = await createClient();
+  const testRepository = createAdminTestRepository(client);
+  const wordCardRepository = createAdminWordCardSetRepository(client);
   const from = (page - 1) * pageSize;
   const to = from + pageSize;
 
@@ -191,14 +197,14 @@ export async function listAdminTestMaterials({ page, pageSize, q }: ListInput): 
 }
 
 export async function getAdminTest(id: string): Promise<AdminTestDetailDto> {
-  const repository = createAdminTestRepository();
+  const repository = await createUserScopedAdminTestRepository();
   const [{ data, error }, hasAttempts] = await Promise.all([repository.loadDetail(id), loadHasAttempts(repository, id)]);
   if (error) throw new AdminHttpError(404, "TEST_NOT_FOUND", "Test not found");
   return toTestDetailDto(data as Record<string, unknown>, hasAttempts);
 }
 
 export async function createAdminTest(actor: AdminActor, input: AdminTestCreateInput): Promise<AdminTestDetailDto> {
-  const repository = createAdminTestRepository();
+  const repository = await createUserScopedAdminTestRepository();
   const { questions, ...testPayload } = input;
 
   if (testPayload.sort_order == null) {
@@ -231,7 +237,7 @@ export async function createAdminTest(actor: AdminActor, input: AdminTestCreateI
 }
 
 export async function updateAdminTest(actor: AdminActor, id: string, input: AdminTestUpdateInput): Promise<AdminTestDetailDto> {
-  const repository = createAdminTestRepository();
+  const repository = await createUserScopedAdminTestRepository();
   const { data: before, error: beforeError } = await repository.loadDetail(id);
   if (beforeError) throw new AdminHttpError(404, "TEST_NOT_FOUND", "Test not found");
 
@@ -274,7 +280,7 @@ export async function updateAdminTest(actor: AdminActor, id: string, input: Admi
 }
 
 export async function deleteAdminTest(actor: AdminActor, id: string): Promise<{ ok: true }> {
-  const repository = createAdminTestRepository();
+  const repository = await createUserScopedAdminTestRepository();
   const { data: before, error: beforeError } = await repository.loadRaw(id);
   if (beforeError) throw new AdminHttpError(404, "TEST_NOT_FOUND", "Test not found");
 

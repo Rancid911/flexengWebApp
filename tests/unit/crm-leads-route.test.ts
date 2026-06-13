@@ -1,33 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const createAdminClientMock = vi.fn();
+const createServerClientMock = vi.fn();
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => createAdminClientMock()
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => createServerClientMock()
 }));
 
 describe("/api/leads", () => {
   beforeEach(() => {
     vi.resetModules();
-    createAdminClientMock.mockReset();
+    createServerClientMock.mockReset();
   });
 
   it("creates a lead in the first CRM stage and writes initial history", async () => {
-    const leadInsertMock = vi.fn(() => ({
-      select: vi.fn(() => ({
-        single: vi.fn().mockResolvedValue({ data: { id: "lead-1" }, error: null })
-      }))
-    }));
-    const historyInsertMock = vi.fn().mockResolvedValue({ error: null });
-
-    createAdminClientMock.mockReturnValue({
-      from: vi.fn((table: string) => {
-        if (table === "crm_leads") return { insert: leadInsertMock };
-        if (table === "crm_lead_status_history") return { insert: historyInsertMock };
-        throw new Error(`Unexpected table: ${table}`);
-      })
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [{ id: "lead-1", status: "new_request" }],
+      error: null
     });
+    createServerClientMock.mockReturnValue({ rpc: rpcMock });
 
     const { POST } = await import("@/app/api/leads/route");
     const response = await POST(
@@ -51,18 +42,21 @@ describe("/api/leads", () => {
     );
 
     expect(response.status).toBe(201);
-    expect(leadInsertMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "new_request",
-        source: "website",
-        metadata: {
-          audience: "adult",
-          consent_personal_data: true,
-          consent_marketing: false
-        }
-      })
-    );
-    expect(historyInsertMock).toHaveBeenCalledWith(expect.objectContaining({ lead_id: "lead-1", from_status: null, to_status: "new_request" }));
+    await expect(response.json()).resolves.toEqual({ id: "lead-1", status: "new_request" });
+    expect(rpcMock).toHaveBeenCalledWith("create_public_crm_lead", {
+      p_name: "Анна",
+      p_phone: "+7 (999) 111 22 33",
+      p_email: "anna@example.com",
+      p_form_type: "main_lead_form",
+      p_comment: null,
+      p_source: "website",
+      p_page_url: "https://example.com/",
+      p_metadata: {
+        audience: "adult",
+        consent_personal_data: true,
+        consent_marketing: false
+      }
+    });
   });
 
   it("rejects invalid payloads", async () => {
@@ -76,5 +70,31 @@ describe("/api/leads", () => {
     );
 
     expect(response.status).toBe(400);
+    expect(createServerClientMock).not.toHaveBeenCalled();
+  });
+
+  it("maps RPC failures to lead create failures", async () => {
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "permission denied" }
+    });
+    createServerClientMock.mockReturnValue({ rpc: rpcMock });
+
+    const { POST } = await import("@/app/api/leads/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Анна",
+          phone: "+7 (999) 111 22 33",
+          email: "anna@example.com",
+          form_type: "main_lead_form"
+        })
+      })
+    );
+
+    expect(response.status).toBe(500);
+    expect(rpcMock).toHaveBeenCalledTimes(1);
   });
 });

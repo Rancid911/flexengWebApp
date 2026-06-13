@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireStaffAdminApi } from "@/lib/admin/auth";
+import { requireAdminApiPermission } from "@/lib/admin/auth";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { loadCrmSettings, updateCrmSettings } from "@/lib/crm/queries";
+import { CRM_ASSETS_BUCKET, extractStoragePathFromPublicUrl, isInternalCrmBackgroundMediaUrl } from "@/lib/media/urls";
 
 function normalizeBackgroundImageUrl(value: unknown) {
   if (value === null) return null;
@@ -10,17 +11,14 @@ function normalizeBackgroundImageUrl(value: unknown) {
   const trimmed = value.trim();
   if (!trimmed) return null;
   if (trimmed.length > 2000) return undefined;
+  if (isInternalCrmBackgroundMediaUrl(trimmed)) return trimmed;
+  if (extractStoragePathFromPublicUrl(trimmed, CRM_ASSETS_BUCKET)) return trimmed;
 
-  try {
-    const url = new URL(trimmed);
-    return url.protocol === "http:" || url.protocol === "https:" ? trimmed : undefined;
-  } catch {
-    return undefined;
-  }
+  return undefined;
 }
 
 export const GET = withAdminErrorHandling(async () => {
-  await requireStaffAdminApi();
+  await requireAdminApiPermission("crm.leads.view");
   try {
     return NextResponse.json(await loadCrmSettings());
   } catch (error) {
@@ -29,7 +27,7 @@ export const GET = withAdminErrorHandling(async () => {
 });
 
 export const PATCH = withAdminErrorHandling(async (request: NextRequest) => {
-  const actor = await requireStaffAdminApi();
+  const actor = await requireAdminApiPermission("crm.leads.manage");
   const body = (await request.json().catch(() => null)) as { background_image_url?: unknown } | null;
   const backgroundImageUrl = normalizeBackgroundImageUrl(body?.background_image_url);
 

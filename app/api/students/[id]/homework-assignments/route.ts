@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { requirePermission } from "@/lib/permissions";
 import { ScheduleHttpError, withScheduleErrorHandling } from "@/lib/schedule/http";
 import { requireScheduleApi } from "@/lib/schedule/server";
 import { createTeacherStudentStandaloneHomework, listTeacherStudentStandaloneHomework } from "@/lib/teacher-workspace/queries";
@@ -8,6 +9,8 @@ import { teacherStandaloneHomeworkCreateSchema } from "@/lib/teacher-workspace/v
 export const GET = withScheduleErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
   const { id } = await params;
+  requirePermission(actor, "homework.assign", { studentId: id });
+
   const result = await listTeacherStudentStandaloneHomework(actor, id);
   return NextResponse.json(result);
 });
@@ -15,6 +18,8 @@ export const GET = withScheduleErrorHandling(async (_request: NextRequest, { par
 export const POST = withScheduleErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
   const { id } = await params;
+  requirePermission(actor, "homework.assign", { studentId: id });
+
   const parsed = teacherStandaloneHomeworkCreateSchema.safeParse(await request.json());
   if (!parsed.success) {
     throw new ScheduleHttpError(400, "VALIDATION_ERROR", "Некорректные данные для назначения homework.", parsed.error.flatten());

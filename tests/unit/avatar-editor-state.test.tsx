@@ -6,7 +6,7 @@ import {
   getAvatarInitialZoom,
   normalizeAvatarImage,
   useAvatarEditorState
-} from "@/app/(workspace)/(shared-zone)/settings/use-avatar-editor-state";
+} from "@/features/settings/client/use-avatar-editor-state";
 
 describe("avatar editor state", () => {
   afterEach(() => {

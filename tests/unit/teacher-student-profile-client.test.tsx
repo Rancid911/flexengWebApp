@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TeacherStudentProfileClient } from "@/app/(workspace)/(teacher-zone)/students/[studentId]/teacher-student-profile-client";
+import { TeacherStudentProfileClient } from "@/features/teacher-workspace/components/teacher-student-profile-client";
 import type { TeacherStudentHomeworkDto, TeacherStudentNoteDto, TeacherStudentPlacementSummaryDto } from "@/lib/teacher-workspace/types";
 import type { StudentBillingSummary } from "@/lib/billing/types";
 

@@ -70,8 +70,8 @@ test.describe("admin student mode @smoke @requiresAuth", () => {
   });
 
   test("admin can use student routes with regular student UI", async ({ page }) => {
-    await page.goto("/student-dashboard");
-    await expect(page).toHaveURL(/\/student-dashboard$/);
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByText("Урок дня")).toBeVisible();
 
     await page.goto("/practice");
@@ -82,8 +82,8 @@ test.describe("admin student mode @smoke @requiresAuth", () => {
     await expect(page).toHaveURL(/\/homework$/);
     await expect(page.getByRole("heading", { name: "Домашнее задание" })).toBeVisible();
 
-    await page.goto("/words/my");
-    await expect(page).toHaveURL(/\/words\/my$/);
+    await page.goto("/words");
+    await expect(page).toHaveURL(/\/words$/);
 
     await page.goto("/progress/overview");
     await expect(page).toHaveURL(/\/progress\/overview$/);

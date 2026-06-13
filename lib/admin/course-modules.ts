@@ -1,13 +1,14 @@
 import { AdminHttpError } from "@/lib/admin/http";
 import type { CourseModuleOptionDto, CourseOptionDto } from "@/lib/admin/types";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 function readRelationRecord<T extends Record<string, unknown>>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
 }
 
-export async function loadCourseModuleOptions(supabase: ReturnType<typeof createAdminClient> = createAdminClient()): Promise<CourseModuleOptionDto[]> {
+export async function loadCourseModuleOptions(): Promise<CourseModuleOptionDto[]> {
+  const supabase = await createClient();
   const response = await supabase
     .from("course_modules")
     .select("id, title, is_published, courses(title)")
@@ -44,7 +45,8 @@ export async function loadCourseModuleOptions(supabase: ReturnType<typeof create
     });
 }
 
-export async function loadCourseOptions(supabase: ReturnType<typeof createAdminClient> = createAdminClient()): Promise<CourseOptionDto[]> {
+export async function loadCourseOptions(): Promise<CourseOptionDto[]> {
+  const supabase = await createClient();
   const response = await supabase.from("courses").select("id, title, is_published").order("title", { ascending: true });
 
   if (response.error) {
@@ -76,9 +78,9 @@ export async function createCourseModuleOption(
     title: string;
     description?: string | null;
     is_published: boolean;
-  },
-  supabase: ReturnType<typeof createAdminClient> = createAdminClient()
+  }
 ): Promise<CourseModuleOptionDto> {
+  const supabase = await createClient();
   const courseResponse = await supabase.from("courses").select("id, title").eq("id", input.course_id).maybeSingle();
   if (courseResponse.error) {
     throw new AdminHttpError(500, "COURSE_FETCH_FAILED", "Failed to fetch course", courseResponse.error.message);

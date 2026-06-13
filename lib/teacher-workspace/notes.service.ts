@@ -7,8 +7,12 @@ import {
   type ScheduleActor
 } from "@/lib/schedule/server";
 import type { AccessMode } from "@/lib/supabase/access";
+import { createClient } from "@/lib/supabase/server";
 import { assertTeacherStudentNotesWriteAccess } from "@/lib/teacher-workspace/access";
-import { createTeacherNotesRepository } from "@/lib/teacher-workspace/notes.repository";
+import {
+  createTeacherNotesRepository,
+  type TeacherNotesRepositoryClient
+} from "@/lib/teacher-workspace/notes.repository";
 import {
   buildDisplayName,
   type TeacherStudentNoteRow,
@@ -38,12 +42,12 @@ export const TEACHER_NOTES_MUTATION_DATA_LOADING = defineDataLoadingDescriptor({
 
 export { getTeacherStudentNotesFeed, TEACHER_STUDENT_NOTES_DATA_LOADING };
 
-function isTeacherScopedActor(actor: ScheduleActor) {
-  return isTeacherScheduleActor(actor) && actor.accessibleStudentIds !== null;
-}
+type TeacherProfileLabelRow = TeacherStudentProfileRow & {
+  profile_id?: string | null;
+};
 
-function mapProfiles(rows: TeacherStudentProfileRow[]) {
-  return new Map(rows.map((profile) => [profile.id, profile]));
+function mapProfiles(rows: TeacherProfileLabelRow[]) {
+  return new Map(rows.map((profile) => [profile.id ?? profile.profile_id, profile]).filter((entry): entry is [string, TeacherProfileLabelRow] => Boolean(entry[0])));
 }
 
 function mapNoteDto(row: TeacherStudentNoteRow, author: TeacherStudentProfileRow | null | undefined): TeacherStudentNoteDto {
@@ -61,20 +65,23 @@ function mapNoteDto(row: TeacherStudentNoteRow, author: TeacherStudentProfileRow
   };
 }
 
-async function loadAuthor(profileId: string | null) {
-  const repository = createTeacherNotesRepository();
+async function loadAuthor(profileId: string | null, repository: ReturnType<typeof createTeacherNotesRepository>) {
   const response = await repository.loadProfiles(profileId ? [profileId] : []);
   if (response.error) {
     throw new ScheduleHttpError(500, "PROFILE_FETCH_FAILED", "Failed to load profiles", response.error.message);
   }
 
-  return profileId ? mapProfiles((response.data ?? []) as TeacherStudentProfileRow[]).get(profileId) ?? null : null;
+  return profileId ? mapProfiles((response.data ?? []) as TeacherProfileLabelRow[]).get(profileId) ?? null : null;
+}
+
+async function createNotesRepository(client?: TeacherNotesRepositoryClient) {
+  return createTeacherNotesRepository(client ?? (await createClient()));
 }
 
 export async function createTeacherStudentNote(actor: ScheduleActor, studentId: string, payload: TeacherNoteMutationPayload) {
   assertScheduleWriteAccess(actor);
   assertTeacherStudentNotesWriteAccess(actor);
-  if (isTeacherScopedActor(actor)) {
+  if (isTeacherScheduleActor(actor)) {
     assertTeacherScope(actor, { studentId, teacherId: actor.teacherId });
   }
 
@@ -84,7 +91,7 @@ export async function createTeacherStudentNote(actor: ScheduleActor, studentId: 
     throw new ScheduleHttpError(400, "TEACHER_REQUIRED", "Сначала назначьте ученику преподавателя");
   }
 
-  const repository = createTeacherNotesRepository();
+  const repository = await createNotesRepository();
   const response = await repository.createNote({
     studentId,
     teacherId,
@@ -98,14 +105,14 @@ export async function createTeacherStudentNote(actor: ScheduleActor, studentId: 
   }
 
   const row = response.data as TeacherStudentNoteRow;
-  const author = await loadAuthor(actor.userId);
+  const author = await loadAuthor(actor.userId, repository);
   return mapNoteDto(row, author);
 }
 
 export async function updateTeacherStudentNote(actor: ScheduleActor, noteId: string, payload: TeacherNoteMutationPayload) {
   assertScheduleWriteAccess(actor);
   assertTeacherStudentNotesWriteAccess(actor);
-  const repository = createTeacherNotesRepository();
+  const repository = await createNotesRepository();
   const existingResponse = await repository.loadNote(noteId);
 
   if (existingResponse.error) {
@@ -116,7 +123,7 @@ export async function updateTeacherStudentNote(actor: ScheduleActor, noteId: str
   }
 
   const existing = existingResponse.data as TeacherStudentNoteRow;
-  if (isTeacherScopedActor(actor)) {
+  if (isTeacherScheduleActor(actor)) {
     assertTeacherScope(actor, {
       studentId: existing.student_id,
       teacherId: existing.teacher_id
@@ -134,14 +141,14 @@ export async function updateTeacherStudentNote(actor: ScheduleActor, noteId: str
   }
 
   const row = response.data as TeacherStudentNoteRow;
-  const author = await loadAuthor(row.created_by_profile_id);
+  const author = await loadAuthor(row.created_by_profile_id, repository);
   return mapNoteDto(row, author);
 }
 
 export async function deleteTeacherStudentNote(actor: ScheduleActor, noteId: string) {
   assertScheduleWriteAccess(actor);
   assertTeacherStudentNotesWriteAccess(actor);
-  const repository = createTeacherNotesRepository();
+  const repository = await createNotesRepository();
   const existingResponse = await repository.loadNote(noteId);
 
   if (existingResponse.error) {
@@ -152,7 +159,7 @@ export async function deleteTeacherStudentNote(actor: ScheduleActor, noteId: str
   }
 
   const existing = existingResponse.data as TeacherStudentNoteRow;
-  if (isTeacherScopedActor(actor)) {
+  if (isTeacherScheduleActor(actor)) {
     assertTeacherScope(actor, {
       studentId: existing.student_id,
       teacherId: existing.teacher_id

@@ -1,10 +1,24 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { MainHeader } from "@/app/main/main-header";
-import { sitePrimaryNavItems } from "@/app/main/site-navigation";
+import { MainHeader } from "@/features/marketing/components/main-header";
+import { sitePrimaryNavItems } from "@/features/marketing/model/site-navigation";
 
 describe("MainHeader", () => {
+  it("switches the teachers link between tablet and desktop navigation", () => {
+    render(<MainHeader navItems={sitePrimaryNavItems} />);
+
+    const navigation = screen.getByRole("navigation", { name: "Основная навигация сайта" });
+    const desktopTeachersLink = within(navigation).getByRole("link", { name: "Преподаватели" });
+    expect(desktopTeachersLink).toHaveClass("hidden", "desktop:inline-flex");
+
+    fireEvent.click(within(navigation).getByRole("button", { name: /О школе/i }));
+
+    const aboutPanel = document.getElementById("site-nav-panel-about");
+    expect(aboutPanel).not.toBeNull();
+    expect(within(aboutPanel as HTMLElement).getByRole("link", { name: /^Преподаватели/ })).toHaveClass("desktop:hidden");
+  });
+
   it("keeps the public search link pointed at /search", () => {
     render(<MainHeader navItems={sitePrimaryNavItems} />);
 

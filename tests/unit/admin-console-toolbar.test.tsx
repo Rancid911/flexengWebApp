@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { AdminConsoleToolbar } from "@/app/(workspace)/(staff-zone)/admin/ui/admin-console-toolbar";
+import { AdminConsoleToolbar } from "@/features/admin/components/admin-console/admin-console-toolbar";
 
 describe("AdminConsoleToolbar", () => {
   it("renders the active tab with the blue-aligned tab contract instead of shadcn default primary", () => {

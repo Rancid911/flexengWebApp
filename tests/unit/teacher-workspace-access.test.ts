@@ -14,89 +14,90 @@ import {
   composeTeacherDashboardData,
   composeTeacherStudentProfileData
 } from "@/lib/teacher-workspace/sections";
+import { createScheduleActor } from "@/tests/unit/helpers/actors";
 
 describe("teacher workspace access", () => {
   it("allows teacher-scoped writes only for teacher actors", () => {
     expect(() =>
-      assertTeacherWorkspaceWriteAccess({
+      assertTeacherWorkspaceWriteAccess(createScheduleActor({
         role: "teacher",
         userId: "user-1",
         studentId: null,
         teacherId: "teacher-1",
         accessibleStudentIds: ["student-1"]
-      })
+      }))
     ).not.toThrow();
 
     expect(() =>
-      assertTeacherWorkspaceWriteAccess({
+      assertTeacherWorkspaceWriteAccess(createScheduleActor({
         role: "manager",
         userId: "user-2",
         studentId: null,
         teacherId: null,
         accessibleStudentIds: null
-      })
+      }))
     ).toThrow("Teacher write capability required");
   });
 
   it("keeps staff observer semantics explicit in access helpers", () => {
-    expect(canReadTeacherWorkspace({ role: "manager", userId: "user-1", studentId: null, teacherId: null, accessibleStudentIds: null })).toBe(true);
+    expect(canReadTeacherWorkspace(createScheduleActor({ role: "manager", userId: "user-1", studentId: null, teacherId: null, accessibleStudentIds: null }))).toBe(true);
     expect(
-      canWriteTeacherWorkspaceNotes({
+      canWriteTeacherWorkspaceNotes(createScheduleActor({
         role: "teacher",
         userId: "user-1",
         studentId: null,
         teacherId: "teacher-1",
         accessibleStudentIds: ["student-1"]
-      }, "student-1")
+      }), "student-1")
     ).toBe(true);
     expect(
-      canWriteTeacherWorkspaceNotes({
+      canWriteTeacherWorkspaceNotes(createScheduleActor({
         role: "manager",
         userId: "user-2",
         studentId: null,
         teacherId: null,
         accessibleStudentIds: null
-      }, "student-1")
+      }), "student-1")
     ).toBe(true);
-    expect(canManageTeacherStudentBilling({ role: "admin", userId: "user-3", studentId: null, teacherId: null, accessibleStudentIds: null })).toBe(true);
+    expect(canManageTeacherStudentBilling(createScheduleActor({ role: "admin", userId: "user-3", studentId: null, teacherId: null, accessibleStudentIds: null }))).toBe(true);
   });
 
   it("allows teacher student note writes for teacher and staff actors only", () => {
     expect(() =>
-      assertTeacherStudentNotesWriteAccess({
+      assertTeacherStudentNotesWriteAccess(createScheduleActor({
         role: "teacher",
         userId: "teacher-user-1",
         studentId: null,
         teacherId: "teacher-1",
         accessibleStudentIds: ["student-1"]
-      })
+      }))
     ).not.toThrow();
     expect(() =>
-      assertTeacherStudentNotesWriteAccess({
+      assertTeacherStudentNotesWriteAccess(createScheduleActor({
         role: "admin",
         userId: "admin-user-1",
         studentId: null,
         teacherId: null,
         accessibleStudentIds: null
-      })
+      }))
     ).not.toThrow();
     expect(() =>
-      assertTeacherStudentNotesWriteAccess({
+      assertTeacherStudentNotesWriteAccess(createScheduleActor({
         role: "manager",
         userId: "manager-user-1",
         studentId: null,
         teacherId: null,
         accessibleStudentIds: null
-      })
+      }))
     ).not.toThrow();
     expect(() =>
-      assertTeacherStudentNotesWriteAccess({
+      assertTeacherStudentNotesWriteAccess(createScheduleActor({
         role: "student",
         userId: "student-user-1",
         studentId: "student-1",
         teacherId: null,
         accessibleStudentIds: null
-      })
+      }))
     ).toThrow("Teacher write capability required");
   });
 });

@@ -10,6 +10,7 @@ import {
 import type { StaffScheduleLessonDto } from "@/lib/schedule/types";
 import { measureServerTiming } from "@/lib/server/timing";
 import type { AccessMode } from "@/lib/supabase/access";
+import { createClient } from "@/lib/supabase/server";
 import {
   createTeacherDashboardAgendaRepository,
   type TeacherDashboardAgendaAttendanceRow,
@@ -111,9 +112,11 @@ function buildTeacherDashboardWeekBundle(weekLessons: StaffScheduleLessonDto[], 
 function getTeacherDashboardBundleCacheKey(actor: ScheduleActor) {
   return JSON.stringify({
     role: actor.role,
+    accessMode: actor.accessMode,
     userId: actor.userId,
     teacherId: actor.teacherId ?? "",
-    studentId: actor.studentId ?? ""
+    studentId: actor.studentId ?? "",
+    accessibleStudentIds: actor.accessibleStudentIds
   });
 }
 
@@ -217,6 +220,10 @@ async function mapTeacherDashboardLessons(
 ) {
   if (rows.length === 0) return [];
 
+  if (!client) {
+    throw new ScheduleHttpError(500, "TEACHER_DASHBOARD_FAILED", "Teacher dashboard repository client is required");
+  }
+
   const repository = createTeacherDashboardAgendaRepository(client);
   const studentIds = Array.from(new Set(rows.map((row) => row.student_id)));
   const teacherIds = Array.from(new Set(rows.map((row) => row.teacher_id)));
@@ -263,7 +270,7 @@ async function mapTeacherDashboardLessons(
 
 const getTeacherDashboardWeekLessonBundleBase = cache(async (cacheKey: string, nowKey: string): Promise<TeacherDashboardWeekLessonBundle> =>
   measureServerTiming("teacher-dashboard-week-bundle", async () => {
-    const actor = JSON.parse(cacheKey) as Pick<ScheduleActor, "role" | "userId" | "teacherId" | "studentId" | "accessibleStudentIds">;
+    const actor = JSON.parse(cacheKey) as Pick<ScheduleActor, "role" | "accessMode" | "userId" | "teacherId" | "studentId" | "accessibleStudentIds">;
     assertTeacherActor(actor as ScheduleActor);
     const now = new Date(nowKey);
     const { todayStart, weekEnd } = getTeacherDashboardWindow(now);
@@ -276,7 +283,8 @@ const getTeacherDashboardWeekLessonBundleBase = cache(async (cacheKey: string, n
       };
     }
 
-    const repository = createTeacherDashboardAgendaRepository();
+    const userClient = await createClient();
+    const repository = createTeacherDashboardAgendaRepository(userClient);
     const response = await measureServerTiming("teacher-dashboard-week-rows", async () =>
       repository.loadWeekLessonRows({
         todayStartIso: todayStart.toISOString(),
@@ -315,7 +323,8 @@ const getTeacherDashboardAttentionQueueBase = cache(async (cacheKey: string, now
       return [];
     }
 
-    const repository = createTeacherDashboardAgendaRepository();
+    const userClient = await createClient();
+    const repository = createTeacherDashboardAgendaRepository(userClient);
     const response = await repository.loadCompletedLessonRows({
       todayStartIso: todayStart.toISOString(),
       weekEndIso: weekEnd.toISOString(),

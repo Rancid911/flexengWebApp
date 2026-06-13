@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import StudentDashboardView from "@/app/(workspace)/(shared-zone)/dashboard/student-dashboard-view";
+import StudentDashboardView from "@/features/dashboard/components/student-dashboard-view";
 import type { StudentDashboardData } from "@/lib/dashboard/student-dashboard";
 
 const pushMock = vi.fn();
@@ -104,6 +104,10 @@ describe("StudentDashboardView", () => {
     expect(screen.getByRole("heading", { name: "Домашние задания" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Продолжить обучение" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ближайшие уроки" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Продолжить" }));
+    expect(pushMock).toHaveBeenCalledWith("/practice");
+    fireEvent.click(screen.getAllByRole("button", { name: "Открыть практику" })[0]);
+    expect(pushMock).toHaveBeenCalledWith("/practice");
     expect(screen.getByText("Онлайн-уроки")).toBeInTheDocument();
     expect(screen.getAllByText("за 7 дней")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: /Онлайн-уроки/i }));

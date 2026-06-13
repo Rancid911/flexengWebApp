@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { SearchResultList } from "@/components/search/search-result-list";
+import { SearchResultList } from "@/features/search/components/search-result-list";
 import type { SearchGroupDto, SearchResultDto } from "@/lib/search/types";
 
 const groups: SearchGroupDto[] = [

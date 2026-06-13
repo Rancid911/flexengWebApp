@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { createClient } from "@/lib/supabase/server";
 import type {
   StudentBillingSummary,
   StudentPaymentReminderPopup,
@@ -10,6 +11,16 @@ import { buildStudentBillingSummary, formatBillingDebt, formatBillingMoneyAmount
 import { formatRuLongDateTime, getMoscowDayKey } from "@/lib/dates/format-ru-date";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
+type UserClient = Awaited<ReturnType<typeof createClient>>;
+type PaymentReminderClient = AdminClient | UserClient;
+
+type DashboardPaymentReminderInputsRow = {
+  settings_enabled: boolean | null;
+  threshold_lessons: number | string | null;
+  billing_account: BillingAccountRow | null;
+  billing_ledger: BillingLedgerRow[] | null;
+  next_scheduled_lesson_at: string | null;
+};
 
 type ReminderStateRow = {
   student_id: string;
@@ -108,8 +119,8 @@ export function resolveStudentPaymentReminderStatus(summary: StudentBillingSumma
   return "none";
 }
 
-export async function loadStudentPaymentReminderState(adminClient: AdminClient, studentId: string) {
-  const response = await adminClient
+export async function loadStudentPaymentReminderState(client: PaymentReminderClient, studentId: string) {
+  const response = await client
     .from("student_payment_reminder_state")
     .select("student_id, current_status, last_status_changed_at, last_notification_sent_at, last_popup_shown_at, last_threshold_lessons, updated_at")
     .eq("student_id", studentId)
@@ -200,8 +211,39 @@ export async function resolveStudentPaymentReminderForDashboard(adminClient: Adm
   } satisfies StudentPaymentReminderResolution;
 }
 
+export async function resolveStudentPaymentReminderForDashboardRpc(client: UserClient, studentId: string) {
+  const response = await client.rpc("get_student_dashboard_payment_reminder_inputs", { p_student_id: studentId });
+
+  if (response.error) {
+    throw new Error(`Failed to load payment reminder inputs: ${response.error.message}`);
+  }
+
+  const data = Array.isArray(response.data) ? response.data[0] : response.data;
+  const row = (data ?? null) as DashboardPaymentReminderInputsRow | null;
+  if (!row || row.settings_enabled === false) return null;
+
+  const thresholdLessons = Number(row.threshold_lessons ?? 1);
+  const summary = buildStudentBillingSummary(
+    studentId,
+    normalizeAccount(row.billing_account),
+    normalizeLedger(row.billing_ledger ?? [])
+  );
+  const status = resolveStudentPaymentReminderStatus(summary, thresholdLessons);
+  const copy = buildReminderCopy(summary, status, row.next_scheduled_lesson_at);
+  const hasScheduledUnpaidLesson = Boolean(row.next_scheduled_lesson_at) && summary.availableLessonCount === 0;
+
+  return {
+    summary,
+    status,
+    title: copy.title,
+    body: copy.body,
+    nextScheduledLessonAt: row.next_scheduled_lesson_at,
+    shouldShowPopup: status === "debt" || (status === "low_balance" && hasScheduledUnpaidLesson)
+  } satisfies StudentPaymentReminderResolution;
+}
+
 export async function upsertStudentPaymentReminderState(
-  adminClient: AdminClient,
+  client: PaymentReminderClient,
   studentId: string,
   payload: {
     status: StudentPaymentReminderStatus;
@@ -211,11 +253,11 @@ export async function upsertStudentPaymentReminderState(
     preserveExistingTimestamps?: boolean;
   }
 ) {
-  const previous = await loadStudentPaymentReminderState(adminClient, studentId);
+  const previous = await loadStudentPaymentReminderState(client, studentId);
   const nowIso = new Date().toISOString();
   const statusChanged = previous?.currentStatus !== payload.status;
 
-  const response = await adminClient
+  const response = await client
     .from("student_payment_reminder_state")
     .upsert(
       {

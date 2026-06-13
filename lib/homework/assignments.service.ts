@@ -47,7 +47,7 @@ export function buildAssignmentWithItems(assignment: HomeworkAssignmentRow, acti
   };
 }
 
-export async function createStandaloneHomeworkAssignment(input: HomeworkAssignmentInput, client?: HomeworkAssignmentsRepositoryClient) {
+export async function createStandaloneHomeworkAssignment(input: HomeworkAssignmentInput, client: HomeworkAssignmentsRepositoryClient) {
   const repository = createHomeworkAssignmentsRepository(client);
   const assignmentResponse = await repository.createAssignment(buildAssignmentPayload({ ...input, scheduleLessonId: null }));
   if (assignmentResponse.error || !assignmentResponse.data) {
@@ -63,7 +63,7 @@ export async function createStandaloneHomeworkAssignment(input: HomeworkAssignme
   return buildAssignmentWithItems(assignmentResponse.data as HomeworkAssignmentRow, input.activityIds);
 }
 
-export async function upsertLessonLinkedHomeworkAssignment(input: HomeworkAssignmentInput, client?: HomeworkAssignmentsRepositoryClient) {
+export async function upsertLessonLinkedHomeworkAssignment(input: HomeworkAssignmentInput, client: HomeworkAssignmentsRepositoryClient) {
   const repository = createHomeworkAssignmentsRepository(client);
   const existingResponse = await repository.loadLinkedLessonAssignmentId(input.scheduleLessonId ?? "", input.studentId);
   if (existingResponse.error) {
@@ -101,7 +101,7 @@ export async function upsertLessonLinkedHomeworkAssignment(input: HomeworkAssign
   return assignmentId;
 }
 
-export async function createPlacementHomeworkAssignment(input: HomeworkAssignmentInput, client?: HomeworkAssignmentsRepositoryClient) {
+export async function createPlacementHomeworkAssignment(input: HomeworkAssignmentInput, client: HomeworkAssignmentsRepositoryClient) {
   const repository = createHomeworkAssignmentsRepository(client);
   const assignmentResponse = await repository.createAssignment(buildAssignmentPayload({ ...input, scheduleLessonId: null }));
   if (assignmentResponse.error || !assignmentResponse.data) {
@@ -117,7 +117,7 @@ export async function createPlacementHomeworkAssignment(input: HomeworkAssignmen
   return buildAssignmentWithItems(assignmentResponse.data as HomeworkAssignmentRow, input.activityIds);
 }
 
-export async function deleteHomeworkAssignment(id: string, errorCode: string, errorMessage: string, client?: HomeworkAssignmentsRepositoryClient) {
+export async function deleteHomeworkAssignment(id: string, errorCode: string, errorMessage: string, client: HomeworkAssignmentsRepositoryClient) {
   const repository = createHomeworkAssignmentsRepository(client);
   const response = await repository.deleteAssignment(id);
   if (response.error) {
@@ -125,8 +125,14 @@ export async function deleteHomeworkAssignment(id: string, errorCode: string, er
   }
 }
 
-export async function syncHomeworkProgressForCompletedTest(studentId: string, testId: string, completedAtIso: string, startedAtIso: string) {
-  const repository = createHomeworkAssignmentsRepository();
+export async function syncHomeworkProgressForCompletedTest(
+  studentId: string,
+  testId: string,
+  completedAtIso: string,
+  startedAtIso: string,
+  client: HomeworkAssignmentsRepositoryClient
+) {
+  const repository = createHomeworkAssignmentsRepository(client);
   const assignmentsResponse = await repository.listAssignmentIdsByStudent(studentId);
   const assignmentIds = (assignmentsResponse.data ?? []).map((row) => String(row.id));
   if (assignmentIds.length === 0) return;

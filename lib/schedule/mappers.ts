@@ -8,7 +8,7 @@ import type {
   StudentScheduleLessonDto,
   ScheduleLessonStatus
 } from "@/lib/schedule/types";
-import type { ScheduleActor } from "@/lib/schedule/server";
+import { isTeacherScheduleActor, type ScheduleActor } from "@/lib/schedule/server";
 
 export type ScheduleLessonRow = {
   id: string;
@@ -75,6 +75,7 @@ export type ScheduleLessonEnrichmentOptions = {
   teacherLabelsById?: Map<string, string>;
   attendanceByLessonId?: Map<string, LessonAttendanceRow>;
   outcomeByLessonId?: Map<string, LessonOutcomeRow>;
+  includeFollowup?: boolean;
 };
 
 export function buildDisplayName(
@@ -83,6 +84,14 @@ export function buildDisplayName(
 ) {
   if (!profile) return fallback;
   return profile.display_name || [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email || fallback;
+}
+
+export function buildTeacherDisplayName(
+  profile: Pick<ProfileLabelRow, "display_name" | "first_name" | "last_name" | "email"> | undefined,
+  fallback = "Преподаватель"
+) {
+  if (!profile) return fallback;
+  return [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.display_name || profile.email || fallback;
 }
 
 export function readProfileRelation(value: ProfileLabelRow | ProfileLabelRow[] | null | undefined): ProfileLabelRow | undefined {
@@ -103,7 +112,7 @@ export function mapStudentRowsToOptionsWithProfiles(studentRows: EntityWithProfi
 export function mapTeacherRowsToOptionsWithProfiles(teacherRows: EntityWithProfileRow[]): ScheduleTeacherOptionDto[] {
   return teacherRows.map((row) => ({
     id: row.id,
-    label: buildDisplayName(readProfileRelation(row.profiles), "Преподаватель")
+    label: buildTeacherDisplayName(readProfileRelation(row.profiles))
   }));
 }
 
@@ -137,7 +146,7 @@ export function buildOptionsFromLessons(
     });
   }
 
-  if (actor.role === "teacher" && actor.teacherId && !teachersById.has(actor.teacherId)) {
+  if (isTeacherScheduleActor(actor) && actor.teacherId && !teachersById.has(actor.teacherId)) {
     teachersById.set(actor.teacherId, {
       id: actor.teacherId,
       label: "Вы"

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { requirePermission } from "@/lib/permissions";
 import { requireScheduleApi } from "@/lib/schedule/server";
 import { ScheduleHttpError, withScheduleErrorHandling } from "@/lib/schedule/http";
 import { teacherLessonFollowupSchema } from "@/lib/teacher-workspace/validation";
@@ -7,6 +8,8 @@ import { upsertTeacherLessonFollowup } from "@/lib/teacher-workspace/queries";
 
 export const POST = withScheduleErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
+  requirePermission(actor, "schedule.followups.manage");
+
   const { id } = await params;
   const body = await request.json();
   const parsed = teacherLessonFollowupSchema.safeParse(body);

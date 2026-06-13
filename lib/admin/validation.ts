@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { getPasswordPolicyErrors } from "@/lib/auth/password-policy";
 import {
   teacherCertificateOptions,
   teacherEducationLevelOptions,
@@ -17,11 +18,12 @@ import {
   teacherTimezoneOptions,
   teacherWeekdayOptions
 } from "@/lib/admin/teacher-dossier-options";
+import { NOTIFICATION_TARGET_AUDIENCES } from "@/lib/notifications/audience";
 
 const roleEnum = z.enum(["admin", "manager", "teacher", "student"]);
 const billingModeEnum = z.enum(["package_lessons", "per_lesson_price"]);
 const notificationTypeEnum = z.enum(["maintenance", "update", "news", "assignments"]);
-const notificationTargetRoleEnum = z.enum(["all", "admin", "manager", "teacher", "student"]);
+const notificationTargetRoleEnum = z.enum(NOTIFICATION_TARGET_AUDIENCES);
 const testActivityTypeEnum = z.enum(["trainer", "test"]);
 const testAssessmentKindEnum = z.enum(["regular", "placement"]);
 const testLevelEnum = z.enum(["A1", "A2", "B1", "B2", "C1"]);
@@ -60,6 +62,14 @@ const nullableUrlString = z.preprocess(
 );
 
 const ruPhoneString = z.string().trim().regex(/^\+7\d{10}$/, "phone must match +7XXXXXXXXXX");
+const passwordPolicyString = z.string().max(128).superRefine((value, ctx) => {
+  for (const message of getPasswordPolicyErrors(value)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message
+    });
+  }
+});
 const teacherInternalRoleEnum = z.enum(teacherInternalRoleOptions.map((option) => option.value) as ["teacher", "senior_teacher", "methodologist"]);
 const teacherTimezoneEnum = z.enum(
   teacherTimezoneOptions.map((option) => option.value) as [
@@ -122,6 +132,36 @@ const teacherOperationalStatusEnum = z.enum(teacherOperationalStatusOptions.map(
 const teacherCooperationTypeEnum = z.enum(teacherCooperationTypeOptions.map((option) => option.value) as ["freelance", "staff"]);
 const teacherCurrencyEnum = z.enum(teacherCurrencyOptions.map((option) => option.value) as ["RUB"]);
 
+const adminTestQuestionSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    prompt: z.string().trim().min(1).max(2000),
+    explanation: nullableString(5000),
+    question_type: z.literal("single_choice").optional().default("single_choice"),
+    placement_band: placementBandEnum.nullable().optional(),
+    sort_order: z.number().int().min(0).optional().default(0),
+    options: z
+      .array(
+        z.object({
+          id: z.string().uuid().optional(),
+          option_text: z.string().trim().min(1).max(1000),
+          is_correct: z.boolean(),
+          sort_order: z.number().int().min(0).optional().default(0)
+        })
+      )
+      .length(4)
+  })
+  .strict()
+  .superRefine((question, ctx) => {
+    if (question.options.filter((option) => option.is_correct).length !== 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "each question must contain exactly one correct option",
+        path: ["options"]
+      });
+    }
+  });
+
 const adminTestBaseSchema = z
   .object({
     lesson_id: z.string().uuid().nullable().optional(),
@@ -139,40 +179,7 @@ const adminTestBaseSchema = z
     passing_score: z.number().int().min(0).max(100).optional().default(70),
     time_limit_minutes: z.number().int().positive().nullable().optional(),
     is_published: z.boolean().optional().default(false),
-    questions: z
-      .array(
-        z
-          .object({
-            id: z.string().uuid().optional(),
-            prompt: z.string().trim().min(1).max(2000),
-            explanation: nullableString(5000),
-            question_type: z.literal("single_choice").optional().default("single_choice"),
-            placement_band: placementBandEnum.nullable().optional(),
-            sort_order: z.number().int().min(0).optional().default(0),
-            options: z
-              .array(
-                z.object({
-                  id: z.string().uuid().optional(),
-                  option_text: z.string().trim().min(1).max(1000),
-                  is_correct: z.boolean(),
-                  sort_order: z.number().int().min(0).optional().default(0)
-                })
-              )
-              .length(4)
-          })
-          .strict()
-          .superRefine((question, ctx) => {
-            if (question.options.filter((option) => option.is_correct).length !== 1) {
-              ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "each question must contain exactly one correct option",
-                path: ["options"]
-              });
-            }
-          })
-      )
-      .optional()
-      .default([])
+    questions: z.array(adminTestQuestionSchema).optional().default([])
   })
   .strict();
 
@@ -324,7 +331,23 @@ export const adminWordCardSetCreateSchema = adminWordCardSetObjectSchema.superRe
 export const adminWordCardSetUpdateSchema = adminWordCardSetObjectSchema.partial().superRefine(validatePublishedWordCardSet);
 
 export const adminTestUpdateSchema = adminTestBaseSchema
+  .omit({
+    activity_type: true,
+    assessment_kind: true,
+    lesson_reinforcement: true,
+    passing_score: true,
+    is_published: true,
+    questions: true
+  })
   .partial()
+  .extend({
+    activity_type: testActivityTypeEnum.optional(),
+    assessment_kind: testAssessmentKindEnum.optional(),
+    lesson_reinforcement: z.boolean().optional(),
+    passing_score: z.number().int().min(0).max(100).optional(),
+    is_published: z.boolean().optional(),
+    questions: z.array(adminTestQuestionSchema).optional()
+  })
   .superRefine(validateTrainerFields)
   .superRefine(validateRegularTestFields)
   .superRefine(validatePlacementFields)
@@ -339,7 +362,7 @@ export const adminUserCreateSchema = z
     first_name: z.string().trim().min(1).max(200),
     last_name: z.string().trim().min(1).max(200),
     email: z.string().trim().toLowerCase().email(),
-    password: z.string().min(8).max(128),
+    password: passwordPolicyString,
     phone: ruPhoneString,
     birth_date: nullableDateString,
     english_level: nullableString(150),
@@ -354,18 +377,6 @@ export const adminUserCreateSchema = z
   .superRefine((value, ctx) => {
     if (value.role !== "student") return;
 
-    if (!value.birth_date) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "birth_date is required for student", path: ["birth_date"] });
-    }
-    if (!value.english_level) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "english_level is required for student", path: ["english_level"] });
-    }
-    if (!value.target_level) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "target_level is required for student", path: ["target_level"] });
-    }
-    if (!value.learning_goal) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "learning_goal is required for student", path: ["learning_goal"] });
-    }
     if (value.billing_mode === "per_lesson_price" && (value.lesson_price_amount == null || value.lesson_price_amount <= 0)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "lesson_price_amount is required for per_lesson_price", path: ["lesson_price_amount"] });
     }
@@ -376,7 +387,7 @@ export const adminUserUpdateSchema = z
     first_name: z.string().trim().min(1).max(200).optional(),
     last_name: z.string().trim().min(1).max(200).optional(),
     email: z.string().trim().toLowerCase().email().optional(),
-    password: z.string().min(8).max(128).nullable().optional(),
+    password: passwordPolicyString.nullable().optional(),
     phone: ruPhoneString.optional(),
     birth_date: nullableDateString,
     english_level: nullableString(150),

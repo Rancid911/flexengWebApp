@@ -15,12 +15,25 @@ import {
   updateCrmLeadStatusRow
 } from "@/lib/crm/leads.repository";
 import { loadCrmSettingsRow, upsertCrmSettingsRow } from "@/lib/crm/settings.repository";
-import type { CrmBoardDto, CrmLeadAudience, CrmLeadCardDto, CrmLeadCommentDto, CrmLeadDetailDto, CrmLeadHistoryDto, CrmSettingsDto } from "@/lib/crm/types";
+import { buildCrmBackgroundMediaUrl, toCrmBackgroundMediaUrl } from "@/lib/media/urls";
+import { createClient } from "@/lib/supabase/server";
+import type { CrmRepositoryClient } from "@/lib/crm/leads.repository";
+import type {
+  CrmBackgroundUploadResponse,
+  CrmBoardDto,
+  CrmLeadAudience,
+  CrmLeadCardDto,
+  CrmLeadCommentDto,
+  CrmLeadDetailDto,
+  CrmLeadHistoryDto,
+  CrmSettingsDto
+} from "@/lib/crm/types";
 
 const DEFAULT_CRM_SETTINGS: CrmSettingsDto = {
   background_image_url: null,
   updated_at: null
 };
+const CRM_ASSETS_BUCKET = "crm-assets";
 
 function readCrmLeadMetadata(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -72,8 +85,8 @@ function mapProfileNames(rows: Array<{ id?: unknown; display_name?: unknown; fir
   return names;
 }
 
-async function loadActorNames(userIds: string[]) {
-  const { data, error } = await loadCrmActorNameRows(userIds);
+async function loadActorNames(supabase: CrmRepositoryClient, userIds: string[]) {
+  const { data, error } = await loadCrmActorNameRows(supabase, userIds);
   if (error) return new Map<string, string>();
   return mapProfileNames((data ?? []) as Array<{ id?: unknown; display_name?: unknown; first_name?: unknown; last_name?: unknown; email?: unknown }>);
 }
@@ -113,25 +126,28 @@ export function buildCrmBoard(leads: CrmLeadCardDto[]): CrmBoardDto {
 }
 
 export async function loadCrmBoard(): Promise<CrmBoardDto> {
-  const { data, error } = await loadCrmLeadRows();
+  const supabase = await createClient();
+  const { data, error } = await loadCrmLeadRows(supabase);
   if (error) throw error;
   return buildCrmBoard((data ?? []).map((row) => toCrmLeadCardDto(row as Record<string, unknown>)));
 }
 
 export async function loadCrmSettings(): Promise<CrmSettingsDto> {
-  const { data, error } = await loadCrmSettingsRow();
+  const supabase = await createClient();
+  const { data, error } = await loadCrmSettingsRow(supabase);
 
   if (error) throw error;
   if (!data) return DEFAULT_CRM_SETTINGS;
 
   return {
-    background_image_url: data.background_image_url ?? null,
+    background_image_url: toCrmBackgroundMediaUrl(data.background_image_url ?? null, data.updated_at ?? null),
     updated_at: data.updated_at ?? null
   };
 }
 
 export async function updateCrmSettings(actor: AdminActor, payload: { background_image_url: string | null }): Promise<CrmSettingsDto> {
-  const { data, error } = await upsertCrmSettingsRow({
+  const supabase = await createClient();
+  const { data, error } = await upsertCrmSettingsRow(supabase, {
     backgroundImageUrl: payload.background_image_url,
     updatedByProfileId: actor.userId
   });
@@ -139,13 +155,33 @@ export async function updateCrmSettings(actor: AdminActor, payload: { background
   if (error) throw error;
 
   return {
-    background_image_url: data.background_image_url ?? null,
+    background_image_url: toCrmBackgroundMediaUrl(data.background_image_url ?? null, data.updated_at ?? null),
     updated_at: data.updated_at ?? null
   };
 }
 
-export async function loadCrmLeadDetail(leadId: string): Promise<CrmLeadDetailDto | null> {
-  const { data, error } = await loadCrmLeadDetailRow(leadId);
+function getUploadedBackgroundPath(fileName: string) {
+  const extension = fileName.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  return `background/crm-board-${Date.now()}.${extension}`;
+}
+
+export async function uploadCrmBackgroundImage(file: Blob & { name?: string; type: string }): Promise<CrmBackgroundUploadResponse> {
+  const supabase = await createClient();
+  const path = getUploadedBackgroundPath(file.name ?? "background.jpg");
+  const { error: uploadError } = await supabase.storage.from(CRM_ASSETS_BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    contentType: file.type,
+    upsert: true
+  });
+  if (uploadError) throw uploadError;
+
+  return {
+    publicUrl: buildCrmBackgroundMediaUrl(path, Date.now())
+  };
+}
+
+async function loadCrmLeadDetailWithClient(supabase: CrmRepositoryClient, leadId: string): Promise<CrmLeadDetailDto | null> {
+  const { data, error } = await loadCrmLeadDetailRow(supabase, leadId);
   if (error || !data) return null;
 
   const row = data as Record<string, unknown>;
@@ -161,7 +197,7 @@ export async function loadCrmLeadDetail(leadId: string): Promise<CrmLeadDetailDt
       return typeof authorId === "string" ? [authorId] : [];
     })
   ];
-  const names = await loadActorNames(actorIds);
+  const names = await loadActorNames(supabase, actorIds);
 
   return {
     ...toCrmLeadCardDto(row),
@@ -174,32 +210,39 @@ export async function loadCrmLeadDetail(leadId: string): Promise<CrmLeadDetailDt
   };
 }
 
+export async function loadCrmLeadDetail(leadId: string): Promise<CrmLeadDetailDto | null> {
+  return await loadCrmLeadDetailWithClient(await createClient(), leadId);
+}
+
 export async function markCrmLeadViewed(leadId: string, actorUserId: string) {
-  const { data: current, error: currentError } = await loadCrmLeadViewedState(leadId);
+  const supabase = await createClient();
+  const { data: current, error: currentError } = await loadCrmLeadViewedState(supabase, leadId);
   if (currentError || !current) return false;
   if (current.viewed_at) return false;
 
-  const { error } = await markCrmLeadViewedRow(leadId, actorUserId);
+  const { error } = await markCrmLeadViewedRow(supabase, leadId, actorUserId);
   if (error) throw error;
   return true;
 }
 
 export async function getCrmUnreadNewRequestsCount() {
-  const { count, error } = await countUnreadNewCrmLeadRows();
+  const supabase = await createClient();
+  const { count, error } = await countUnreadNewCrmLeadRows(supabase);
   if (error) throw error;
   return Number(count ?? 0);
 }
 
 export async function updateCrmLeadStatus(input: { leadId: string; status: CrmLeadStatus; actorUserId: string }) {
-  const { data: current, error: currentError } = await loadCrmLeadStatusRow(input.leadId);
+  const supabase = await createClient();
+  const { data: current, error: currentError } = await loadCrmLeadStatusRow(supabase, input.leadId);
   if (currentError || !current) throw currentError ?? new Error("Lead not found");
 
   const fromStatus = isCrmLeadStatus(current.status) ? current.status : CRM_DEFAULT_STATUS;
   if (fromStatus !== input.status) {
-    const { error: updateError } = await updateCrmLeadStatusRow(input.leadId, input.status);
+    const { error: updateError } = await updateCrmLeadStatusRow(supabase, input.leadId, input.status);
     if (updateError) throw updateError;
 
-    const { error: historyError } = await createCrmLeadStatusHistoryRow({
+    const { error: historyError } = await createCrmLeadStatusHistoryRow(supabase, {
       leadId: input.leadId,
       fromStatus,
       toStatus: input.status,
@@ -208,21 +251,23 @@ export async function updateCrmLeadStatus(input: { leadId: string; status: CrmLe
     if (historyError) throw historyError;
   }
 
-  return await loadCrmLeadDetail(input.leadId);
+  return await loadCrmLeadDetailWithClient(supabase, input.leadId);
 }
 
 export async function createCrmLeadComment(input: { leadId: string; body: string; actorUserId: string }) {
-  const { error } = await createCrmLeadCommentRow(input);
+  const supabase = await createClient();
+  const { error } = await createCrmLeadCommentRow(supabase, input);
   if (error) throw error;
-  return await loadCrmLeadDetail(input.leadId);
+  return await loadCrmLeadDetailWithClient(supabase, input.leadId);
 }
 
 export async function deleteCrmLead(leadId: string) {
-  const { data: existing, error: fetchError } = await loadCrmLeadExistsRow(leadId);
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await loadCrmLeadExistsRow(supabase, leadId);
   if (fetchError) throw fetchError;
   if (!existing) return false;
 
-  const { error: deleteError } = await deleteCrmLeadRow(leadId);
+  const { error: deleteError } = await deleteCrmLeadRow(supabase, leadId);
   if (deleteError) throw deleteError;
   return true;
 }

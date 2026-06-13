@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { WorkspaceFrame } from "@/app/(workspace)/shell/workspace-frame";
+import { WorkspaceFrame } from "@/features/workspace-shell/components/shell/workspace-frame";
 
 describe("WorkspaceFrame", () => {
   const baseProps = {

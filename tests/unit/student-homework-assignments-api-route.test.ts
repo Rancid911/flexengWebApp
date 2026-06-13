@@ -1,17 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
+import type { ScheduleActor } from "@/lib/schedule/server";
+
+type MockScheduleApiActor = ScheduleActor & {
+  rbacStatus: "loaded";
+  rbacRoles: string[];
+  rbacPermissions: string[];
+  rbacPermissionScopes: Record<string, string[]>;
+};
+
 const listTeacherStudentStandaloneHomeworkMock = vi.fn();
 const createTeacherStudentStandaloneHomeworkMock = vi.fn();
-
-vi.mock("@/lib/schedule/server", () => ({
-  requireScheduleApi: vi.fn(async () => ({
+const requireScheduleApiMock = vi.hoisted(() =>
+  vi.fn<() => Promise<MockScheduleApiActor>>(async () => ({
     userId: "teacher-profile",
     role: "teacher",
+    accessMode: "teacher_assigned",
     studentId: null,
     teacherId: "teacher-1",
-    accessibleStudentIds: ["student-1"]
+    accessibleStudentIds: ["student-1"],
+    rbacStatus: "loaded",
+    rbacRoles: ["teacher"],
+    rbacPermissions: ["homework.assign"],
+    rbacPermissionScopes: { "homework.assign": ["assigned"] }
   }))
+);
+
+vi.mock("@/lib/schedule/server", () => ({
+  requireScheduleApi: () => requireScheduleApiMock()
 }));
 
 vi.mock("@/lib/teacher-workspace/queries", () => ({
@@ -21,6 +38,19 @@ vi.mock("@/lib/teacher-workspace/queries", () => ({
 
 describe("/api/students/[id]/homework-assignments", () => {
   beforeEach(() => {
+    requireScheduleApiMock.mockReset();
+    requireScheduleApiMock.mockResolvedValue({
+      userId: "teacher-profile",
+      role: "teacher",
+      accessMode: "teacher_assigned",
+      studentId: null,
+      teacherId: "teacher-1",
+      accessibleStudentIds: ["student-1"],
+      rbacStatus: "loaded",
+      rbacRoles: ["teacher"],
+      rbacPermissions: ["homework.assign"],
+      rbacPermissionScopes: { "homework.assign": ["assigned"] }
+    });
     listTeacherStudentStandaloneHomeworkMock.mockReset();
     createTeacherStudentStandaloneHomeworkMock.mockReset();
   });
@@ -38,6 +68,31 @@ describe("/api/students/[id]/homework-assignments", () => {
 
     expect(listTeacherStudentStandaloneHomeworkMock).toHaveBeenCalledWith(expect.objectContaining({ role: "teacher" }), "student-1");
     expect(response.status).toBe(200);
+  });
+
+  it("denies standalone homework summary for student actor", async () => {
+    requireScheduleApiMock.mockResolvedValue({
+      userId: "student-profile",
+      role: "student",
+      accessMode: "student_own",
+      studentId: "student-1",
+      teacherId: null,
+      accessibleStudentIds: null,
+      rbacStatus: "loaded",
+      rbacRoles: ["student"],
+      rbacPermissions: [],
+      rbacPermissionScopes: {}
+    });
+
+    const { GET } = await import("@/app/api/students/[id]/homework-assignments/route");
+    const response = await GET(
+      new NextRequest("http://localhost/api/students/student-1/homework-assignments", { method: "GET" }),
+      { params: Promise.resolve({ id: "student-1" }) }
+    );
+
+    expect(response.status).toBe(403);
+    expect(listTeacherStudentStandaloneHomeworkMock).not.toHaveBeenCalled();
+    expect(createTeacherStudentStandaloneHomeworkMock).not.toHaveBeenCalled();
   });
 
   it("creates standalone homework assignment for a student", async () => {
@@ -78,5 +133,33 @@ describe("/api/students/[id]/homework-assignments", () => {
       })
     );
     expect(response.status).toBe(201);
+  });
+
+  it("denies standalone homework create before parsing invalid JSON", async () => {
+    requireScheduleApiMock.mockResolvedValue({
+      userId: "student-profile",
+      role: "student",
+      accessMode: "student_own",
+      studentId: "student-1",
+      teacherId: null,
+      accessibleStudentIds: null,
+      rbacStatus: "loaded",
+      rbacRoles: ["student"],
+      rbacPermissions: [],
+      rbacPermissionScopes: {}
+    });
+
+    const { POST } = await import("@/app/api/students/[id]/homework-assignments/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/students/student-1/homework-assignments", {
+        method: "POST",
+        body: "not-json"
+      }),
+      { params: Promise.resolve({ id: "student-1" }) }
+    );
+
+    expect(response.status).toBe(403);
+    expect(listTeacherStudentStandaloneHomeworkMock).not.toHaveBeenCalled();
+    expect(createTeacherStudentStandaloneHomeworkMock).not.toHaveBeenCalled();
   });
 });

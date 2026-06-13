@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ScheduleClient } from "@/app/(workspace)/(shared-zone)/schedule/schedule-client";
-import { parseScheduleApiResponse } from "@/app/(workspace)/(shared-zone)/schedule/use-staff-schedule-query-state";
+import { parseScheduleApiResponse } from "@/features/schedule/client/use-staff-schedule-query-state";
+import { ScheduleClient } from "@/features/schedule/components/schedule-client";
 import type { StaffSchedulePageData, StudentSchedulePageData } from "@/lib/schedule/types";
 
 const fetchMock = vi.fn();
@@ -102,6 +102,19 @@ function makeStaffData(overrides: Partial<StaffSchedulePageData> = {}): StaffSch
   };
 }
 
+async function waitForFollowupEnrichmentRequest() {
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith("/api/schedule?includeFollowup=1", expect.objectContaining({ cache: "no-store" }));
+  });
+}
+
+async function waitForDeferredCatalogRequests() {
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith("/api/schedule/options?entity=students&limit=50", { cache: "no-store" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/schedule/options?entity=teachers&limit=50", { cache: "no-store" });
+  });
+}
+
 describe("ScheduleClient", () => {
   beforeEach(() => {
     fetchMock.mockResolvedValue({
@@ -140,10 +153,10 @@ describe("ScheduleClient", () => {
     render(<ScheduleClient initialData={makeStudentData()} />);
 
     expect(screen.getByText("Все будущие уроки в одном месте")).toBeInTheDocument();
-    expect(screen.getByTestId("student-schedule-hero")).toHaveClass("bg-[linear-gradient(135deg,#2D284A_0%,#3E3762_46%,#4A4476_100%)]");
+    expect(screen.getByTestId("student-schedule-hero")).toHaveClass("bg-[#2155d8]");
     expect(screen.getAllByText("Speaking club")).toHaveLength(2);
     expect(screen.getByText("Запланирован")).toHaveClass("bg-sky-50", "text-sky-700");
-    expect(screen.getByRole("link", { name: "Подключиться" })).toHaveClass("bg-[#1f7aff]");
+    expect(screen.getByRole("link", { name: "Подключиться" })).toHaveClass("bg-[#ffd229]");
   });
 
   it("shows student empty state when no lessons exist", () => {
@@ -317,6 +330,9 @@ describe("ScheduleClient", () => {
       />
     );
 
+    await waitForFollowupEnrichmentRequest();
+    await waitForDeferredCatalogRequests();
+
     fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
 
     expect(screen.getByText("Редактировать урок")).toBeInTheDocument();
@@ -352,11 +368,15 @@ describe("ScheduleClient", () => {
       />
     );
 
+    await waitForFollowupEnrichmentRequest();
+
     expect(screen.getAllByText("Отменён")).toHaveLength(2);
   });
 
   it("keeps scheduled lesson actions in a single responsive action block", async () => {
     render(<ScheduleClient initialData={makeStaffData()} />);
+
+    await waitForFollowupEnrichmentRequest();
 
     const actions = screen.getByTestId("staff-lesson-actions");
     expect(actions.className).toContain("flex-col");
@@ -377,6 +397,8 @@ describe("ScheduleClient", () => {
       hasOutcome: false
     };
     render(<ScheduleClient initialData={makeStaffData({ lessons: [completedLesson] })} />);
+
+    await waitForFollowupEnrichmentRequest();
 
     expect(screen.getByRole("button", { name: "Заполнить итог" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Отменить" })).not.toBeInTheDocument();

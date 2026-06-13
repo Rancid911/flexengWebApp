@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import TeacherDashboardView from "@/app/(workspace)/(shared-zone)/dashboard/teacher-dashboard-view";
+import TeacherDashboardView from "@/features/dashboard/components/teacher-dashboard-view";
 import type { TeacherDashboardData } from "@/lib/teacher-workspace/types";
 
 function makeData(overrides: Partial<TeacherDashboardData> = {}): TeacherDashboardData {
@@ -148,5 +148,19 @@ describe("TeacherDashboardView", () => {
 
     expect(screen.getByText("Профиль преподавателя ещё не привязан")).toBeInTheDocument();
     expect(screen.getByText(/запись в таблице преподавателей ещё не связана/i)).toBeInTheDocument();
+  });
+
+  it("shows pending student roster count while the roster slot is deferred", () => {
+    render(<TeacherDashboardView data={makeData({ students: [] })} studentRosterCount={null} studentRosterSlot={<div data-testid="custom-roster-slot" />} />);
+
+    expect(screen.getByText("Мои ученики").parentElement).toHaveTextContent("...");
+    expect(screen.getByTestId("custom-roster-slot")).toBeInTheDocument();
+  });
+
+  it("uses the provided student roster slot instead of rendering the default roster section", () => {
+    render(<TeacherDashboardView data={makeData()} studentRosterSlot={<div data-testid="custom-roster-slot">Deferred roster</div>} />);
+
+    expect(screen.getByTestId("custom-roster-slot")).toHaveTextContent("Deferred roster");
+    expect(screen.queryByText("Переходите в профиль ученика, чтобы оставить заметку, посмотреть ошибки и последние уроки.")).not.toBeInTheDocument();
   });
 });

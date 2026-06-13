@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AdminStudentsSearch } from "@/app/(workspace)/(staff-zone)/admin/students/admin-students-search";
+import { StudentsDirectorySearch } from "@/features/students/components/students-directory-search";
 import { useState } from "react";
 
 const replaceMock = vi.fn();
@@ -20,7 +20,7 @@ describe("AdminStudentsSearch", () => {
 
   function SearchHarness({ serverQuery = "" }: { serverQuery?: string }) {
     const [value, setValue] = useState(serverQuery);
-    return <AdminStudentsSearch serverQuery={serverQuery} value={value} onValueChange={setValue} />;
+    return <StudentsDirectorySearch serverQuery={serverQuery} value={value} onValueChange={setValue} />;
   }
 
   it("does not search before three characters", async () => {

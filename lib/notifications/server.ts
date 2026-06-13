@@ -1,6 +1,8 @@
+import type { AppActor } from "@/lib/auth/request-context";
 import { HttpError } from "@/lib/server/http";
 import { toUserNotificationDto } from "@/lib/admin/notifications";
 import type { UserNotificationDto } from "@/lib/admin/types";
+import { isNotificationVisibleForActor } from "@/lib/notifications/audience";
 import { createNotificationsRepository } from "@/lib/notifications/repository";
 import { measureServerTiming } from "@/lib/server/timing";
 import type { AccessMode } from "@/lib/supabase/access";
@@ -38,20 +40,14 @@ export async function getAuthedSupabase() {
   return { supabase, userId: user.id, userCreatedAt: user.created_at ?? null };
 }
 
-function isNotificationVisible(row: Record<string, unknown>, role: string | null, userId: string) {
-  const targetRoles = Array.isArray(row.target_roles) ? row.target_roles.filter((value): value is string => typeof value === "string") : [];
-  const targetUserIds = Array.isArray(row.target_user_ids) ? row.target_user_ids.filter((value): value is string => typeof value === "string") : [];
-  const roleVisible = targetRoles.length === 0 || targetRoles.includes("all") || (role ? targetRoles.includes(role) : false);
-  const userVisible = targetUserIds.length === 0 || targetUserIds.includes(userId);
-  return roleVisible && userVisible;
-}
-
-async function loadNotificationContext(limit: number, summaryOnly = false) {
+async function loadNotificationContext(actor: AppActor, limit: number, summaryOnly = false) {
   const { supabase, userId, userCreatedAt } = await getAuthedSupabase();
+  if (userId !== actor.userId) {
+    throw new HttpError(401, "UNAUTHORIZED", "Authentication required");
+  }
   const repository = createNotificationsRepository(supabase);
   const nowIso = new Date().toISOString();
-  const { data: profile } = await measureServerTiming("notifications-profile-role", async () => await repository.loadProfile(userId));
-  const role = typeof profile?.role === "string" ? profile.role : null;
+  const { data: profile } = await measureServerTiming("notifications-profile-created-at", async () => await repository.loadProfileCreatedAt(userId));
   const accountCreatedAt = typeof profile?.created_at === "string" ? profile.created_at : userCreatedAt;
 
   const { data: notifications, error: notificationsError } = await measureServerTiming(
@@ -69,7 +65,7 @@ async function loadNotificationContext(limit: number, summaryOnly = false) {
 
   const rows = asRecordRows(notifications);
   if (rows.length === 0) {
-    return { rows, states: [] as NotificationState[], role, userId };
+    return { rows, states: [] as NotificationState[], actor, userId };
   }
 
   const notificationIds = rows.map((item) => String(item.id));
@@ -86,11 +82,11 @@ async function loadNotificationContext(limit: number, summaryOnly = false) {
     );
   }
 
-  return { rows, states: asNotificationStates(states), role, userId };
+  return { rows, states: asNotificationStates(states), actor, userId };
 }
 
-export async function listVisibleNotificationsForUser(limit = 100): Promise<{ items: UserNotificationDto[]; unreadCount: number }> {
-  const { rows, states, role, userId } = await loadNotificationContext(limit);
+export async function listVisibleNotificationsForUser(actor: AppActor, limit = 100): Promise<{ items: UserNotificationDto[]; unreadCount: number }> {
+  const { rows, states } = await loadNotificationContext(actor, limit);
   if (rows.length === 0) return { items: [], unreadCount: 0 };
 
   const stateMap = new Map<string, NotificationState>();
@@ -103,7 +99,7 @@ export async function listVisibleNotificationsForUser(limit = 100): Promise<{ it
 
   for (const row of rows) {
     const id = String(row.id);
-    if (!isNotificationVisible(row, role, userId)) continue;
+    if (!isNotificationVisibleForActor(row, actor)) continue;
     const state = stateMap.get(id) ?? null;
     if (state?.dismissed_at) continue;
     const dto = toUserNotificationDto(row, state);
@@ -114,8 +110,8 @@ export async function listVisibleNotificationsForUser(limit = 100): Promise<{ it
   return { items, unreadCount };
 }
 
-export async function getUnreadNotificationsSummaryForUser(limit = 100): Promise<{ unreadCount: number }> {
-  const { rows, states, role, userId } = await loadNotificationContext(limit, true);
+export async function getUnreadNotificationsSummaryForUser(actor: AppActor, limit = 100): Promise<{ unreadCount: number }> {
+  const { rows, states } = await loadNotificationContext(actor, limit, true);
   if (rows.length === 0) return { unreadCount: 0 };
 
   const stateMap = new Map<string, NotificationState>();
@@ -127,7 +123,7 @@ export async function getUnreadNotificationsSummaryForUser(limit = 100): Promise
 
   for (const row of rows) {
     const id = String(row.id);
-    if (!isNotificationVisible(row, role, userId)) continue;
+    if (!isNotificationVisibleForActor(row, actor)) continue;
 
     const state = stateMap.get(id) ?? null;
     if (state?.dismissed_at || state?.read_at) continue;

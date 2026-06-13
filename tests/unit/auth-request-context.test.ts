@@ -1,9 +1,61 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAppActor, resolveDefaultWorkspace } from "@/lib/auth/request-context";
+import {
+  buildAppActor,
+  normalizeLinkedActorScopeRpcData,
+  normalizeProfileIdentityContext,
+  normalizeRbacActorData,
+  resolveDefaultWorkspace
+} from "@/lib/auth/actor-resolver";
 import { resolveScheduleActor } from "@/lib/schedule/server";
 
 describe("app actor resolution", () => {
+  it("normalizes profile identity and avatar media URL without I/O", () => {
+    expect(
+      normalizeProfileIdentityContext(
+        {
+          userId: "user-1",
+          email: "auth@example.com"
+        },
+        {
+          role: "teacher",
+          email: "profile@example.com",
+          display_name: null,
+          first_name: "Teacher",
+          last_name: "Profile",
+          avatar_url:
+            "https://example.supabase.co/storage/v1/object/public/avatars/user-1/avatar"
+        }
+      )
+    ).toEqual({
+      userId: "user-1",
+      email: "profile@example.com",
+      role: "teacher",
+      profileRole: "teacher",
+      displayName: "Teacher Profile",
+      avatarUrl: "/api/media/avatar/user-1"
+    });
+  });
+
+  it("normalizes one linked-scope payload for layout and full actor modes", () => {
+    const payload = {
+      student_id: "student-1",
+      teacher_id: "teacher-1",
+      accessible_student_ids: ["student-1", "student-2"]
+    };
+
+    expect(normalizeLinkedActorScopeRpcData(payload, "layout")).toEqual({
+      studentId: "student-1",
+      teacherId: "teacher-1",
+      accessibleStudentIds: null
+    });
+    expect(normalizeLinkedActorScopeRpcData(payload, "full")).toEqual({
+      studentId: "student-1",
+      teacherId: "teacher-1",
+      accessibleStudentIds: ["student-1", "student-2"]
+    });
+  });
+
   it("builds student capability from linked student row", () => {
     const actor = buildAppActor(
       {
@@ -25,6 +77,250 @@ describe("app actor resolution", () => {
     expect(actor.isStudent).toBe(true);
     expect(actor.isTeacher).toBe(false);
     expect(actor.isStaffAdmin).toBe(false);
+    expect(actor.rbacRoles).toEqual([]);
+    expect(actor.rbacPermissions).toEqual([]);
+    expect(actor.rbacPermissionScopes).toEqual({});
+  });
+
+  it("keeps teacher RBAC metadata separate from linked teacher capability", () => {
+    const actor = buildAppActor(
+      {
+        userId: "user-rbac",
+        email: "teacher@example.com",
+        displayName: "Teacher",
+        avatarUrl: null,
+        role: "teacher",
+        profileRole: "teacher"
+      },
+      {
+        studentId: null,
+        teacherId: "teacher-1",
+        accessibleStudentIds: ["student-1"]
+      },
+      {
+        rbacStatus: "loaded",
+        rbacRoles: ["teacher"],
+        rbacPermissions: ["students.view"],
+        rbacPermissionScopes: {
+          "students.view": ["assigned"]
+        }
+      }
+    );
+
+    expect(actor.capabilities).toEqual(["teacher"]);
+    expect(actor.rbacRoles).toEqual(["teacher"]);
+    expect(actor.rbacPermissions).toEqual(["students.view"]);
+    expect(actor.rbacPermissionScopes).toEqual({
+      "students.view": ["assigned"]
+    });
+  });
+
+  it("derives staff-admin capability and admin workspace from loaded RBAC admin role", () => {
+    const actor = buildAppActor(
+      {
+        userId: "user-rbac-admin",
+        email: "rbac-admin@example.com",
+        displayName: "RBAC Admin",
+        avatarUrl: null,
+        role: "student",
+        profileRole: "student"
+      },
+      {
+        studentId: null,
+        teacherId: null,
+        accessibleStudentIds: null
+      },
+      {
+        rbacStatus: "loaded",
+        rbacRoles: ["admin"],
+        rbacPermissions: ["users.manage"],
+        rbacPermissionScopes: {
+          "users.manage": ["all"]
+        }
+      }
+    );
+
+    expect(actor.capabilities).toEqual(["staff_admin"]);
+    expect(actor.isStaffAdmin).toBe(true);
+    expect(resolveDefaultWorkspace(actor)).toBe("admin");
+  });
+
+  it("derives staff-admin capability and manager workspace from loaded RBAC manager role", () => {
+    const actor = buildAppActor(
+      {
+        userId: "user-rbac-manager",
+        email: "rbac-manager@example.com",
+        displayName: "RBAC Manager",
+        avatarUrl: null,
+        role: "student",
+        profileRole: "student"
+      },
+      {
+        studentId: null,
+        teacherId: null,
+        accessibleStudentIds: null
+      },
+      {
+        rbacStatus: "loaded",
+        rbacRoles: ["manager"],
+        rbacPermissions: ["crm.leads.view"],
+        rbacPermissionScopes: {
+          "crm.leads.view": ["all"]
+        }
+      }
+    );
+
+    expect(actor.capabilities).toEqual(["staff_admin"]);
+    expect(actor.isStaffAdmin).toBe(true);
+    expect(resolveDefaultWorkspace(actor)).toBe("manager");
+  });
+
+  it("derives staff-admin capability from all-scoped staff domain permission without a staff RBAC role", () => {
+    const actor = buildAppActor(
+      {
+        userId: "user-rbac-staff-permission",
+        email: "staff-permission@example.com",
+        displayName: "Staff Permission",
+        avatarUrl: null,
+        role: "student",
+        profileRole: "student"
+      },
+      {
+        studentId: null,
+        teacherId: null,
+        accessibleStudentIds: null
+      },
+      {
+        rbacStatus: "loaded",
+        rbacRoles: ["teacher"],
+        rbacPermissions: ["students.view"],
+        rbacPermissionScopes: {
+          "students.view": ["all"]
+        }
+      }
+    );
+
+    expect(actor.capabilities).toEqual(["staff_admin"]);
+    expect(actor.isStaffAdmin).toBe(true);
+    expect(resolveDefaultWorkspace(actor)).toBe("manager");
+  });
+
+  it("derives staff-admin capability from roles view but not runtime dashboard permission", () => {
+    const actorWithRolesView = buildAppActor(
+      {
+        userId: "user-rbac-roles-view",
+        email: "roles-view@example.com",
+        displayName: "Roles View",
+        avatarUrl: null,
+        role: "student",
+        profileRole: "student"
+      },
+      {
+        studentId: null,
+        teacherId: null,
+        accessibleStudentIds: null
+      },
+      {
+        rbacStatus: "loaded",
+        rbacRoles: [],
+        rbacPermissions: ["roles.view"],
+        rbacPermissionScopes: {
+          "roles.view": ["all"]
+        }
+      }
+    );
+    const actorWithRuntimeDashboardOnly = buildAppActor(
+      {
+        userId: "user-rbac-dashboard-runtime",
+        email: "dashboard-runtime@example.com",
+        displayName: "Dashboard Runtime",
+        avatarUrl: null,
+        role: "student",
+        profileRole: "student"
+      },
+      {
+        studentId: null,
+        teacherId: null,
+        accessibleStudentIds: null
+      },
+      {
+        rbacStatus: "loaded",
+        rbacRoles: [],
+        rbacPermissions: ["admin.dashboard.read"],
+        rbacPermissionScopes: {
+          "admin.dashboard.read": ["all"]
+        }
+      }
+    );
+
+    expect(actorWithRolesView.capabilities).toEqual(["staff_admin"]);
+    expect(actorWithRolesView.isStaffAdmin).toBe(true);
+    expect(resolveDefaultWorkspace(actorWithRolesView)).toBe("manager");
+    expect(actorWithRuntimeDashboardOnly.capabilities).toEqual([]);
+    expect(actorWithRuntimeDashboardOnly.isStaffAdmin).toBe(false);
+    expect(resolveDefaultWorkspace(actorWithRuntimeDashboardOnly)).toBeNull();
+  });
+
+  it("does not derive staff-admin capability from assigned-scoped staff domain permission", () => {
+    const actor = buildAppActor(
+      {
+        userId: "user-rbac-assigned",
+        email: "assigned@example.com",
+        displayName: "Assigned",
+        avatarUrl: null,
+        role: "manager",
+        profileRole: "manager"
+      },
+      {
+        studentId: null,
+        teacherId: "teacher-assigned",
+        accessibleStudentIds: ["student-1"]
+      },
+      {
+        rbacStatus: "loaded",
+        rbacRoles: ["teacher"],
+        rbacPermissions: ["students.view"],
+        rbacPermissionScopes: {
+          "students.view": ["assigned"]
+        }
+      }
+    );
+
+    expect(actor.capabilities).toEqual(["teacher"]);
+    expect(actor.isStaffAdmin).toBe(false);
+    expect(resolveDefaultWorkspace(actor)).toBe("teacher");
+  });
+
+  it("normalizes RBAC role permission rows into stable metadata", () => {
+    expect(
+      normalizeRbacActorData([
+        {
+          roles: {
+            key: "teacher",
+            role_permissions: [
+              { scope: "assigned", permissions: { key: "students.view" } },
+              { scope: "assigned", permissions: { key: "students.view" } },
+              { scope: "own_demo", permissions: { key: "learning.preview_as_student" } }
+            ]
+          }
+        },
+        {
+          roles: {
+            key: "student",
+            role_permissions: [{ scope: "own", permissions: { key: "profile.view" } }]
+          }
+        }
+      ])
+    ).toEqual({
+      rbacRoles: ["teacher", "student"],
+      rbacPermissions: ["learning.preview_as_student", "profile.view", "students.view"],
+      rbacPermissionScopes: {
+        "learning.preview_as_student": ["own_demo"],
+        "profile.view": ["own"],
+        "students.view": ["assigned"]
+      },
+      rbacStatus: "loaded"
+    });
   });
 
   it("builds dual-role capability from linked teacher and student rows", () => {
@@ -50,7 +346,7 @@ describe("app actor resolution", () => {
     expect(resolveDefaultWorkspace(actor)).toBe("teacher");
   });
 
-  it("treats manager as staff-admin capability", () => {
+  it("does not preserve manager staff-admin fallback when RBAC metadata is empty", () => {
     const actor = buildAppActor(
       {
         userId: "user-3",
@@ -67,9 +363,39 @@ describe("app actor resolution", () => {
       }
     );
 
-    expect(actor.capabilities).toContain("staff_admin");
-    expect(actor.isStaffAdmin).toBe(true);
-    expect(resolveDefaultWorkspace(actor)).toBe("manager");
+    expect(actor.capabilities).toEqual([]);
+    expect(actor.isStaffAdmin).toBe(false);
+    expect(resolveDefaultWorkspace(actor)).toBeNull();
+  });
+
+  it("does not let loaded RBAC metadata missing staff grants fall back to legacy admin profileRole", () => {
+    const actor = buildAppActor(
+      {
+        userId: "user-rbac-deny",
+        email: "deny@example.com",
+        displayName: "Deny",
+        avatarUrl: null,
+        role: "admin",
+        profileRole: "admin"
+      },
+      {
+        studentId: null,
+        teacherId: null,
+        accessibleStudentIds: null
+      },
+      {
+        rbacStatus: "loaded",
+        rbacRoles: ["student"],
+        rbacPermissions: ["profile.view"],
+        rbacPermissionScopes: {
+          "profile.view": ["own"]
+        }
+      }
+    );
+
+    expect(actor.capabilities).toEqual([]);
+    expect(actor.isStaffAdmin).toBe(false);
+    expect(resolveDefaultWorkspace(actor)).toBeNull();
   });
 
   it("does not infer student or teacher capability from profileRole without linked rows", () => {
@@ -92,10 +418,10 @@ describe("app actor resolution", () => {
     expect(actor.capabilities).toEqual([]);
     expect(actor.isStudent).toBe(false);
     expect(actor.isTeacher).toBe(false);
-    expect(resolveDefaultWorkspace(actor)).toBe("teacher");
+    expect(resolveDefaultWorkspace(actor)).toBeNull();
   });
 
-  it("prefers admin workspace over teacher and student", () => {
+  it("prefers RBAC admin workspace over teacher and student", () => {
     const actor = buildAppActor(
       {
         userId: "user-4",
@@ -109,6 +435,14 @@ describe("app actor resolution", () => {
         studentId: "student-4",
         teacherId: "teacher-4",
         accessibleStudentIds: ["student-4"]
+      },
+      {
+        rbacStatus: "loaded",
+        rbacRoles: ["admin"],
+        rbacPermissions: ["roles.view"],
+        rbacPermissionScopes: {
+          "roles.view": ["all"]
+        }
       }
     );
 
@@ -135,7 +469,7 @@ describe("schedule actor resolution", () => {
     );
 
     await expect(resolveScheduleActor(actor)).rejects.toMatchObject({
-      message: "Teacher profile is not linked"
+      message: "Schedule access requires a valid role"
     });
   });
 });

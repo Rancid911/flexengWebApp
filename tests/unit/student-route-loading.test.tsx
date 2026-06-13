@@ -2,8 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomeworkPage from "@/app/(workspace)/(shared-zone)/homework/page";
 import PracticePage from "@/app/(workspace)/(shared-zone)/practice/page";
-import WordsMyPage from "@/app/(workspace)/(shared-zone)/words/my/page";
+import WordsPage from "@/app/(workspace)/(shared-zone)/words/page";
 import WordTopicPage from "@/app/(workspace)/(shared-zone)/words/topics/[topicSlug]/page";
+
+const navigationMocks = vi.hoisted(() => ({
+  notFound: vi.fn(() => {
+    throw new Error("NEXT_NOT_FOUND");
+  })
+}));
 
 const getHomeworkOverviewSummaryMock = vi.fn();
 const getHomeworkAssignmentsMock = vi.fn();
@@ -16,14 +22,20 @@ const getWordsForReviewMock = vi.fn();
 const getNewWordsMock = vi.fn();
 const getWordTopicSummariesMock = vi.fn();
 const getWordTopicDetailMock = vi.fn();
+const requireLayoutActorMock = vi.fn();
 
 vi.mock("@/lib/homework/queries", () => ({
   getHomeworkOverviewSummary: (...args: unknown[]) => getHomeworkOverviewSummaryMock(...args),
   getHomeworkAssignments: (...args: unknown[]) => getHomeworkAssignmentsMock(...args)
 }));
 
-vi.mock("@/app/(workspace)/(shared-zone)/homework/render-homework-list", () => ({
-  renderHomeworkList: (items: unknown) => <div data-testid="homework-list">{JSON.stringify(items)}</div>
+vi.mock("@/features/homework/components/homework-overview", () => ({
+  HomeworkOverview: ({ summary, items }: { summary: unknown; items: unknown }) => (
+    <div data-testid="homework-overview">
+      {JSON.stringify({ summary, items })}
+    </div>
+  ),
+  HomeworkFilteredListPage: ({ items }: { items: unknown }) => <div data-testid="homework-filtered-list">{JSON.stringify(items)}</div>
 }));
 
 vi.mock("@/lib/practice/queries", () => ({
@@ -32,7 +44,27 @@ vi.mock("@/lib/practice/queries", () => ({
   getPracticeTopics: (...args: unknown[]) => getPracticeTopicsMock(...args)
 }));
 
-vi.mock("@/lib/words/queries", () => ({
+vi.mock("next/navigation", () => ({
+  notFound: navigationMocks.notFound
+}));
+
+vi.mock("@/lib/auth/request-context", () => ({
+  requireLayoutActor: () => requireLayoutActorMock()
+}));
+
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
+}));
+
+vi.mock("@/features/words/components/words-overview", () => ({
+  WordsOverview: (props: unknown) => <div data-testid="words-overview-probe">{JSON.stringify(props)}</div>
+}));
+
+vi.mock("@/features/words/components/word-topic-detail", () => ({
+  WordTopicDetail: (props: unknown) => <div data-testid="word-topic-detail-probe">{JSON.stringify(props)}</div>
+}));
+
+vi.mock("@/lib/words/words.service", () => ({
   getWordsOverviewSummary: (...args: unknown[]) => getWordsOverviewSummaryMock(...args),
   getStudentWords: (...args: unknown[]) => getStudentWordsMock(...args),
   getWordsForReview: (...args: unknown[]) => getWordsForReviewMock(...args),
@@ -54,6 +86,9 @@ describe("student route loading", () => {
     getNewWordsMock.mockReset();
     getWordTopicSummariesMock.mockReset();
     getWordTopicDetailMock.mockReset();
+    requireLayoutActorMock.mockReset();
+    requireLayoutActorMock.mockResolvedValue({ rbacRoles: [], rbacPermissions: [], rbacPermissionScopes: {} });
+    navigationMocks.notFound.mockClear();
   });
 
   it("assembles homework page from summary and list loaders", async () => {
@@ -105,11 +140,19 @@ describe("student route loading", () => {
       { slug: "travel", title: "Путешествия", description: "Travel", availableCount: 3, difficultCount: 1 }
     ]);
 
-    const result = await WordsMyPage();
+    const result = await WordsPage();
 
     expect(getWordsOverviewSummaryMock).toHaveBeenCalledTimes(1);
     expect(getWordTopicSummariesMock).toHaveBeenCalledTimes(1);
-    expect(result).toBeTruthy();
+    expect(result.props.summary).toEqual({
+      totalWords: 6,
+      reviewCount: 2,
+      newCount: 1,
+      activeCount: 4,
+      difficultCount: 1,
+      masteredCount: 2
+    });
+    expect(result.props.topics).toEqual([{ slug: "travel", title: "Путешествия", description: "Travel", availableCount: 3, difficultCount: 1 }]);
   });
 
   it("assembles word topic page from topic detail loader", async () => {
@@ -135,6 +178,16 @@ describe("student route loading", () => {
     const result = await WordTopicPage({ params: Promise.resolve({ topicSlug: "food" }) });
 
     expect(getWordTopicDetailMock).toHaveBeenCalledWith("food");
-    expect(result).toBeTruthy();
+    expect(result.props.detail.topic.slug).toBe("food");
+    expect(navigationMocks.notFound).not.toHaveBeenCalled();
+  });
+
+  it("renders not found when the word topic detail is missing", async () => {
+    getWordTopicDetailMock.mockResolvedValue(null);
+
+    await expect(WordTopicPage({ params: Promise.resolve({ topicSlug: "missing" }) })).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(getWordTopicDetailMock).toHaveBeenCalledWith("missing");
+    expect(navigationMocks.notFound).toHaveBeenCalledTimes(1);
   });
 });

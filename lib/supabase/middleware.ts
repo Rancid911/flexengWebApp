@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { RECOVERY_MARKER_COOKIE } from "@/lib/auth/recovery-marker";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/config";
 import { measureServerTiming } from "@/lib/server/timing";
 
@@ -13,22 +14,19 @@ const PROTECTED_APP_PREFIXES = [
   "/practice",
   "/progress",
   "/homework",
-  "/learning",
-  "/student-dashboard",
-  "/words",
-  "/flashcards",
-  "/assignments",
-  "/tests"
+  "/words"
 ];
 const PROTECTED_API_PREFIXES = [
   "/api/admin/",
   "/api/notifications",
   "/api/schedule",
-  "/api/search",
   "/api/students/",
   "/api/teacher-notes/",
   "/api/payments"
 ];
+const OPTIONAL_AUTH_API_EXACT_PATHS = new Set([
+  "/api/search"
+]);
 const PUBLIC_API_EXACT_PATHS = new Set([
   "/api/payments/yookassa/webhook"
 ]);
@@ -41,13 +39,25 @@ function hasSupabaseAuthCookie(request: NextRequest) {
   return request.cookies.getAll().some(({ name }) => name.startsWith("sb-") && name.includes("-auth-token"));
 }
 
+function hasRecoveryMarkerCookie(request: NextRequest) {
+  return Boolean(request.cookies.get(RECOVERY_MARKER_COOKIE)?.value);
+}
+
 export function isProtectedAppPath(pathname: string) {
   return PROTECTED_APP_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
 }
 
 export function isProtectedApiPath(pathname: string) {
-  if (PUBLIC_API_EXACT_PATHS.has(pathname)) return false;
+  if (PUBLIC_API_EXACT_PATHS.has(pathname) || OPTIONAL_AUTH_API_EXACT_PATHS.has(pathname)) return false;
   return PROTECTED_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix));
+}
+
+export function isOptionalAuthApiPath(pathname: string) {
+  return OPTIONAL_AUTH_API_EXACT_PATHS.has(pathname);
+}
+
+export function shouldRedirectAuthenticatedAuthPage(pathname: string, hasRecoveryMarker: boolean) {
+  return AUTH_PAGE_PATHS.has(pathname) && !(pathname === "/reset-password" && hasRecoveryMarker);
 }
 
 export async function updateSession(request: NextRequest) {
@@ -55,6 +65,7 @@ export async function updateSession(request: NextRequest) {
   const isAuthPage = AUTH_PAGE_PATHS.has(pathname);
   const isProtectedAppPage = isProtectedAppPath(pathname);
   const isProtectedApi = isProtectedApiPath(pathname);
+  const isOptionalAuthApi = isOptionalAuthApiPath(pathname);
   const hasAuthCookie = hasSupabaseAuthCookie(request);
 
   // App pages use the server request-context as the source of truth.
@@ -67,7 +78,7 @@ export async function updateSession(request: NextRequest) {
     return redirectResponse;
   }
 
-  if (!isProtectedApi && !isAuthPage) {
+  if (!isProtectedApi && !isAuthPage && !(isOptionalAuthApi && hasAuthCookie)) {
     const response = NextResponse.next({ request });
     response.headers.set("Cache-Control", "private, no-store");
     return response;
@@ -104,7 +115,7 @@ export async function updateSession(request: NextRequest) {
     return redirectResponse;
   }
 
-  if (user && isAuthPage) {
+  if (user && shouldRedirectAuthenticatedAuthPage(pathname, hasRecoveryMarkerCookie(request))) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     const redirectResponse = NextResponse.redirect(url);

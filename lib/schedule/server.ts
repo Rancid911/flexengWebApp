@@ -14,23 +14,33 @@ import { ScheduleHttpError } from "@/lib/schedule/http";
 export type ScheduleActor = {
   userId: string;
   role: UserRole;
+  profileRole: UserRole | null;
+  accessMode: ScheduleAccessMode;
   studentId: string | null;
   teacherId: string | null;
   accessibleStudentIds: string[] | null;
+  rbacRoles: UserRole[];
+  rbacPermissions: string[];
+  rbacPermissionScopes: Record<string, string[]>;
+  rbacStatus: AppActor["rbacStatus"];
+  isStudent: boolean;
+  isTeacher: boolean;
+  isStaffAdmin: boolean;
 };
 
+export type ScheduleAccessMode = "student_own" | "teacher_assigned" | "staff_all";
 export type ScheduleActorMode = "contextOnly" | "teacherScope";
 
 export function isStudentScheduleActor(actor: ScheduleActor) {
-  return actor.role === "student";
+  return actor.accessMode === "student_own";
 }
 
 export function isTeacherScheduleActor(actor: ScheduleActor) {
-  return actor.role === "teacher";
+  return actor.accessMode === "teacher_assigned";
 }
 
 export function isStaffAdminScheduleActor(actor: ScheduleActor) {
-  return actor.role === "manager" || actor.role === "admin";
+  return actor.accessMode === "staff_all";
 }
 
 function toScheduleActor(context: AppActor | null, mode: ScheduleActorMode = "teacherScope"): ScheduleActor {
@@ -47,12 +57,28 @@ function toScheduleActor(context: AppActor | null, mode: ScheduleActorMode = "te
     throw new ScheduleHttpError(403, "FORBIDDEN", "Teacher profile is not linked");
   }
 
+  if (workspaceRole === "student" && !context.studentId) {
+    throw new ScheduleHttpError(403, "FORBIDDEN", "Student profile is not linked");
+  }
+
+  const accessMode: ScheduleAccessMode =
+    workspaceRole === "student" ? "student_own" : workspaceRole === "teacher" ? "teacher_assigned" : "staff_all";
+
   return {
     userId: context.userId,
     role: workspaceRole,
+    profileRole: context.profileRole,
+    accessMode,
     studentId: context.studentId,
     teacherId: workspaceRole === "teacher" ? context.teacherId : null,
-    accessibleStudentIds: workspaceRole === "teacher" && mode === "teacherScope" ? context.accessibleStudentIds : null
+    accessibleStudentIds: workspaceRole === "teacher" && mode === "teacherScope" ? context.accessibleStudentIds : null,
+    rbacRoles: context.rbacRoles,
+    rbacPermissions: context.rbacPermissions,
+    rbacPermissionScopes: context.rbacPermissionScopes,
+    rbacStatus: context.rbacStatus,
+    isStudent: context.isStudent,
+    isTeacher: context.isTeacher,
+    isStaffAdmin: context.isStaffAdmin
   };
 }
 
@@ -94,7 +120,7 @@ export function assertTeacherCapability(actor: AppActor | ScheduleActor) {
 }
 
 export function assertStaffAdminCapability(actor: AppActor | ScheduleActor) {
-  if ("isStaffAdmin" in actor) {
+  if (!("accessMode" in actor)) {
     assertStaffAdminAccess(actor);
     return;
   }
@@ -123,7 +149,7 @@ export function assertTeacherScope(
   if (!actor.teacherId) {
     throw new ScheduleHttpError(403, "FORBIDDEN", "Teacher profile is not linked");
   }
-  if (actor.accessibleStudentIds == null) {
+  if (!Array.isArray(actor.accessibleStudentIds)) {
     throw new ScheduleHttpError(403, "FORBIDDEN", "Teacher scope is not loaded");
   }
 

@@ -1,6 +1,6 @@
 import type { HomeworkAssignmentRow, HomeworkAttemptSummaryRow, HomeworkProgressRow } from "@/lib/homework/assignments.mappers";
 import { defineDataLoadingDescriptor } from "@/lib/data-loading/contracts";
-import { mapStaffScheduleLessons } from "@/lib/schedule/queries";
+import { mapStaffScheduleLessonsWithFollowup } from "@/lib/schedule/queries";
 import {
   assertStaffAdminCapability,
   assertTeacherCapability,
@@ -12,6 +12,7 @@ import type { ScheduleLessonRow } from "@/lib/schedule/queries";
 import { ScheduleHttpError } from "@/lib/schedule/http";
 import { measureServerTiming } from "@/lib/server/timing";
 import type { AccessMode } from "@/lib/supabase/access";
+import { createClient } from "@/lib/supabase/server";
 import { composeTeacherStudentProfileData } from "@/lib/teacher-workspace/sections";
 import {
   buildDisplayName,
@@ -28,6 +29,7 @@ import {
   type TeacherStudentProfileRow
 } from "@/lib/teacher-workspace/student-profile.mappers";
 import { createTeacherStudentProfileRepository } from "@/lib/teacher-workspace/student-profile.repository";
+import type { TeacherStudentProfileRepositoryClient } from "@/lib/teacher-workspace/student-profile.repository";
 import type {
   TeacherStudentHomeworkDto,
   TeacherStudentMistakeDto,
@@ -113,6 +115,10 @@ type TeacherStudentCoreRow = {
   learning_goal: string | null;
 };
 
+type TeacherProfileLabelRow = TeacherStudentProfileRow & {
+  profile_id?: string | null;
+};
+
 function assertTeacherActor(actor: ScheduleActor) {
   try {
     assertTeacherCapability(actor);
@@ -131,23 +137,35 @@ function isTeacherScopedActor(actor: ScheduleActor) {
   return isTeacherScheduleActor(actor) && actor.accessibleStudentIds !== null;
 }
 
-async function loadProfilesMap(profileIds: string[], repository = createTeacherStudentProfileRepository()) {
+async function createStudentProfileRepository(client?: TeacherStudentProfileRepositoryClient) {
+  return createTeacherStudentProfileRepository(client ?? (await createClient()));
+}
+
+async function loadProfilesMap(profileIds: string[], repository: ReturnType<typeof createTeacherStudentProfileRepository>) {
   const response = await repository.loadProfiles(profileIds);
   if (response.error) {
     throw new ScheduleHttpError(500, "PROFILE_FETCH_FAILED", "Failed to load profiles", response.error.message);
   }
 
-  return new Map<string, TeacherStudentProfileRow>(((response.data ?? []) as TeacherStudentProfileRow[]).map((profile) => [profile.id, profile]));
+  return new Map<string, TeacherStudentProfileRow>(
+    ((response.data ?? []) as TeacherProfileLabelRow[])
+      .map((profile) => [profile.id ?? profile.profile_id, profile] as const)
+      .filter((entry): entry is readonly [string, TeacherProfileLabelRow] => Boolean(entry[0]))
+  );
 }
 
-export async function loadTeacherStudentCore(actor: ScheduleActor, studentId: string) {
+export async function loadTeacherStudentCore(
+  actor: ScheduleActor,
+  studentId: string,
+  repository?: ReturnType<typeof createTeacherStudentProfileRepository>
+) {
   assertTeacherActor(actor);
   if (isTeacherScopedActor(actor)) {
     assertTeacherScope(actor, { studentId });
   }
 
-  const repository = createTeacherStudentProfileRepository();
-  const studentResponse = await repository.loadStudentCore(studentId);
+  const effectiveRepository = repository ?? (await createStudentProfileRepository());
+  const studentResponse = await effectiveRepository.loadStudentCore(studentId);
 
   if (studentResponse.error) {
     throw new ScheduleHttpError(500, "TEACHER_STUDENT_FAILED", "Failed to load student profile", studentResponse.error.message);
@@ -157,7 +175,7 @@ export async function loadTeacherStudentCore(actor: ScheduleActor, studentId: st
   }
 
   const student = studentResponse.data as TeacherStudentCoreRow;
-  const profilesMap = await loadProfilesMap([student.profile_id], repository);
+  const profilesMap = await loadProfilesMap([student.profile_id], effectiveRepository);
 
   return {
     student,
@@ -168,7 +186,7 @@ export async function loadTeacherStudentCore(actor: ScheduleActor, studentId: st
 async function enrichTeacherHomeworkAssignments(
   studentId: string,
   assignments: HomeworkAssignmentRow[],
-  repository = createTeacherStudentProfileRepository()
+  repository: ReturnType<typeof createTeacherStudentProfileRepository>
 ): Promise<TeacherStudentHomeworkDto[]> {
   const allItems = assignments.flatMap((assignment) => assignment.homework_items ?? []);
   const itemIds = allItems.map((item) => String(item.id));
@@ -204,7 +222,7 @@ async function enrichTeacherHomeworkAssignments(
   });
 }
 
-async function resolveCanonicalPlacementTest(repository = createTeacherStudentProfileRepository()) {
+async function resolveCanonicalPlacementTest(repository: ReturnType<typeof createTeacherStudentProfileRepository>) {
   const response = await repository.resolveCanonicalPlacementTest();
   if (response.error) {
     throw new ScheduleHttpError(500, "PLACEMENT_TEST_LOOKUP_FAILED", "Failed to load placement test", response.error.message);
@@ -215,7 +233,8 @@ async function resolveCanonicalPlacementTest(repository = createTeacherStudentPr
 
 export async function getTeacherStudentHeaderSummary(actor: ScheduleActor, studentId: string): Promise<TeacherStudentProfileHeaderSummary> {
   return measureServerTiming("teacher-student-profile-header", async () => {
-    const { student, studentName } = await loadTeacherStudentCore(actor, studentId);
+    const repository = await createStudentProfileRepository();
+    const { student, studentName } = await loadTeacherStudentCore(actor, studentId, repository);
 
     return {
       studentId: student.id,
@@ -229,8 +248,8 @@ export async function getTeacherStudentHeaderSummary(actor: ScheduleActor, stude
 
 export async function getTeacherStudentNotesFeed(actor: ScheduleActor, studentId: string, options: { limit?: number } = {}): Promise<TeacherStudentNoteDto[]> {
   return measureServerTiming("teacher-student-profile-notes", async () => {
-    await loadTeacherStudentCore(actor, studentId);
-    const repository = createTeacherStudentProfileRepository();
+    const repository = await createStudentProfileRepository();
+    await loadTeacherStudentCore(actor, studentId, repository);
     const response = await repository.loadNotesFeed(studentId, options.limit ?? 10);
 
     if (response.error) {
@@ -247,8 +266,8 @@ export async function getTeacherStudentNotesFeed(actor: ScheduleActor, studentId
 
 export async function getTeacherStudentLessonHistory(actor: ScheduleActor, studentId: string, options: { upcomingLimit?: number; recentLimit?: number } = {}) {
   return measureServerTiming("teacher-student-profile-lessons", async () => {
-    await loadTeacherStudentCore(actor, studentId);
-    const repository = createTeacherStudentProfileRepository();
+    const repository = await createStudentProfileRepository();
+    await loadTeacherStudentCore(actor, studentId, repository);
     const nowIso = new Date().toISOString();
     const [upcomingLessonsResponse, recentLessonsResponse] = await Promise.all([
       repository.loadUpcomingLessons(studentId, nowIso, options.upcomingLimit ?? 5),
@@ -261,7 +280,7 @@ export async function getTeacherStudentLessonHistory(actor: ScheduleActor, stude
 
     const upcomingLessonRows = (upcomingLessonsResponse.data ?? []) as ScheduleLessonRow[];
     const recentLessonRows = (recentLessonsResponse.data ?? []) as ScheduleLessonRow[];
-    const mappedLessons = await mapStaffScheduleLessons([...upcomingLessonRows, ...recentLessonRows]);
+    const mappedLessons = await mapStaffScheduleLessonsWithFollowup([...upcomingLessonRows, ...recentLessonRows]);
     const upcomingLessonIds = new Set(upcomingLessonRows.map((row) => row.id));
 
     return {
@@ -273,8 +292,8 @@ export async function getTeacherStudentLessonHistory(actor: ScheduleActor, stude
 
 export async function getTeacherStudentHomeworkSnapshot(actor: ScheduleActor, studentId: string, options: { limit?: number } = {}): Promise<TeacherStudentHomeworkDto[]> {
   return measureServerTiming("teacher-student-profile-homework", async () => {
-    await loadTeacherStudentCore(actor, studentId);
-    const repository = createTeacherStudentProfileRepository();
+    const repository = await createStudentProfileRepository();
+    await loadTeacherStudentCore(actor, studentId, repository);
     const response = await repository.listHomeworkSnapshot(studentId, options.limit ?? 10);
 
     if (response.error) {
@@ -308,8 +327,8 @@ export async function getTeacherStudentPlacementSummary(
   studentId: string
 ): Promise<TeacherStudentPlacementSummaryDto | null> {
   return measureServerTiming("teacher-student-profile-placement", async () => {
-    await loadTeacherStudentCore(actor, studentId);
-    const repository = createTeacherStudentProfileRepository();
+    const repository = await createStudentProfileRepository();
+    await loadTeacherStudentCore(actor, studentId, repository);
     const canonicalPlacement = await resolveCanonicalPlacementTest(repository);
     if (!canonicalPlacement) {
       return buildEmptyPlacementSummary(null);
@@ -334,8 +353,8 @@ export async function getTeacherStudentPlacementSummary(
 
 export async function getTeacherStudentMistakesSnapshot(actor: ScheduleActor, studentId: string, options: { limit?: number } = {}): Promise<TeacherStudentMistakeDto[]> {
   return measureServerTiming("teacher-student-profile-mistakes", async () => {
-    await loadTeacherStudentCore(actor, studentId);
-    const repository = createTeacherStudentProfileRepository();
+    const repository = await createStudentProfileRepository();
+    await loadTeacherStudentCore(actor, studentId, repository);
     const response = await repository.loadMistakes(studentId, options.limit ?? 10);
 
     if (response.error) {

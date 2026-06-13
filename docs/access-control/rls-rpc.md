@@ -1,0 +1,58 @@
+# RLS And RPC Boundary
+
+Status: current  
+Audience: engineers reviewing database access, SQL functions and release verification  
+Owner area: access-control  
+Last reviewed: 2026-06-12
+Source of truth: summary; migrations and smoke scripts are implementation/verification sources  
+Related code: `supabase/migrations/`, `supabase/sql-editor/`, `lib/search/`, `lib/admin/dashboard-metrics.ts`  
+Related tests: `tests/unit/search-rpc-grants.test.ts`, `tests/unit/search-documents-source.test.ts`, `tests/unit/admin-dashboard-metrics-server.test.ts`
+
+Application guards decide whether a request should reach a service. RLS and RPCs are the database boundary that must still enforce safe data access when the database is called.
+
+## RLS Expectations
+
+- Critical user data tables should have RLS enabled in the active database.
+- Policies should use RBAC helpers where domain access depends on roles, permissions or scopes.
+- Raw `profiles.role` policies are historical unless explicitly documented as non-authoritative.
+- Own, assigned and all-scope access should be represented by policy/helper logic or narrow RPCs.
+- Service-only tables, payment webhook data and direct search documents table access should stay closed to normal clients.
+- Practice attempts and answers use only canonical authenticated policies: `*_select_access` delegates to `app_private.can_access_student`, while `*_insert_own`, `*_update_own` and `*_delete_own` require `app_private.is_own_student`.
+- `anon` has no table privileges on practice attempts or answers. Staff can read through assigned/all scope but cannot directly create or mutate student attempt records.
+
+## RPC Expectations
+
+- Security-definer functions must set a safe `search_path`.
+- Grants must be intentional for `anon`, `authenticated` and service roles.
+- Privileged visibility must be derived from `auth.uid()` and DB RBAC, not caller-supplied role/capability/scope parameters.
+- RPCs that bypass table RLS must be narrow and independently guarded.
+
+## Search RPC
+
+`/api/search` is optional-auth hybrid. The search RPC can be executable by `anon` for public search, but unauthenticated execution must return public-only rows. Authenticated private expansion is derived from `auth.uid()` plus DB RBAC/linked scope. Client-supplied privileged parameters must not upgrade visibility.
+
+## Intentional Authenticated RPC Grants
+
+Some `SECURITY DEFINER` read-model RPCs remain executable by `authenticated` because the app calls them with the user-scoped server client and the functions enforce DB RBAC internally. Do not revoke these grants without a dedicated service-role refactor:
+
+- `admin_dashboard_metrics(timestamptz)` requires `roles.view:all` inside the function and is also behind the `/api/admin/dashboard/metrics` permission guard.
+- `admin_list_payment_control(integer, text, text, integer, integer)` and `admin_payment_control_stats(integer, text, text)` require `payments.view:all` or `payments.manage:all` inside the functions and are also behind the `/api/admin/payments-control` permission guard.
+- Current-student checkout/status RPCs such as `create_current_student_payment_transaction(uuid, uuid, text, text)` and `load_current_student_payment_transaction_status(uuid)` remain current-user scoped through `auth.uid()`.
+- Teacher, schedule, billing summary and profile-label read RPCs remain authenticated-executable only when they derive visibility from `auth.uid()` plus `app_private.*` helpers.
+
+Provider-state payment mutation is not part of this intentional direct-RPC surface. `update_current_student_payment_transaction_provider_state(...)` is called through the privileged payment service boundary, and direct `authenticated` execute is revoked.
+
+Some live policies outside practice attempts still reference legacy `public.current_student_id()`, `public.current_teacher_id()`, `public.get_my_role()`, `public.is_admin_or_manager()` and `public.is_teacher()` helpers. These helpers must remain executable by `authenticated` until those policies are migrated to `app_private.*`; keep `anon` closed.
+
+A future cleanup may move more calls to a documented service-role boundary and grant direct execute only to `service_role`, but that is a broader security design change and must update `docs/service-role-inventory.md` plus architecture enforcement.
+
+## Verification
+
+Use `docs/rls-smoke-harness.md` for live verification instructions:
+
+- `supabase/sql-editor/rls_metadata_smoke_20260521.sql` is production-safe metadata smoke.
+- `supabase/sql-editor/rls_smoke_matrix_20260521.sql` is the full row-access matrix for branch, clone, local or staging databases.
+- `supabase/sql-editor/practice_attempt_rls_cleanup_smoke.sql` verifies the canonical practice attempt actor matrix and atomic RPC after legacy policy removal.
+- RPC hardening smoke is separate from full RLS and storage verification.
+
+Static migrations are not proof of live DB state. Do not claim RLS is production-verified unless a target database smoke run is recorded.

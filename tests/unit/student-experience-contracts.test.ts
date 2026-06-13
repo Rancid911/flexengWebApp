@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildStudentDashboardSummaryBlocks } from "@/lib/dashboard/student-dashboard";
 import { buildHomeworkOverviewSummary } from "@/lib/homework/queries";
 import { buildPracticeOverviewSummary } from "@/lib/practice/queries";
-import { buildWordsOverviewSummary } from "@/lib/words/queries";
+import { buildWordsOverviewSummary } from "@/lib/words/words.service";
 
 describe("student experience contracts", () => {
   it("projects student dashboard core data into stable summary blocks", () => {

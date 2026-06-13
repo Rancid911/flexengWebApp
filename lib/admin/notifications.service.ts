@@ -4,6 +4,7 @@ import { toAdminNotificationDto } from "@/lib/admin/notifications";
 import { createAdminNotificationsRepository } from "@/lib/admin/notifications.repository";
 import type { AdminActor, AdminNotificationDto, PaginatedResponse } from "@/lib/admin/types";
 import type { adminNotificationCreateSchema, adminNotificationUpdateSchema } from "@/lib/admin/validation";
+import { createClient } from "@/lib/supabase/server";
 import type { z } from "zod";
 
 type AdminNotificationCreatePayload = z.infer<typeof adminNotificationCreateSchema>;
@@ -16,7 +17,7 @@ type PaginationInput = {
 };
 
 export async function listAdminNotifications(params: PaginationInput): Promise<PaginatedResponse<AdminNotificationDto>> {
-  const repository = createAdminNotificationsRepository();
+  const repository = createAdminNotificationsRepository(await createClient());
   const from = (params.page - 1) * params.pageSize;
   const to = from + params.pageSize - 1;
   const { data, error, count } = await repository.listNotifications({ from, to, q: params.q });
@@ -26,7 +27,7 @@ export async function listAdminNotifications(params: PaginationInput): Promise<P
 }
 
 export async function createAdminNotification(actor: AdminActor, payload: AdminNotificationCreatePayload): Promise<AdminNotificationDto> {
-  const repository = createAdminNotificationsRepository();
+  const repository = createAdminNotificationsRepository(await createClient());
   const { data, error } = await repository.createNotification({
     title: payload.title,
     body: payload.body,
@@ -45,7 +46,7 @@ export async function createAdminNotification(actor: AdminActor, payload: AdminN
 }
 
 export async function updateAdminNotification(actor: AdminActor, id: string, payload: AdminNotificationUpdatePayload): Promise<AdminNotificationDto> {
-  const repository = createAdminNotificationsRepository();
+  const repository = createAdminNotificationsRepository(await createClient());
   const { data: before, error: beforeError } = await repository.loadNotification(id);
   if (beforeError) throw new AdminHttpError(500, "NOTIFICATION_UPDATE_FAILED", "Failed to fetch notification", beforeError.message);
   if (!before) throw new AdminHttpError(404, "NOTIFICATION_NOT_FOUND", "Notification not found");
@@ -60,7 +61,7 @@ export async function updateAdminNotification(actor: AdminActor, id: string, pay
 }
 
 export async function deleteAdminNotification(actor: AdminActor, id: string): Promise<{ ok: true }> {
-  const repository = createAdminNotificationsRepository();
+  const repository = createAdminNotificationsRepository(await createClient());
   const { data: before, error: beforeError } = await repository.loadNotification(id);
   if (beforeError) throw new AdminHttpError(500, "NOTIFICATION_DELETE_FAILED", "Failed to fetch notification", beforeError.message);
   if (!before) throw new AdminHttpError(404, "NOTIFICATION_NOT_FOUND", "Notification not found");

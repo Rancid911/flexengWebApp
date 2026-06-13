@@ -3,18 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AdminStudentsPage from "@/app/(workspace)/(staff-zone)/admin/students/page";
 
-const requireStaffAdminPageMock = vi.fn();
-const createAdminClientMock = vi.fn();
+const requireAdminPagePermissionMock = vi.fn();
+const createClientMock = vi.fn();
 const hydrateUsersWithStudentDetailsMock = vi.fn();
 const toUserDtoMock = vi.fn();
 const replaceMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminPage: () => requireStaffAdminPageMock()
+  requireAdminPagePermission: (permission: string) => requireAdminPagePermissionMock(permission)
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => createAdminClientMock()
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: () => createClientMock()
 }));
 
 vi.mock("@/lib/admin/users", () => ({
@@ -88,22 +88,23 @@ const studentDto = {
 describe("AdminStudentsPage", () => {
   beforeEach(() => {
     cleanup();
-    requireStaffAdminPageMock.mockReset();
-    createAdminClientMock.mockReset();
+    requireAdminPagePermissionMock.mockReset();
+    createClientMock.mockReset();
     hydrateUsersWithStudentDetailsMock.mockReset();
     toUserDtoMock.mockReset();
     replaceMock.mockReset();
-    requireStaffAdminPageMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminPagePermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     hydrateUsersWithStudentDetailsMock.mockImplementation(async (_supabase, rows) => rows);
     toUserDtoMock.mockReturnValue(studentDto);
   });
 
   it("renders search input and loads students without query filter by default", async () => {
     const query = createProfilesQueryMock();
-    createAdminClientMock.mockReturnValue({ from: vi.fn(() => query) });
+    createClientMock.mockResolvedValue({ from: vi.fn(() => query) });
 
     render(await AdminStudentsPage({ searchParams: Promise.resolve({}) }));
 
+    expect(requireAdminPagePermissionMock).toHaveBeenCalledWith("students.view");
     expect(query.eq).toHaveBeenCalledWith("role", "student");
     expect(query.select).toHaveBeenCalledWith("id, role, first_name, last_name, email, phone, created_at", { count: "exact" });
     expect(query.range).toHaveBeenCalledWith(0, 4);
@@ -118,7 +119,7 @@ describe("AdminStudentsPage", () => {
 
   it("does not apply q search param below three characters", async () => {
     const query = createProfilesQueryMock();
-    createAdminClientMock.mockReturnValue({ from: vi.fn(() => query) });
+    createClientMock.mockResolvedValue({ from: vi.fn(() => query) });
 
     render(await AdminStudentsPage({ searchParams: Promise.resolve({ q: " St " }) }));
 
@@ -128,7 +129,7 @@ describe("AdminStudentsPage", () => {
 
   it("uses page search param for server range", async () => {
     const query = createProfilesQueryMock();
-    createAdminClientMock.mockReturnValue({ from: vi.fn(() => query) });
+    createClientMock.mockResolvedValue({ from: vi.fn(() => query) });
 
     render(await AdminStudentsPage({ searchParams: Promise.resolve({ page: "2" }) }));
 
@@ -138,7 +139,7 @@ describe("AdminStudentsPage", () => {
 
   it("applies q search param with at least three characters", async () => {
     const query = createProfilesQueryMock();
-    createAdminClientMock.mockReturnValue({ from: vi.fn(() => query) });
+    createClientMock.mockResolvedValue({ from: vi.fn(() => query) });
 
     render(await AdminStudentsPage({ searchParams: Promise.resolve({ q: " Student " }) }));
 
@@ -152,13 +153,36 @@ describe("AdminStudentsPage", () => {
 
   it("renders active search empty state inside students workspace", async () => {
     const query = createProfilesQueryMock([], 0);
-    createAdminClientMock.mockReturnValue({ from: vi.fn(() => query) });
+    createClientMock.mockResolvedValue({ from: vi.fn(() => query) });
     hydrateUsersWithStudentDetailsMock.mockResolvedValue([]);
 
     render(await AdminStudentsPage({ searchParams: Promise.resolve({ q: "Nobody" }) }));
 
     expect(screen.getByRole("heading", { name: "Список учеников" })).toBeInTheDocument();
     expect(screen.getByText("По запросу ничего не найдено.")).toBeInTheDocument();
+    expect(screen.getByText("Показано 0 из 0")).toBeInTheDocument();
+  });
+
+  it("does not list student profiles that do not have a linked student row", async () => {
+    const query = createProfilesQueryMock([
+      {
+        id: "profile-1",
+        role: "student",
+        first_name: "Unlinked",
+        last_name: "Signup",
+        email: "unlinked@example.com",
+        phone: null,
+        created_at: "2026-01-01T00:00:00.000Z"
+      }
+    ], 1);
+    createClientMock.mockResolvedValue({ from: vi.fn(() => query) });
+    hydrateUsersWithStudentDetailsMock.mockResolvedValue([{ id: "profile-1", role: "student", student_id: null }]);
+    toUserDtoMock.mockReturnValue({ ...studentDto, id: "profile-1", student_id: null, first_name: "Unlinked", email: "unlinked@example.com" });
+
+    render(await AdminStudentsPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByRole("heading", { name: "Список учеников" })).toBeInTheDocument();
+    expect(screen.queryByText("unlinked@example.com")).not.toBeInTheDocument();
     expect(screen.getByText("Показано 0 из 0")).toBeInTheDocument();
   });
 });

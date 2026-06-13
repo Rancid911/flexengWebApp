@@ -1,15 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const requireStaffAdminApiMock = vi.fn();
+const requireAdminApiPermissionMock = vi.fn();
 const writeAuditMock = vi.fn();
 const invalidateFullAppActorCacheMock = vi.fn();
 const createAdminClientMock = vi.fn();
+const createServerClientMock = vi.fn();
 const hydrateUsersWithStudentDetailsMock = vi.fn();
 const toUserDtoMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminApi: () => requireStaffAdminApiMock()
+  requireAdminApiPermission: async (...args: unknown[]) => {
+    const actor = await requireAdminApiPermissionMock(...args);
+    const permission = args[0];
+    if (actor?.role === "teacher" || (actor?.role === "manager" && (permission === "users.manage" || permission === "roles.view"))) {
+      throw { status: 403, code: "FORBIDDEN", message: "Permission denied" };
+    }
+    return actor;
+  }
 }));
 
 vi.mock("@/lib/admin/audit", () => ({
@@ -24,6 +32,10 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => createAdminClientMock()
 }));
 
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => createServerClientMock()
+}));
+
 vi.mock("@/lib/admin/users", async () => {
   const actual = await vi.importActual<typeof import("@/lib/admin/users")>("@/lib/admin/users");
   return {
@@ -36,16 +48,17 @@ vi.mock("@/lib/admin/users", async () => {
 describe("/api/admin/users POST", () => {
   beforeEach(() => {
     vi.resetModules();
-    requireStaffAdminApiMock.mockReset();
+    requireAdminApiPermissionMock.mockReset();
     writeAuditMock.mockReset();
     invalidateFullAppActorCacheMock.mockReset();
     createAdminClientMock.mockReset();
+    createServerClientMock.mockReset();
     hydrateUsersWithStudentDetailsMock.mockReset();
     toUserDtoMock.mockReset();
   });
 
-  it("creates a teacher record so the new teacher appears in teacher options", async () => {
-    requireStaffAdminApiMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+  it("creates a teacher through the auth provisioning trigger and updates its profile", async () => {
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
 
     const profileSelectSingleMock = vi.fn().mockResolvedValue({
       data: {
@@ -60,24 +73,28 @@ describe("/api/admin/users POST", () => {
       error: null
     });
 
-    const teachersUpsertMock = vi.fn().mockResolvedValue({ error: null });
-    const profilesUpsertMock = vi.fn().mockResolvedValue({ error: null });
+    const profilesUpdateEqMock = vi.fn().mockResolvedValue({ error: null });
+    const profilesUpdateMock = vi.fn(() => ({ eq: profilesUpdateEqMock }));
+    const authCreateUserMock = vi.fn().mockResolvedValue({
+      data: { user: { id: "teacher-profile-1" } },
+      error: null
+    });
 
-    const supabase = {
+    const authSupabase = {
       auth: {
         admin: {
-          createUser: vi.fn().mockResolvedValue({
-            data: { user: { id: "teacher-profile-1" } },
-            error: null
-          }),
+          createUser: authCreateUserMock,
           deleteUser: vi.fn(),
           updateUserById: vi.fn()
         }
-      },
+      }
+    };
+
+    const tableSupabase = {
       from: vi.fn((table: string) => {
         if (table === "profiles") {
           return {
-            upsert: profilesUpsertMock,
+            update: profilesUpdateMock,
             select: vi.fn(() => ({
               eq: vi.fn(() => ({
                 single: profileSelectSingleMock
@@ -86,17 +103,12 @@ describe("/api/admin/users POST", () => {
           };
         }
 
-        if (table === "teachers") {
-          return {
-            upsert: teachersUpsertMock
-          };
-        }
-
         throw new Error(`Unexpected table: ${table}`);
       })
     };
 
-    createAdminClientMock.mockReturnValue(supabase);
+    createAdminClientMock.mockReturnValue(authSupabase);
+    createServerClientMock.mockReturnValue(tableSupabase);
     hydrateUsersWithStudentDetailsMock.mockResolvedValue([
       {
         id: "teacher-profile-1",
@@ -159,8 +171,46 @@ describe("/api/admin/users POST", () => {
     );
 
     expect(response.status).toBe(201);
-    expect(teachersUpsertMock).toHaveBeenCalledWith({ profile_id: "teacher-profile-1" }, { onConflict: "profile_id" });
+    expect(createServerClientMock).toHaveBeenCalledTimes(1);
+    expect(createAdminClientMock).toHaveBeenCalledTimes(1);
+    expect(authCreateUserMock).toHaveBeenCalledWith({
+      email: "teacher@example.com",
+      password: "Password123!",
+      email_confirm: true,
+      app_metadata: { provision_source: "admin_create", provision_role: "teacher" }
+    });
+    expect(profilesUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      role: "teacher",
+      first_name: "New",
+      last_name: "Teacher"
+    }));
+    expect(profilesUpdateEqMock).toHaveBeenCalledWith("id", "teacher-profile-1");
     expect(invalidateFullAppActorCacheMock).toHaveBeenCalledWith("teacher-profile-1");
+  });
+
+  it("denies manager user creation before touching Supabase clients", async () => {
+    requireAdminApiPermissionMock.mockResolvedValue({ userId: "manager-1", role: "manager" });
+
+    const { POST } = await import("@/app/api/admin/users/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/admin/users", {
+        method: "POST",
+        body: "{",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "FORBIDDEN",
+      message: "Permission denied"
+    });
+    expect(createServerClientMock).not.toHaveBeenCalled();
+    expect(createAdminClientMock).not.toHaveBeenCalled();
+    expect(writeAuditMock).not.toHaveBeenCalled();
+    expect(invalidateFullAppActorCacheMock).not.toHaveBeenCalled();
   });
 });
 

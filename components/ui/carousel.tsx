@@ -103,11 +103,15 @@ function Carousel({
       return;
     }
 
-    onSelect(api);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) onSelect(api);
+    });
     api.on("reInit", onSelect);
     api.on("select", onSelect);
 
     return () => {
+      cancelled = true;
       api?.off("select", onSelect);
     };
   }, [api, onSelect]);

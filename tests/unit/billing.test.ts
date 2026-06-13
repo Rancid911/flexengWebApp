@@ -36,9 +36,9 @@ function makeEntry(index: number, overrides: Partial<StudentBillingLedgerEntry> 
 }
 
 describe("billing utils", () => {
-  it("keeps student billing summary and dashboard reminder on documented privileged exception paths", () => {
-    expect(BILLING_SUMMARY_ACCESS_MODE).toBe("privileged");
-    expect(STUDENT_DASHBOARD_PAYMENT_REMINDER_ACCESS_MODE).toBe("privileged");
+  it("keeps student billing summary and dashboard reminder user-scoped", () => {
+    expect(BILLING_SUMMARY_ACCESS_MODE).toBe("user_scoped");
+    expect(STUDENT_DASHBOARD_PAYMENT_REMINDER_ACCESS_MODE).toBe("user_scoped");
   });
 
   it("builds lesson balance and debt from ledger entries", () => {

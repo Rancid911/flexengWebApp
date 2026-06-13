@@ -47,7 +47,7 @@ test.describe("auth access @smoke @requiresAuth", () => {
     await page.goto("/dashboard");
     await expect(page.getByText("онлайн-школа английского языка")).toBeVisible();
 
-    await page.goto("/student-dashboard");
+    await page.goto("/dashboard");
     await expect(page.getByText("Урок дня")).toBeVisible();
   });
 

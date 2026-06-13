@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { requireStaffAdminApi } from "@/lib/admin/auth";
+import { requireAdminApiPermission } from "@/lib/admin/auth";
 import { getAdminDashboardMetrics } from "@/lib/admin/dashboard-metrics";
 import { withAdminErrorHandling } from "@/lib/admin/http";
 
 export const GET = withAdminErrorHandling(async () => {
-  await requireStaffAdminApi();
+  await requireAdminApiPermission("roles.view");
   return NextResponse.json(await getAdminDashboardMetrics());
 });

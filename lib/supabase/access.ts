@@ -14,28 +14,30 @@ export const REQUEST_CONTEXT_ACCESS_POLICIES = {
     mode: "user_scoped",
     rationale: "Current-user profile identity should resolve through the SSR cookie-bound client and RLS."
   },
+  rbacActor: {
+    mode: "user_scoped",
+    rationale: "Current-user RBAC metadata should resolve through the SSR cookie-bound client and RBAC table RLS."
+  },
   linkedActorScope: {
-    mode: "privileged",
-    rationale: "Linked actor derivation is the only allowed request-context exception that may use service-role while schema lacks an equivalent RLS-safe resolver."
+    mode: "user_scoped",
+    rationale: "Current-user linked actor scope should resolve through the SSR cookie-bound client and the RLS-safe linked scope RPC."
   }
 } satisfies Record<string, QueryAccessPolicy>;
 
 export const REQUEST_ACCESS_MATRIX = {
   user_scoped: [
     "progress",
-    "practice",
+    "practice attempts service/repository + authenticated atomic RPC",
     "homework",
-    "words",
-    "payments/queries",
+    "words service/repository",
+    "payments service/repository",
     "notifications/server",
-    "self-service settings/profile"
+    "settings profile repository/gateways",
+    "request-context actor repository"
   ],
   privileged: [
     "admin CRUD",
-    "staff payments control",
-    "teacher/staff schedule mutations",
-    "teacher workspace cross-user reads",
-    "request-context linked actor derivation"
+    "staff payments control"
   ],
   aggregate: [
     "admin dashboard metrics",
@@ -46,8 +48,9 @@ export const REQUEST_ACCESS_MATRIX = {
 } as const;
 
 export const SERVICE_ROLE_EXCEPTION_LIST = [
-  "lib/auth/request-context.ts: linked actor derivation remains privileged until a safe RLS/RPC alternative exists",
-  "lib/schedule/queries.ts: schedule lookups and mutations are still privileged and need a later domain refactor",
-  "lib/teacher-workspace/queries.ts: teacher workspace cross-user reads remain privileged pending a deeper decomposition",
-  "lib/search/sources/search-documents.ts: search candidate aggregation remains aggregate/service-role by design"
+  "lib/admin/audit.ts",
+  "lib/admin/user.repository.ts",
+  "lib/media/service.ts",
+  "lib/payments/server.ts",
+  "lib/supabase/admin.ts"
 ] as const;

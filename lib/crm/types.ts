@@ -56,3 +56,7 @@ export type CrmSettingsDto = {
   background_image_url: string | null;
   updated_at: string | null;
 };
+
+export type CrmBackgroundUploadResponse = {
+  publicUrl: string;
+};

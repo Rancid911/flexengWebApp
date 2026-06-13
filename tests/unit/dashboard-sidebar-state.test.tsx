@@ -3,7 +3,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { useDashboardSidebarState } from "@/app/(workspace)/use-dashboard-shell-state";
+import { useDashboardSidebarState } from "@/features/workspace-shell/client/use-dashboard-shell-state";
 import { SIDEBAR_COLLAPSED_PERSISTENCE_KEY } from "@/lib/dashboard/sidebar-persistence";
 
 describe("useDashboardSidebarState", () => {

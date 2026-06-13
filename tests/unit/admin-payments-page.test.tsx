@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AdminPaymentsPage from "@/app/(workspace)/(staff-zone)/admin/payments/page";
 
-const requireStaffAdminPageMock = vi.fn();
+const requireAdminPagePermissionMock = vi.fn();
 const listAdminPaymentControlMock = vi.fn();
 const getAdminPaymentReminderSettingsMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminPage: () => requireStaffAdminPageMock()
+  requireAdminPagePermission: (permission: string) => requireAdminPagePermissionMock(permission)
 }));
 
 vi.mock("@/lib/admin/payments-control", () => ({
@@ -15,7 +15,7 @@ vi.mock("@/lib/admin/payments-control", () => ({
   getAdminPaymentReminderSettings: () => getAdminPaymentReminderSettingsMock()
 }));
 
-vi.mock("@/app/(workspace)/(staff-zone)/admin/payments/payments-control-client", () => ({
+vi.mock("@/features/billing/components/admin-payments-control-client", () => ({
   AdminPaymentsControlClient: (props: { initialData: unknown; initialSettings: unknown }) => (
     <div data-testid="admin-payments-control-probe">{JSON.stringify(props)}</div>
   )
@@ -23,10 +23,10 @@ vi.mock("@/app/(workspace)/(staff-zone)/admin/payments/payments-control-client",
 
 describe("AdminPaymentsPage", () => {
   beforeEach(() => {
-    requireStaffAdminPageMock.mockReset();
+    requireAdminPagePermissionMock.mockReset();
     listAdminPaymentControlMock.mockReset();
     getAdminPaymentReminderSettingsMock.mockReset();
-    requireStaffAdminPageMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminPagePermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
     listAdminPaymentControlMock.mockResolvedValue({
       items: [],
       total: 0,
@@ -50,7 +50,7 @@ describe("AdminPaymentsPage", () => {
   it("loads the initial payment-control page with five cards per page", async () => {
     await AdminPaymentsPage();
 
-    expect(requireStaffAdminPageMock).toHaveBeenCalledTimes(1);
+    expect(requireAdminPagePermissionMock).toHaveBeenCalledWith("payments.manage");
     expect(listAdminPaymentControlMock).toHaveBeenCalledTimes(1);
     const initialUrl = listAdminPaymentControlMock.mock.calls[0]?.[0] as URL;
     expect(initialUrl.searchParams.get("page")).toBe("1");

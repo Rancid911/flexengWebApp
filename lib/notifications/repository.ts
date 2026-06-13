@@ -4,8 +4,8 @@ export type NotificationsRepositoryClient = Awaited<ReturnType<typeof createClie
 
 export function createNotificationsRepository(client: NotificationsRepositoryClient) {
   return {
-    loadProfile(userId: string) {
-      return client.from("profiles").select("role, created_at").eq("id", userId).maybeSingle();
+    loadProfileCreatedAt(userId: string) {
+      return client.from("profiles").select("created_at").eq("id", userId).maybeSingle();
     },
 
     listActiveNotifications(params: { nowIso: string; accountCreatedAt: string | null; limit: number; summaryOnly?: boolean }) {

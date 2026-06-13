@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { requireStaffAdminApi } from "@/lib/admin/auth";
+import { requireAdminApiPermission } from "@/lib/admin/auth";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { getCrmUnreadNewRequestsCount } from "@/lib/crm/queries";
 
 export const GET = withAdminErrorHandling(async () => {
-  await requireStaffAdminApi();
+  await requireAdminApiPermission("crm.leads.view");
   try {
     return NextResponse.json({ unreadCount: await getCrmUnreadNewRequestsCount() });
   } catch (error) {

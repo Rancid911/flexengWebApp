@@ -8,7 +8,7 @@ import {
   getPlanMetaLabel,
   getStatusChipClass,
   getStatusLabel
-} from "@/app/(workspace)/(student-zone)/settings/payments-client";
+} from "@/features/payments/components/payments-client";
 import type { StudentBillingSummary } from "@/lib/billing/types";
 import type { PaymentPlan, PaymentStatusContext, StudentPaymentTransaction } from "@/lib/payments/types";
 

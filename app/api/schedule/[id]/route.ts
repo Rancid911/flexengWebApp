@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { requirePermission } from "@/lib/permissions";
 import { cancelScheduleLesson, updateScheduleLesson } from "@/lib/schedule/queries";
 import { ScheduleHttpError, withScheduleErrorHandling } from "@/lib/schedule/http";
 import { requireScheduleApi } from "@/lib/schedule/server";
@@ -7,6 +8,8 @@ import { scheduleLessonUpdateSchema } from "@/lib/schedule/validation";
 
 export const PATCH = withScheduleErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
+  requirePermission(actor, "schedule.manage");
+
   const { id } = await params;
   const body = await request.json();
   const parsed = scheduleLessonUpdateSchema.safeParse(body);
@@ -21,6 +24,8 @@ export const PATCH = withScheduleErrorHandling(async (request: NextRequest, { pa
 
 export const DELETE = withScheduleErrorHandling(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
+  requirePermission(actor, "schedule.manage");
+
   const { id } = await params;
   const lesson = await cancelScheduleLesson(actor, id);
   return NextResponse.json(lesson);

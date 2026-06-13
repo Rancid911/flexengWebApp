@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getSchedulePageData, getSchedulePageDataInternal, createScheduleLesson } from "@/lib/schedule/queries";
+import { requirePermission } from "@/lib/permissions";
+import { getSchedulePageDataWithFollowup, getSchedulePageDataInternal, createScheduleLesson } from "@/lib/schedule/queries";
 import { requireScheduleApi } from "@/lib/schedule/server";
 import { withScheduleErrorHandling, ScheduleHttpError } from "@/lib/schedule/http";
 import { scheduleFiltersSchema, scheduleLessonMutationSchema } from "@/lib/schedule/validation";
 
 export const GET = withScheduleErrorHandling(async (request: NextRequest) => {
   const actor = await requireScheduleApi();
+  requirePermission(actor, "schedule.view");
 
   const parsed = scheduleFiltersSchema.safeParse({
     studentId: request.nextUrl.searchParams.get("studentId"),
@@ -22,13 +24,15 @@ export const GET = withScheduleErrorHandling(async (request: NextRequest) => {
 
   const includeFollowup = request.nextUrl.searchParams.get("includeFollowup") === "1";
   const data = includeFollowup
-    ? await getSchedulePageData(actor, parsed.data)
+    ? await getSchedulePageDataWithFollowup(actor, parsed.data)
     : await getSchedulePageDataInternal(actor, parsed.data, { includeFollowup: false });
   return NextResponse.json(data);
 });
 
 export const POST = withScheduleErrorHandling(async (request: NextRequest) => {
   const actor = await requireScheduleApi();
+  requirePermission(actor, "schedule.manage");
+
   const body = await request.json();
   const parsed = scheduleLessonMutationSchema.safeParse(body);
 

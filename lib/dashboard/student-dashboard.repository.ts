@@ -7,6 +7,10 @@ export function createStudentDashboardRepository(supabase: DashboardSupabaseClie
   const homeworkRepository = createHomeworkAssignmentsRepository(supabase as HomeworkAssignmentsRepositoryClient);
 
   return {
+    async loadStudentDashboardSummaryRpc() {
+      return await supabase.rpc("get_my_student_dashboard_summary");
+    },
+
     async loadLessonProgress(studentId: string) {
       return await supabase
         .from("student_lesson_progress")

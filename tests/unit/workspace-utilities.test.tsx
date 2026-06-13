@@ -2,7 +2,7 @@ import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearRuntimeCache } from "@/lib/session-runtime-cache";
-import { writeNotificationsUnreadSummary } from "@/app/(workspace)/dashboard-notifications.api";
+import { writeNotificationsUnreadSummary } from "@/features/workspace-shell/client/dashboard-notifications.api";
 
 vi.mock("next/dynamic", async () => {
   const React = await import("react");
@@ -39,7 +39,7 @@ vi.mock("next/dynamic", async () => {
   };
 });
 
-vi.mock("@/components/search/dashboard-global-search", () => ({
+vi.mock("@/features/search/components/dashboard-global-search", () => ({
   DashboardGlobalSearch: () => (
     <div data-testid="search-island">
       <input role="combobox" aria-controls="search-results" aria-expanded="true" />
@@ -47,7 +47,7 @@ vi.mock("@/components/search/dashboard-global-search", () => ({
   )
 }));
 
-vi.mock("@/app/(workspace)/shell/workspace-notifications-panel", () => ({
+vi.mock("@/features/workspace-shell/components/shell/workspace-notifications-panel", () => ({
   WorkspaceNotificationsPanel: ({
     open,
     onOpenChange,
@@ -71,7 +71,7 @@ vi.mock("@/app/(workspace)/shell/workspace-notifications-panel", () => ({
   }
 }));
 
-import { WorkspaceUtilities } from "@/app/(workspace)/shell/workspace-utilities";
+import { WorkspaceUtilities } from "@/features/workspace-shell/components/shell/workspace-utilities";
 
 describe("WorkspaceUtilities", () => {
   afterEach(() => {

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { AdminUsersList } from "@/app/(workspace)/(staff-zone)/admin/ui/admin-console-lists";
+import { AdminUsersList } from "@/features/admin/components/admin-console/admin-console-lists";
 import type { AdminUserDto } from "@/lib/admin/types";
 
 const studentUser: AdminUserDto = {

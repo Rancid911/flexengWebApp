@@ -3,16 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AdminTeachersPage from "@/app/(workspace)/(staff-zone)/admin/teachers/page";
 
-const requireStaffAdminPageMock = vi.fn();
-const createAdminClientMock = vi.fn();
+const requireAdminPagePermissionMock = vi.fn();
+const createClientMock = vi.fn();
 const replaceMock = vi.fn();
 
 vi.mock("@/lib/admin/auth", () => ({
-  requireStaffAdminPage: () => requireStaffAdminPageMock()
+  requireAdminPagePermission: (permission: string) => requireAdminPagePermissionMock(permission)
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => createAdminClientMock()
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: () => createClientMock()
 }));
 
 vi.mock("next/navigation", () => ({
@@ -72,16 +72,16 @@ function createTeachersQueryMock(rows: Record<string, unknown>[] = [{ id: "teach
 describe("AdminTeachersPage", () => {
   beforeEach(() => {
     cleanup();
-    requireStaffAdminPageMock.mockReset();
-    createAdminClientMock.mockReset();
+    requireAdminPagePermissionMock.mockReset();
+    createClientMock.mockReset();
     replaceMock.mockReset();
-    requireStaffAdminPageMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminPagePermissionMock.mockResolvedValue({ userId: "admin-1", role: "admin" });
   });
 
   it("renders teacher cards and loads teachers without query filter by default", async () => {
     const profilesQuery = createProfilesQueryMock();
     const teachersQuery = createTeachersQueryMock();
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "profiles") return profilesQuery;
         if (table === "teachers") return teachersQuery;
@@ -91,6 +91,7 @@ describe("AdminTeachersPage", () => {
 
     render(await AdminTeachersPage({ searchParams: Promise.resolve({}) }));
 
+    expect(requireAdminPagePermissionMock).toHaveBeenCalledWith("teachers.view");
     expect(profilesQuery.eq).toHaveBeenCalledWith("role", "teacher");
     expect(profilesQuery.select).toHaveBeenCalledWith("id, first_name, last_name, display_name, email, phone, created_at", { count: "exact" });
     expect(profilesQuery.range).toHaveBeenCalledWith(0, 4);
@@ -109,7 +110,7 @@ describe("AdminTeachersPage", () => {
   it("does not apply q search param below three characters", async () => {
     const profilesQuery = createProfilesQueryMock();
     const teachersQuery = createTeachersQueryMock();
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => (table === "profiles" ? profilesQuery : teachersQuery))
     });
 
@@ -122,7 +123,7 @@ describe("AdminTeachersPage", () => {
   it("applies q search param from three characters and keeps pagination range", async () => {
     const profilesQuery = createProfilesQueryMock();
     const teachersQuery = createTeachersQueryMock();
-    createAdminClientMock.mockReturnValue({
+    createClientMock.mockResolvedValue({
       from: vi.fn((table: string) => (table === "profiles" ? profilesQuery : teachersQuery))
     });
 

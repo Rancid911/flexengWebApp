@@ -13,7 +13,7 @@ import {
   STUDENT_PAYMENTS_PAGE_WRAPPER_DATA_LOADING,
   STUDENT_PAYMENT_PLANS_DATA_LOADING,
   STUDENT_PAYMENT_STATUS_CONTEXT_DATA_LOADING
-} from "@/lib/payments/queries";
+} from "@/lib/payments/payments.service";
 import {
   ADMIN_PAYMENT_CONTROL_SETTINGS_DATA_LOADING,
   ADMIN_PAYMENT_CONTROL_SUMMARY_LIST_DATA_LOADING
@@ -42,7 +42,7 @@ import {
   PROGRESS_OVERVIEW_DATA_LOADING,
   PROGRESS_TOPICS_DATA_LOADING,
   PROGRESS_WEAK_POINTS_DATA_LOADING
-} from "@/lib/progress/queries";
+} from "@/lib/progress/progress.service";
 import {
   PRACTICE_ACTIVITY_DETAIL_DATA_LOADING,
   PRACTICE_FAVORITES_DATA_LOADING,
@@ -64,13 +64,13 @@ import {
   WORDS_LIST_DATA_LOADING,
   WORDS_NEW_LIST_DATA_LOADING,
   WORDS_OVERVIEW_SUMMARY_DATA_LOADING,
-  WORDS_REVIEW_QUEUE_DATA_LOADING,
-  type WordsOverviewSummary
-} from "@/lib/words/queries";
+  WORDS_REVIEW_QUEUE_DATA_LOADING
+} from "@/lib/words/words.service";
+import type { WordsOverviewSummary } from "@/lib/words/words.types";
 
 const SETTINGS_PROFILE_DATA_LOADING = defineDataLoadingDescriptor({
   id: "settings-profile",
-  owner: "@/app/(workspace)/(shared-zone)/settings/profile/page#ProfileSettingsPage",
+  owner: "@/features/settings/components/settings-client#SettingsClient",
   accessMode: "user_scoped",
   loadLevel: "page",
   shape: "detail",
@@ -81,7 +81,7 @@ const SETTINGS_PROFILE_DATA_LOADING = defineDataLoadingDescriptor({
 
 const ADMIN_CONSOLE_DATA_LOADING = defineDataLoadingDescriptor({
   id: "admin-console",
-  owner: "@/app/(workspace)/(staff-zone)/admin/page#AdminPage",
+  owner: "@/features/admin/components/admin-console/admin-console#AdminConsole",
   accessMode: "privileged",
   loadLevel: "page",
   shape: "aggregate",
@@ -92,62 +92,12 @@ const ADMIN_CONSOLE_DATA_LOADING = defineDataLoadingDescriptor({
 
 const SEARCH_PAGE_DATA_LOADING = defineDataLoadingDescriptor({
   id: "search-page",
-  owner: "@/app/(workspace)/(search-zone)/search/page#SearchPage",
+  owner: "@/features/search/server/search-route#renderSearchRoute",
   accessMode: "aggregate",
   loadLevel: "page",
   shape: "list",
   issues: [],
   notes: ["Search page is correctly isolated as a dedicated page-level search result loader."]
-});
-
-const STUDENT_DASHBOARD_ENTRY_DATA_LOADING = defineDataLoadingDescriptor({
-  id: "student-dashboard-entry",
-  owner: "@/app/(workspace)/(student-zone)/student-dashboard/page#AdminStudentDashboardPage",
-  accessMode: "user_scoped",
-  loadLevel: "page",
-  shape: "summary",
-  issues: [],
-  notes: ["Good narrow-loader composition example: page summary plus a separate reminder section companion."]
-});
-
-const LEARNING_ROUTE_DATA_LOADING = defineDataLoadingDescriptor({
-  id: "learning-route",
-  owner: "@/app/(workspace)/(student-zone)/learning/page#LearningPage",
-  accessMode: "user_scoped",
-  loadLevel: "page",
-  shape: "identity",
-  issues: [],
-  notes: ["Redirect-only student route. No screen data should be introduced here."]
-});
-
-const TESTS_ROUTE_DATA_LOADING = defineDataLoadingDescriptor({
-  id: "tests-route",
-  owner: "@/app/(workspace)/(student-zone)/tests/page#TestsPage",
-  accessMode: "user_scoped",
-  loadLevel: "page",
-  shape: "identity",
-  issues: [],
-  notes: ["Redirect-only placeholder route. Keep data loading on the destination workflow instead."]
-});
-
-const ASSIGNMENTS_ROUTE_DATA_LOADING = defineDataLoadingDescriptor({
-  id: "assignments-route",
-  owner: "@/app/(workspace)/(student-zone)/assignments/page#AssignmentsPage",
-  accessMode: "user_scoped",
-  loadLevel: "page",
-  shape: "identity",
-  issues: [],
-  notes: ["Redirect-only placeholder route. Homework remains the real owner of assignment data."]
-});
-
-const FLASHCARDS_ROUTE_DATA_LOADING = defineDataLoadingDescriptor({
-  id: "flashcards-route",
-  owner: "@/app/(workspace)/(student-zone)/flashcards/page#FlashcardsPage",
-  accessMode: "user_scoped",
-  loadLevel: "page",
-  shape: "identity",
-  issues: [],
-  notes: ["Redirect-only placeholder route. Word list/review routes remain the real data owners."]
 });
 
 export const DATA_LOADING_CATALOG: DataLoadingCatalogEntry[] = [
@@ -165,12 +115,6 @@ export const DATA_LOADING_CATALOG: DataLoadingCatalogEntry[] = [
       "Teacher dashboard preferred path is section assembly from today agenda, week agenda and roster summary loaders.",
       "Teacher dashboard critical render is today agenda plus follow-up attention; student roster remains a secondary section."
     ]
-  },
-  {
-    route: "/student-dashboard",
-    pageLoaders: [STUDENT_DASHBOARD_ENTRY_DATA_LOADING],
-    sectionLoaders: [STUDENT_DASHBOARD_PAYMENT_REMINDER_DATA_LOADING],
-    notes: ["Dedicated student dashboard route is the second canonical example of page summary plus section companion loading."]
   },
   {
     route: "/schedule",
@@ -242,7 +186,7 @@ export const DATA_LOADING_CATALOG: DataLoadingCatalogEntry[] = [
   {
     route: "/words/*",
     pageLoaders: [WORDS_OVERVIEW_SUMMARY_DATA_LOADING, WORDS_LIST_DATA_LOADING, WORDS_REVIEW_QUEUE_DATA_LOADING, WORDS_NEW_LIST_DATA_LOADING],
-    notes: ["Words routes are user-scoped list pages; /words/my is the only one with obvious duplicate list composition."]
+    notes: ["Words routes are user-scoped list pages; /words owns the cards overview."]
   },
   {
     route: "/admin",
@@ -254,26 +198,6 @@ export const DATA_LOADING_CATALOG: DataLoadingCatalogEntry[] = [
     pageLoaders: [SEARCH_PAGE_DATA_LOADING],
     notes: ["Search stays page-first and should not leak back into the workspace shell."]
   },
-  {
-    route: "/learning",
-    pageLoaders: [LEARNING_ROUTE_DATA_LOADING],
-    notes: ["Learning route is a redirect-only compatibility entrypoint."]
-  },
-  {
-    route: "/tests",
-    pageLoaders: [TESTS_ROUTE_DATA_LOADING],
-    notes: ["Tests route is a redirect-only placeholder and should stay free of screen-level loading."]
-  },
-  {
-    route: "/assignments",
-    pageLoaders: [ASSIGNMENTS_ROUTE_DATA_LOADING],
-    notes: ["Assignments route is a redirect-only placeholder and should not become a second homework loader."]
-  },
-  {
-    route: "/flashcards",
-    pageLoaders: [FLASHCARDS_ROUTE_DATA_LOADING],
-    notes: ["Flashcards route is a redirect-only placeholder and should not grow its own word data path."]
-  }
 ] as const;
 
 export type StudentAreaLoadingCatalogEntry = {
@@ -288,7 +212,6 @@ export type StudentExperienceContractCatalog = {
   practiceOverviewBlocks: Array<keyof PracticeOverviewSummary>;
   homeworkOverviewBlocks: Array<keyof HomeworkOverviewSummary>;
   wordsOverviewBlocks: Array<keyof WordsOverviewSummary>;
-  redirectOnlyRoutes: string[];
   routes: StudentAreaLoadingCatalogEntry[];
 };
 
@@ -322,16 +245,9 @@ export const STUDENT_EXPERIENCE_LOADING_CATALOG: StudentExperienceContractCatalo
   practiceOverviewBlocks: ["doNowId", "continueTopicSlug", "weakSpotId"],
   homeworkOverviewBlocks: ["activeCount", "overdueCount", "nearestDueAt", "nearestDueTitle"],
   wordsOverviewBlocks: ["totalWords", "reviewCount", "newCount", "activeCount"],
-  redirectOnlyRoutes: ["/learning", "/assignments", "/flashcards", "/tests"],
   routes: [
     {
       route: "/dashboard",
-      criticalBlocks: ["student dashboard core summary"],
-      secondaryBlocks: ["payment reminder"],
-      futureRpcCandidates: ["student_words counts", "progress/test/mistakes summary aggregates"]
-    },
-    {
-      route: "/student-dashboard",
       criticalBlocks: ["student dashboard core summary"],
       secondaryBlocks: ["payment reminder"],
       futureRpcCandidates: ["student_words counts", "progress/test/mistakes summary aggregates"]
@@ -415,7 +331,7 @@ export const STUDENT_EXPERIENCE_LOADING_CATALOG: StudentExperienceContractCatalo
       futureRpcCandidates: ["words summary counters"]
     },
     {
-      route: "/words/my",
+      route: "/words",
       criticalBlocks: ["words overview summary", "full words list"],
       secondaryBlocks: ["review queue", "new words list"],
       futureRpcCandidates: ["words summary counters"]

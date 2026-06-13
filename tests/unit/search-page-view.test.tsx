@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SearchPageView } from "@/app/search/search-page-view";
+import { SearchPageView } from "@/features/search/components/search-page-view";
 
 const searchSiteMock = vi.fn();
 
@@ -56,7 +56,9 @@ describe("SearchPageView", () => {
     render(await SearchPageView({ searchParams: { q: "english" } }));
 
     expect(screen.getByRole("heading", { name: "Результаты по запросу «english»" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /English post/i })).toBeInTheDocument();
+    const resultLink = screen.getByRole("link", { name: /English.*post/i });
+    expect(resultLink).toBeInTheDocument();
+    expect(resultLink).toHaveAttribute("href", "/articles/post-1");
     expect(screen.getByLabelText("Поисковый запрос")).toBeInTheDocument();
     expect(screen.getByTestId("search-page-main")).toHaveAttribute("data-empty-state", "false");
     expect(screen.getByTestId("search-page-main")).toHaveClass("flex-1", "space-y-6");

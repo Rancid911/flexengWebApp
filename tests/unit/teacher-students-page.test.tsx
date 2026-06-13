@@ -5,6 +5,7 @@ import TeacherStudentsPage from "@/app/(workspace)/(teacher-zone)/students/page"
 
 const requireSchedulePageMock = vi.fn();
 const listTeacherStudentsPageMock = vi.fn();
+const renderAdminStudentsDirectoryRouteMock = vi.fn();
 const redirectMock = vi.fn((href: string) => {
   throw new Error(`NEXT_REDIRECT:${href}`);
 });
@@ -20,13 +21,21 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/schedule/server", () => ({
   requireSchedulePage: () => requireSchedulePageMock(),
-  isStudentScheduleActor: (actor: { role: string }) => actor.role === "student",
-  isStaffAdminScheduleActor: (actor: { role: string }) => actor.role === "admin" || actor.role === "manager",
-  isTeacherScheduleActor: (actor: { role: string }) => actor.role === "teacher"
+  isStudentScheduleActor: (actor: { accessMode?: string }) => actor.accessMode === "student_own",
+  isStaffAdminScheduleActor: (actor: { accessMode?: string }) => actor.accessMode === "staff_all",
+  isTeacherScheduleActor: (actor: { accessMode?: string }) => actor.accessMode === "teacher_assigned"
+}));
+
+vi.mock("@/lib/auth/rbac-route-guard", () => ({
+  requireWorkspaceRouteAccess: vi.fn()
 }));
 
 vi.mock("@/lib/teacher-workspace/queries", () => ({
   listTeacherStudentsPage: (...args: unknown[]) => listTeacherStudentsPageMock(...args)
+}));
+
+vi.mock("@/features/admin/server/admin-directory-routes", () => ({
+  renderAdminStudentsDirectoryRoute: (...args: unknown[]) => renderAdminStudentsDirectoryRouteMock(...args)
 }));
 
 vi.mock("@/lib/server/timing", () => ({
@@ -35,6 +44,7 @@ vi.mock("@/lib/server/timing", () => ({
 
 const teacherActor = {
   role: "teacher",
+  accessMode: "teacher_assigned",
   userId: "teacher-user-1",
   teacherId: "teacher-1",
   studentId: null,
@@ -46,9 +56,11 @@ describe("TeacherStudentsPage", () => {
     cleanup();
     requireSchedulePageMock.mockReset();
     listTeacherStudentsPageMock.mockReset();
+    renderAdminStudentsDirectoryRouteMock.mockReset();
     redirectMock.mockClear();
     replaceMock.mockReset();
     requireSchedulePageMock.mockResolvedValue(teacherActor);
+    renderAdminStudentsDirectoryRouteMock.mockResolvedValue(<div data-testid="admin-students-in-place" />);
     listTeacherStudentsPageMock.mockResolvedValue({
       items: [
         {
@@ -82,16 +94,23 @@ describe("TeacherStudentsPage", () => {
   });
 
   it("redirects student actor away from teacher students directory", async () => {
-    requireSchedulePageMock.mockResolvedValue({ ...teacherActor, role: "student", teacherId: null, studentId: "student-1" });
+    requireSchedulePageMock.mockResolvedValue({ ...teacherActor, role: "student", accessMode: "student_own", teacherId: null, studentId: "student-1" });
 
     await expect(TeacherStudentsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_REDIRECT:/dashboard");
     expect(listTeacherStudentsPageMock).not.toHaveBeenCalled();
   });
 
-  it("redirects staff actor to admin students directory", async () => {
-    requireSchedulePageMock.mockResolvedValue({ ...teacherActor, role: "admin", teacherId: null, accessibleStudentIds: null });
+  it("renders staff actor in-place on students directory without admin path redirect", async () => {
+    requireSchedulePageMock.mockResolvedValue({ ...teacherActor, role: "admin", accessMode: "staff_all", teacherId: null, accessibleStudentIds: null });
 
-    await expect(TeacherStudentsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_REDIRECT:/admin/students");
+    render(await TeacherStudentsPage({ searchParams: Promise.resolve({ q: "Admin", page: "2" }) }));
+
+    expect(renderAdminStudentsDirectoryRouteMock).toHaveBeenCalledWith({
+      searchParams: expect.any(Promise),
+      basePath: "/students"
+    });
     expect(listTeacherStudentsPageMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalledWith("/admin/students");
+    expect(screen.getByTestId("admin-students-in-place")).toBeInTheDocument();
   });
 });

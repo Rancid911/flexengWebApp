@@ -1,4 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { toAvatarMediaUrl } from "@/lib/media/urls";
+import { createClient } from "@/lib/supabase/server";
 
 export type AdminTeacherProfileRelation = {
   id: string;
@@ -47,7 +48,12 @@ export type AdminTeacherDossierRow = {
 };
 
 export function readAdminTeacherProfileRelation(row: AdminTeacherProfileRow) {
-  return Array.isArray(row.profiles) ? row.profiles[0] ?? null : row.profiles;
+  const profile = Array.isArray(row.profiles) ? row.profiles[0] ?? null : row.profiles;
+  if (!profile) return null;
+  return {
+    ...profile,
+    avatar_url: toAvatarMediaUrl(profile.id, profile.avatar_url)
+  };
 }
 
 export function getAdminTeacherDisplayName(profile: AdminTeacherProfileRelation | null, fallback: string) {
@@ -77,7 +83,7 @@ export function toNullableAdminTeacherNumber(value: number | string | null | und
 }
 
 export async function loadAdminTeacherProfilePageData(teacherId: string) {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const response = await supabase
     .from("teachers")
     .select("id, profile_id, profiles!inner(id, display_name, first_name, last_name, email, phone, avatar_url, created_at)")

@@ -3,6 +3,11 @@ import { extractAssignedTestIdsFromHomeworkRows } from "@/lib/homework/assignmen
 import { createHomeworkAssignmentsRepository, type HomeworkAssignmentsRepositoryClient } from "@/lib/homework/assignments.repository";
 import { createClient } from "@/lib/supabase/server";
 import type { AccessMode } from "@/lib/supabase/access";
+import {
+  canUseEnrollmentSearchVisibility,
+  canUseRoleScopedSearchVisibility,
+  canUseStudentOwnedSearchVisibility
+} from "@/lib/search/access";
 import { fetchSearchDocumentCandidates } from "@/lib/search/sources/search-documents";
 import { getSearchContext } from "@/lib/search/sources/search-context";
 import type { SearchContext, SearchDocumentCandidate, SearchGroupDto, SearchResultDto, SearchSection } from "@/lib/search/types";
@@ -81,22 +86,30 @@ async function getStudentPracticeSearchAccess(
   };
 }
 
+function needsStudentPracticeAccess(candidates: SearchDocumentCandidate[], context: SearchContext) {
+  if (!context.studentId || !context.capabilities.includes("student")) return false;
+  return candidates.some((candidate) => candidate.visibility === "enrollment" && candidate.section === "practice");
+}
+
 function canAccessRoleScopedDocument(candidate: SearchDocumentCandidate, context: SearchContext) {
   if (!context.isAuthenticated || !context.role) return false;
-  if (context.capabilities.includes("staff_admin")) return true;
+
+  if (candidate.roleScope.some((role) => role === "admin" || role === "manager" || role === "staff_admin")) {
+    return canUseRoleScopedSearchVisibility(candidate, context);
+  }
 
   const accessibleRoles = new Set<string>([context.role]);
   if (context.capabilities.includes("student")) accessibleRoles.add("student");
   if (context.capabilities.includes("teacher")) accessibleRoles.add("teacher");
 
-  return candidate.roleScope.includes("all") || candidate.roleScope.some((role) => accessibleRoles.has(role));
-}
-
-function canSeeCandidate(candidate: SearchDocumentCandidate, context: SearchContext, practiceAccess: StudentPracticeSearchAccess | null) {
-  if (context.capabilities.includes("staff_admin")) {
+  if (candidate.roleScope.includes("all") || candidate.roleScope.some((role) => accessibleRoles.has(role))) {
     return true;
   }
 
+  return canUseRoleScopedSearchVisibility(candidate, context);
+}
+
+function canSeeCandidate(candidate: SearchDocumentCandidate, context: SearchContext, practiceAccess: StudentPracticeSearchAccess | null) {
   if (candidate.visibility === "public") {
     return candidate.isPublished;
   }
@@ -106,7 +119,20 @@ function canSeeCandidate(candidate: SearchDocumentCandidate, context: SearchCont
   }
 
   if (candidate.visibility === "student_owned") {
-    return Boolean(context.studentId && candidate.ownerStudentId === context.studentId);
+    if (context.studentId && candidate.ownerStudentId === context.studentId) {
+      return true;
+    }
+
+    if (
+      context.capabilities.includes("teacher") &&
+      candidate.ownerStudentId &&
+      Array.isArray(context.accessibleStudentIds) &&
+      context.accessibleStudentIds.includes(candidate.ownerStudentId)
+    ) {
+      return true;
+    }
+
+    return canUseStudentOwnedSearchVisibility(context);
   }
 
   if (candidate.visibility === "enrollment") {
@@ -134,7 +160,7 @@ function canSeeCandidate(candidate: SearchDocumentCandidate, context: SearchCont
       return true;
     }
 
-    return false;
+    return canUseEnrollmentSearchVisibility(context);
   }
 
   return false;
@@ -185,8 +211,11 @@ export async function searchSite(params: {
   }
 
   const context = await getSearchContext();
-  const candidates = await fetchSearchDocumentCandidates({ query, limit, section });
-  const practiceAccess = context.studentId ? await getStudentPracticeSearchAccess(context.studentId, candidates) : null;
+  const candidates = await fetchSearchDocumentCandidates({ query, limit, section, context });
+  const practiceAccess =
+    context.studentId && needsStudentPracticeAccess(candidates, context)
+      ? await getStudentPracticeSearchAccess(context.studentId, candidates)
+      : null;
   const dedupe = new Set<string>();
   const items: SearchResultDto[] = [];
 

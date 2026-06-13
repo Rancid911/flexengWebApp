@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireStaffAdminApi } from "@/lib/admin/auth";
+import { requireAdminApiPermission } from "@/lib/admin/auth";
 import { createCourseModuleOption } from "@/lib/admin/course-modules";
 import { AdminHttpError, withAdminErrorHandling } from "@/lib/admin/http";
 import { adminCourseModuleCreateSchema } from "@/lib/admin/validation";
 
 export const POST = withAdminErrorHandling(async (request: NextRequest) => {
-  await requireStaffAdminApi();
+  await requireAdminApiPermission("content.manage");
   const body = await request.json();
   const parsed = adminCourseModuleCreateSchema.safeParse(body);
   if (!parsed.success) {

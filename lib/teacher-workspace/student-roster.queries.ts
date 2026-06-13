@@ -1,4 +1,3 @@
-import { createHomeworkAssignmentsRepository } from "@/lib/homework/assignments.repository";
 import { ScheduleHttpError } from "@/lib/schedule/http";
 import {
   assertStaffAdminCapability,
@@ -9,11 +8,12 @@ import {
 import type { StaffScheduleLessonDto } from "@/lib/schedule/types";
 import { measureServerTiming } from "@/lib/server/timing";
 import type { AccessMode } from "@/lib/supabase/access";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { defineDataLoadingDescriptor } from "@/lib/data-loading/contracts";
 import { getTeacherDashboardWeekLessonBundle } from "@/lib/teacher-workspace/dashboard.queries";
 import {
   createTeacherStudentRosterRepository,
+  type TeacherStudentRosterHomeworkCountRow,
   type TeacherStudentRosterProfileRow,
   type TeacherStudentRosterStudentRow,
   type TeacherStudentRosterLessonSummaryRow
@@ -54,31 +54,32 @@ function isTeacherScopedActor(actor: ScheduleActor) {
   return isTeacherScheduleActor(actor) && actor.accessibleStudentIds !== null;
 }
 
-async function loadProfilesMap(profileIds: string[], repository = createTeacherStudentRosterRepository()) {
-  const response = await repository.loadProfiles(profileIds);
+async function loadProfilesMap(studentIds: string[], repository: ReturnType<typeof createTeacherStudentRosterRepository>) {
+  const response = await repository.loadProfileSummaries(studentIds);
   if (response.error) {
     throw new ScheduleHttpError(500, "TEACHER_PROFILES_FAILED", "Failed to load profile labels", response.error.message);
   }
-  return new Map<string, TeacherStudentRosterProfileRow>(((response.data ?? []) as TeacherStudentRosterProfileRow[]).map((profile) => [profile.id, profile]));
+  return new Map<string, TeacherStudentRosterProfileRow>(((response.data ?? []) as TeacherStudentRosterProfileRow[]).map((profile) => [profile.student_id, profile]));
 }
 
 async function mapTeacherStudentRosterSummary(
   studentRows: TeacherStudentRosterStudentRow[],
   lessonDtos: StaffScheduleLessonDto[],
-  homeworkRows: Array<{ student_id: string }>
+  homeworkRows: TeacherStudentRosterHomeworkCountRow[],
+  repository: ReturnType<typeof createTeacherStudentRosterRepository>
 ) {
-  const profilesMap = await loadProfilesMap(studentRows.map((row) => row.profile_id));
+  const profilesMap = await loadProfilesMap(studentRows.map((row) => row.id), repository);
   const homeworkCountByStudent = new Map<string, number>();
   for (const row of homeworkRows) {
-    homeworkCountByStudent.set(row.student_id, (homeworkCountByStudent.get(row.student_id) ?? 0) + 1);
+    homeworkCountByStudent.set(row.student_id, row.active_homework_count);
   }
 
   return studentRows.map(
     (row): TeacherStudentListItemDto => ({
       studentId: row.id,
-      studentName: buildDisplayName(profilesMap.get(row.profile_id), "Ученик"),
-      email: profilesMap.get(row.profile_id)?.email ?? null,
-      phone: profilesMap.get(row.profile_id)?.phone ?? null,
+      studentName: buildDisplayName(profilesMap.get(row.id), "Ученик"),
+      email: profilesMap.get(row.id)?.email ?? null,
+      phone: profilesMap.get(row.id)?.phone ?? null,
       englishLevel: row.english_level,
       targetLevel: row.target_level,
       nextLessonAt: lessonDtos.find((lesson) => lesson.studentId === row.id && lesson.status === "scheduled")?.startsAt ?? null,
@@ -95,23 +96,21 @@ export async function getTeacherDashboardStudentRosterSummary(
 ) {
   return measureServerTiming("teacher-dashboard-student-roster", async () => {
     assertTeacherActor(actor);
-    const adminClient = createAdminClient();
-    const repository = createTeacherStudentRosterRepository(adminClient);
     const weekLessons = options?.weekLessons ?? (await getTeacherDashboardWeekLessonBundle(actor)).weekLessons;
 
     let scopedStudentIds: string[] | undefined;
     if (isTeacherScopedActor(actor)) {
-      const lessonStudentIds = Array.from(new Set(weekLessons.map((lesson) => lesson.studentId).filter(Boolean)));
-      scopedStudentIds = Array.from(new Set([...(actor.accessibleStudentIds ?? []), ...lessonStudentIds]));
+      scopedStudentIds = Array.from(new Set(actor.accessibleStudentIds ?? []));
       if (scopedStudentIds.length === 0) {
         return [];
       }
     }
 
-    const homeworkRepository = createHomeworkAssignmentsRepository(adminClient);
+    const userClient = await createClient();
+    const repository = createTeacherStudentRosterRepository(userClient);
     const [studentsResponse, homeworkResponse] = await Promise.all([
       repository.loadStudents(scopedStudentIds),
-      homeworkRepository.listActiveDashboardHomeworkRows(scopedStudentIds)
+      repository.loadActiveHomeworkCounts(scopedStudentIds ?? [])
     ]);
     if (studentsResponse.error) {
       throw new ScheduleHttpError(500, "TEACHER_DASHBOARD_FAILED", "Failed to load teacher students", studentsResponse.error.message);
@@ -123,9 +122,8 @@ export async function getTeacherDashboardStudentRosterSummary(
     return mapTeacherStudentRosterSummary(
       (studentsResponse.data ?? []) as TeacherStudentRosterStudentRow[],
       weekLessons,
-      ((homeworkResponse.data ?? []) as Array<{ id: string; student_id: string; title: string; due_at: string | null; status: string }>).map((row) => ({
-        student_id: row.student_id
-      }))
+      (homeworkResponse.data ?? []) as TeacherStudentRosterHomeworkCountRow[],
+      repository
     );
   });
 }
@@ -154,8 +152,8 @@ export async function listTeacherStudentsPage(
       return { items: [], total: 0, page, pageSize, pageCount: 1 };
     }
 
-    const adminClient = createAdminClient();
-    const repository = createTeacherStudentRosterRepository(adminClient);
+    const userClient = await createClient();
+    const repository = createTeacherStudentRosterRepository(userClient);
     const studentsResponse = await repository.loadStudents(scopedStudentIds);
 
     if (studentsResponse.error) {
@@ -163,32 +161,31 @@ export async function listTeacherStudentsPage(
     }
 
     const studentRows = ((studentsResponse.data ?? []) as TeacherStudentRosterStudentRow[]).filter((row) => scopedStudentIds.includes(row.id));
-    const profilesMap = await loadProfilesMap(studentRows.map((row) => row.profile_id), repository);
+    const profilesMap = await loadProfilesMap(studentRows.map((row) => row.id), repository);
     const normalizedQuery = (options.q ?? "").trim().toLowerCase();
     const filteredRows = studentRows
       .filter((row) => {
         if (normalizedQuery.length < 3) return true;
-        const profile = profilesMap.get(row.profile_id);
+        const profile = profilesMap.get(row.id);
         const searchable = [profile?.display_name, profile?.first_name, profile?.last_name, profile?.email, profile?.phone]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
         return searchable.includes(normalizedQuery);
       })
-      .sort((left, right) => buildDisplayName(profilesMap.get(left.profile_id), "Ученик").localeCompare(buildDisplayName(profilesMap.get(right.profile_id), "Ученик"), "ru"));
+      .sort((left, right) => buildDisplayName(profilesMap.get(left.id), "Ученик").localeCompare(buildDisplayName(profilesMap.get(right.id), "Ученик"), "ru"));
 
     const total = filteredRows.length;
     const pageCount = Math.max(1, Math.ceil(total / pageSize));
     const pageRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
     const pageStudentIds = pageRows.map((row) => row.id);
 
-    let activeHomeworkRows: Array<{ student_id: string }> = [];
+    let activeHomeworkRows: TeacherStudentRosterHomeworkCountRow[] = [];
     let lessonRows: TeacherStudentRosterLessonSummaryRow[] = [];
 
     if (pageStudentIds.length > 0) {
-      const homeworkRepository = createHomeworkAssignmentsRepository(adminClient);
       const [homeworkResponse, lessonsResponse] = await Promise.all([
-        homeworkRepository.listActiveHomeworkRowsByStudentIds(pageStudentIds),
+        repository.loadActiveHomeworkCounts(pageStudentIds),
         repository.loadUpcomingLessonSummaries(pageStudentIds, new Date().toISOString())
       ]);
 
@@ -199,18 +196,18 @@ export async function listTeacherStudentsPage(
         throw new ScheduleHttpError(500, "TEACHER_STUDENTS_FAILED", "Failed to load teacher lessons", lessonsResponse.error.message);
       }
 
-      activeHomeworkRows = (homeworkResponse.data ?? []) as Array<{ student_id: string }>;
+      activeHomeworkRows = (homeworkResponse.data ?? []) as TeacherStudentRosterHomeworkCountRow[];
       lessonRows = (lessonsResponse.data ?? []) as TeacherStudentRosterLessonSummaryRow[];
     }
 
     const homeworkCountByStudent = new Map<string, number>();
     for (const row of activeHomeworkRows) {
-      homeworkCountByStudent.set(row.student_id, (homeworkCountByStudent.get(row.student_id) ?? 0) + 1);
+      homeworkCountByStudent.set(row.student_id, row.active_homework_count);
     }
 
     return {
       items: pageRows.map((row): TeacherStudentListItemDto => {
-        const profile = profilesMap.get(row.profile_id);
+        const profile = profilesMap.get(row.id);
         return {
           studentId: row.id,
           studentName: buildDisplayName(profile, "Ученик"),

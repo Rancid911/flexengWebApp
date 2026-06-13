@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createStudentBillingAdjustment } from "@/lib/billing/server";
 import { studentBillingAdjustmentSchema } from "@/lib/billing/validation";
+import { requirePermission } from "@/lib/permissions";
 import { ScheduleHttpError, withScheduleErrorHandling } from "@/lib/schedule/http";
 import { requireScheduleApi } from "@/lib/schedule/server";
 
 export const POST = withScheduleErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const actor = await requireScheduleApi();
   const { id } = await params;
+  requirePermission(actor, "billing.adjust", { studentId: id });
   const body = await request.json();
   const parsed = studentBillingAdjustmentSchema.safeParse(body);
 

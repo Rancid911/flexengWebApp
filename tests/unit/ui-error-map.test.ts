@@ -6,6 +6,7 @@ describe("lib/ui-error-map", () => {
   it("maps common auth errors to russian", () => {
     expect(mapUiErrorMessage("Invalid login credentials")).toBe("Неверные данные для входа.");
     expect(mapUiErrorMessage("Email link is invalid or has expired")).toBe("Ссылка подтверждения недействительна или устарела.");
+    expect(mapUiErrorMessage("User with this email already exists")).toBe("Пользователь с таким email уже существует.");
   });
 
   it("maps network and validation errors", () => {
@@ -21,6 +22,7 @@ describe("lib/ui-error-map", () => {
   it("maps by known api codes", () => {
     expect(mapUiErrorByCode("VALIDATION_ERROR")).toBe("Проверьте корректность заполнения полей.");
     expect(mapUiErrorByCode("FORBIDDEN")).toBe("Недостаточно прав для выполнения действия.");
+    expect(mapUiErrorByCode("USER_EMAIL_EXISTS")).toBe("Пользователь с таким email уже существует.");
     expect(mapUiErrorByCode("NOTIFICATION_DISMISS_FAILED")).toBe("Не удалось обработать уведомления. Попробуйте снова.");
     expect(mapUiErrorByCode("UNKNOWN", "fallback")).toBe("fallback");
   });

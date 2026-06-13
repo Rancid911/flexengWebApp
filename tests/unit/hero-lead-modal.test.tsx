@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { HeroLeadModal } from "@/app/main/hero-lead-modal";
+import { HeroLeadModal } from "@/features/marketing/components/hero-lead-modal";
 
 describe("HeroLeadModal", () => {
   it("opens a compact mobile-ready form with all lead fields", async () => {

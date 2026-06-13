@@ -2,8 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
-import { AdminTestFormDrawer } from "@/app/(workspace)/(staff-zone)/admin/ui/admin-test-form-drawer";
-import { createDefaultTestsForm, type TestsForm } from "@/app/(workspace)/(staff-zone)/admin/ui/admin-console.constants";
+import { AdminTestFormDrawer } from "@/features/admin/components/admin-console/admin-test-form-drawer";
+import { createDefaultTestsForm, type TestsForm } from "@/features/admin/components/admin-console/admin-console.constants";
 import type { CourseModuleOptionDto, CourseOptionDto } from "@/lib/admin/types";
 
 const moduleOptions: CourseModuleOptionDto[] = [

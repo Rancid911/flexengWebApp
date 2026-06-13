@@ -1,88 +1,111 @@
-# English School Dashboard (Next.js + shadcn/ui + Tailwind + Supabase Auth)
+# Платформа онлайн-школы английского языка
 
-Проект сгенерирован на основе `Dasnboard.pen` и использует Supabase для email/password авторизации.
+Веб-приложение для организации учебного процесса в онлайн-школе. Платформа
+объединяет рабочие пространства учеников, преподавателей и сотрудников.
 
-## Запуск
+Основные возможности:
+
+- расписание занятий и контроль посещаемости;
+- домашние задания, практика и отслеживание прогресса;
+- словарь и тренировка слов;
+- управление учениками и преподавателями;
+- платежи, баланс занятий и уведомления;
+- CRM для обработки заявок;
+- административное управление пользователями и учебным контентом;
+- публичные страницы, статьи и формы заявок.
+
+## Технологии
+
+- Next.js 16 и React 19
+- TypeScript
+- Tailwind CSS 4 и локальные компоненты shadcn/ui
+- Supabase Auth, Postgres и Storage
+- Upstash Redis для ограничения частоты запросов
+- Vitest и Testing Library
+- Playwright
+
+## Локальный запуск
+
+### Требования
+
+- Node.js 24.x
+- npm
+- доступ к проекту Supabase с подготовленной схемой данных
+
+### Установка
 
 ```bash
-npm install
-npm run dev
+npm ci
+cp .env.example .env.local
 ```
 
-Откройте `http://localhost:3000`.
+Для базового запуска заполните в `.env.local`:
 
-## GitHub workflow
+```text
+NEXT_PUBLIC_SUPABASE_URL=<адрес-проекта>
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<публичный-ключ>
+```
 
-Рабочий git-репозиторий проекта находится в директории `dashboard-next-next16`.
-Внешняя директория `dashboard-next` содержит отдельный `.git`, но не должна использоваться для commit/push этого приложения.
+Вместо publishable key поддерживается совместимая переменная
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 
-Используйте один из двух вариантов:
+Не добавляйте `.env.local` в Git и не публикуйте серверные ключи, пароли,
+платёжные реквизиты или строки подключения. Дополнительные интеграции требуют
+отдельных серверных переменных окружения, перечисленных безопасными
+заполнителями в `.env.example`.
+
+Запустите сервер разработки:
 
 ```bash
-cd /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboard-next/dashboard-next-next16
-git status
-git push origin main
+npm run dev:webpack
 ```
 
-или запускайте команды явно через `-C`:
+Приложение будет доступно по адресу `http://localhost:3000`.
 
-```bash
-git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboard-next/dashboard-next-next16 status
-git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboard-next/dashboard-next-next16 push origin main
-```
+## Архитектура
 
-Проверка remote без отправки изменений:
+Проект использует Next.js App Router и разделён на несколько основных слоёв:
 
-```bash
-git -C /Users/anton/Desktop/Флексенг/6.\ Инфра-ра/Pencil/dashboard-next/dashboard-next-next16 push --dry-run origin main
-```
+- `app/` — маршруты, layouts, обработчики API и границы загрузки/ошибок;
+- `features/` — продуктовые модули и доменная логика;
+- `shared/` — переиспользуемые UI-компоненты, типы и константы;
+- `lib/` — серверная инфраструктура, авторизация и интеграции;
+- `supabase/` — миграции и SQL-артефакты.
 
-## Настройка Supabase
+Маршруты приложения остаются тонким транспортным слоем. Доступ к данным,
+проверка разрешений и бизнес-логика выполняются в серверных модулях.
 
-1. Создайте проект в Supabase и включите Email/Password провайдер в Authentication.
-2. Скопируйте `.env.example` в `.env.local`.
-3. Заполните:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY` (нужен для server-side admin CRUD в `/admin`)
+Подробнее:
 
-## Стек
+- [Архитектура проекта](ARCHITECTURE.md)
+- [Индекс документации](docs/README.md)
+- [Локальная настройка](docs/operations/local-setup.md)
+- [Стратегия тестирования](docs/testing/test-strategy.md)
 
-- Next.js (App Router)
-- Tailwind CSS
-- shadcn/ui (локальные компоненты)
-- Lucide Icons
-- Supabase Auth (`@supabase/supabase-js`, `@supabase/ssr`)
+## Проверка проекта
 
-## Структура
-
-- `app/page.tsx` — основной экран дашборда (защищён сессией)
-- `app/login/page.tsx` — вход по email и паролю
-- `app/register/page.tsx` — регистрация по email и паролю
-- `app/forgot-password/page.tsx` — запрос ссылки восстановления
-- `app/reset-password/page.tsx` — установка нового пароля
-- `app/auth/confirm/route.ts` — подтверждение токена из email-ссылки
-- `components/ui/*` — базовые UI-компоненты в стиле shadcn
-- `app/globals.css` — токены темы из `.pen`
-
-## Product docs
-
-- `docs/online-school-product-audit-2026-03.md` — аудит текущего функционала онлайн-школы и roadmap дальнейшего развития
-- `docs/online-school-delivery-plan-2026-q2.md` — инженерный delivery-plan по спринтам: schema, API, UI, роли и тестирование
-
-## Next 16 migration status
-
-- Статус: завершено
-- Целевая версия: `next@16.2.0`
-- React: `react@19.2.x`, `react-dom@19.2.x`
-- Proxy-конвенция: `middleware.ts` заменён на `proxy.ts`
-- Lint: ESLint CLI (`eslint . --max-warnings=0`) через `eslint.config.mjs`
-- Turbopack build: подтверждён успешным `npm run build`
-
-Команды верификации:
+Статический анализ и архитектурные ограничения:
 
 ```bash
 npm run lint
-npm run build
+npm run check:architecture
 npx tsc --noEmit
+npm run build
 ```
+
+Тесты:
+
+```bash
+npm run test:unit
+npm run test:e2e
+```
+
+Полный E2E-набор может требовать тестовые учётные данные и подготовленное
+окружение. UI smoke-тесты без секретов запускаются командой:
+
+```bash
+npm run test:smoke:ui
+```
+
+Дополнительные требования и сценарии описаны в
+[документации по тестам](tests/README.md).
