@@ -33,6 +33,7 @@ Historical documents must include a visible warning:
 | Topic | Current doc | Notes |
 | --- | --- | --- |
 | Architecture and layering | `docs/architecture.md` | Root `ARCHITECTURE.md` is a short overview/pointer, not a second full source of truth. |
+| Authentication and auth rate limiting | `docs/auth-flows.md` | Current Supabase Auth flows, Redis limiter configuration, `429` contract and client countdown persistence. |
 | Current access-control model | `docs/access-control-current-state.md` | Start here for RBAC, AppActor, guards, compatibility layers, and source links. |
 | Access/security navigation | `docs/access-control/README.md` | Start here for focused RBAC, AppActor, guards, service-role, storage, RLS/RPC and verification guides. |
 | Foundational access/loading contract | `docs/foundations-access-and-loading.md` | Request-context and data-loading levels. |

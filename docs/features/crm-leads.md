@@ -3,10 +3,10 @@
 Status: current  
 Audience: engineers, sales/operations maintainers, security reviewers  
 Owner area: crm-leads  
-Last reviewed: 2026-05-25  
+Last reviewed: 2026-06-13
 Source of truth: feature summary; current code/tests remain implementation source  
 Related code: `app/(workspace)/(staff-zone)/crm/page.tsx`, `app/api/leads/route.ts`, `app/api/crm/`, `app/api/media/crm-background/route.ts`, `features/crm/`, `features/marketing/`, `lib/crm/`, `lib/media/`  
-Related tests: `tests/unit/crm-api-routes.test.ts`, `tests/unit/crm-leads-route.test.ts`, `tests/unit/crm.test.ts`, `tests/unit/crm-board-client.test.tsx`, `tests/unit/media-api-routes.test.ts`, `tests/unit/media-service.test.ts`, `tests/unit/hero-lead-modal.test.tsx`
+Related tests: `tests/unit/crm-api-routes.test.ts`, `tests/unit/crm-leads-route.test.ts`, `tests/unit/crm.test.ts`, `tests/unit/crm-board-client.test.tsx`, `tests/unit/lead-form.test.tsx`, `tests/unit/media-api-routes.test.ts`, `tests/unit/media-service.test.ts`, `tests/unit/hero-lead-modal.test.tsx`
 
 ## Overview
 
@@ -17,6 +17,7 @@ Global access rules are documented in `docs/access-control/README.md`, `docs/acc
 ## User Flows
 
 - Guest submits a lead form from the public site.
+- Guest submits the focused form from `/lp/trial-lesson`; the request includes landing identity, campaign attribution and the actual consent/audience selections.
 - Public API validates the payload and calls a narrow public lead intake RPC.
 - Staff opens `/crm`, reviews leads grouped by stage and marks new leads viewed.
 - Staff changes lead status, adds comments and updates CRM board background settings.
@@ -28,6 +29,8 @@ Global access rules are documented in `docs/access-control/README.md`, `docs/acc
 - `features/crm/components/crm-board-client.tsx` renders the board and drawer interactions.
 - `app/(workspace)/(staff-zone)/crm/loading.tsx` provides the route-level skeleton.
 - Public lead forms live under `features/marketing/`.
+- The homepage form preserves its existing defaults: `source = website`, `form_type = main_lead_form`, and no campaign tracking fields are added unless tracking is explicitly enabled by the caller.
+- The trial lesson form uses `source = trial_lesson_landing` and `form_type = trial_lesson`.
 - CRM media is served through `/api/media/crm-background` after a CRM read guard.
 
 ## APIs And Server Actions
@@ -50,6 +53,8 @@ Global access rules are documented in `docs/access-control/README.md`, `docs/acc
 Key tables/concepts:
 
 - `crm_leads`: lead identity, contact fields, status, source, metadata and viewed state.
+- Trial lesson submissions store `page_url` as the current full page URL. Their metadata includes `offer = free_intro_lesson`, `placement = lp_trial_lesson`, `audience`, `consent_personal_data`, `consent_marketing`, `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `referrer`, `landing_path` and `full_url`.
+- Missing UTM parameters and referrer are represented as `null`; submitted form values take precedence over conflicting static additional metadata for audience and consent.
 - `crm_lead_status_history`: status transitions with actor id.
 - `crm_lead_comments`: staff comments.
 - CRM settings row stores background image URL/path metadata.
@@ -78,6 +83,7 @@ Lead statuses are defined in `lib/crm/stages.ts`, including `new_request`, `not_
 ## Integrations
 
 - Public marketing forms submit to `/api/leads`.
+- `features/marketing/lib/collect-tracking-data.ts` reads UTM parameters, referrer, pathname and full URL in the browser only when a form enables tracking.
 - Supabase RPC handles public intake.
 - Supabase Storage stores CRM background assets.
 - Workspace shell/navigation exposes CRM only to users with CRM permissions.
@@ -94,6 +100,7 @@ Lead statuses are defined in `lib/crm/stages.ts`, including `new_request`, `not_
 Current focused coverage includes:
 
 - Public lead route tests.
+- Lead form tests for homepage payload compatibility, trial lesson attribution, actual form-value precedence and independent field/radio identifiers across multiple mounted forms.
 - CRM API route and service tests.
 - CRM board client tests.
 - Media route/service tests for CRM background.
@@ -107,6 +114,7 @@ Coverage gaps:
 ## Operations
 
 - If public lead intake fails, check the public RPC grant/policy state and validation payload.
+- If trial lesson attribution is missing, inspect the form's `includeTrackingData`, `source`, `formType`, `additionalMetadata` and the request payload sent to `/api/leads`.
 - If board media fails, check `crm-assets` bucket metadata, stored path and `/api/media/crm-background` permission.
 - If unread counts look wrong, inspect `viewed_at`, status and board detail open behavior.
 
